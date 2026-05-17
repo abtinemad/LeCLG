@@ -1,0 +1,6 @@
+{
+  "name": "Le collègue",
+  "description": "Une application pour décomposer les situations difficiles et cheminer vers un équilibre stable.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

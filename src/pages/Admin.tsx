@@ -1,0 +1,427 @@
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Gem } from 'lucide-react';
+import { sbGet } from '../lib/worker';
+
+interface Session {
+  id: string;
+  started_at: string;
+  ended_at?: string;
+  step_reached: number;
+  messages: any[];
+  personal_id?: string;
+  reflection_card?: {
+    fragment: string;
+    deplacement: string;
+    direction: string;
+    texture_relationnelle?: string;
+    sphere?: string;
+  };
+}
+
+interface Feedback {
+  id: string;
+  session_id: string;
+  utilite: number;
+  clarte: number;
+  posture_ok: boolean;
+  commentaire?: string;
+}
+
+interface Eclat {
+  id: string;
+  request_text: string;
+  matrice_snapshot: any;
+  elan_snapshot: any;
+  affect_snapshot: any;
+  lien_snapshot: any;
+  created_at: string;
+  personal_id: string;
+}
+
+export default function Admin() {
+  const navigate = useNavigate();
+  const [password, setPassword] = useState("");
+  const [isAuth, setIsAuth] = useState(false);
+  const [authError, setAuthError] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [eclats, setEclats] = useState<Eclat[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedEclatId, setSelectedEclatId] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'analyse' | 'eclats'>('list');
+
+  const handleAuth = async () => {
+    setLoading(true);
+    setAuthError(false);
+    try {
+      const data = await sbGet("sessions", "order=started_at.desc&limit=500", password);
+      setSessions(data);
+      const fbData = await sbGet("feedbacks", "order=created_at.desc&limit=500", password);
+      setFeedbacks(fbData);
+      try {
+        const eclatData = await sbGet("eclats", "order=created_at.desc&limit=100", password);
+        setEclats(eclatData);
+      } catch (e) {
+        console.warn("Table eclats likely missing or error fetching", e);
+        setEclats([]);
+      }
+      setIsAuth(true);
+    } catch (e) {
+      setAuthError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedSession = sessions.find(s => s.id === selectedSessionId);
+  const sessionFeedback = feedbacks.find(f => f.session_id === selectedSessionId);
+  const selectedEclat = eclats.find(e => e.id === selectedEclatId);
+
+  if (!isAuth) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-bg p-6 font-mono">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-sm bg-[#0d0c0a] border border-[#2a2820] rounded-md p-10 overflow-hidden"
+        >
+          <h1 className="font-serif text-lg text-beige mb-1.5 text-center">Le collègue</h1>
+          <p className="text-[9px] tracking-[0.12em] uppercase text-beige-faint text-center mb-10">Interface admin · Accès restreint</p>
+          <input 
+            type="password" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAuth()}
+            placeholder="Mot de passe" 
+            className="w-full bg-[#161512] border border-[#2a2820] rounded px-3 py-2.5 text-sm text-beige-dim outline-none mb-3 focus:border-beige-faint"
+          />
+          {authError && <p className="text-[9px] text-red tracking-wider mb-4 animate-pulse">Mot de passe incorrect.</p>}
+          <button 
+            onClick={handleAuth}
+            disabled={loading}
+            className="w-full bg-beige text-bg py-2.5 rounded-sm text-[9px] tracking-[0.12em] uppercase hover:bg-[#f0e0c0] transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Connexion…' : 'Accéder'}
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-screen h-dvh bg-bg text-beige-dim font-mono">
+      {/* Header */}
+      <header className="flex items-center justify-between px-8 py-5 border-b border-[#1e1d1a]">
+        <div className="flex items-center gap-6">
+          <button 
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 font-mono text-[9px] tracking-widest uppercase text-beige-faint hover:text-beige transition-colors"
+          >
+            <ArrowLeft className="w-3 h-3" /> Retour
+          </button>
+          <div className="w-[1px] h-8 bg-[#1e1d1a]" />
+          <div>
+            <div className="text-[8px] tracking-[0.2em] uppercase text-beige-faint mb-1">Psychiatrie de secteur</div>
+            <div className="font-serif text-lg text-beige">Le collègue — Admin</div>
+          </div>
+        </div>
+        <div className="flex gap-6 items-center">
+          <button 
+            onClick={() => {
+              localStorage.removeItem('lclg_guide_seen');
+              alert('Guide réinitialisé. Le serpentin apparaîtra sur la page d\'accueil.');
+              window.location.reload();
+            }}
+            className="px-3 py-1.5 border border-white/5 hover:bg-white/5 font-mono text-[8px] uppercase tracking-widest text-beige-faint hover:text-beige transition-all rounded-sm"
+          >
+            Reset Guide
+          </button>
+          <div className="w-[1px] h-8 bg-[#1e1d1a]" />
+          <div className="text-right">
+            <span className="block text-xl text-beige font-medium">{sessions.length}</span>
+            <span className="text-[8px] tracking-widest uppercase text-beige-faint">Sessions</span>
+          </div>
+          <div className="text-right">
+            <span className="block text-xl text-beige font-medium">{sessions.filter(s => s.step_reached >= 5).length}</span>
+            <span className="text-[8px] tracking-widest uppercase text-beige-faint">Complètes</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 grid grid-cols-[300px_1fr] overflow-hidden">
+        {/* Left Panel */}
+        <div className="border-r border-[#1e1d1a] overflow-y-auto">
+          <div className="sticky top-0 bg-bg px-5 py-4 border-b border-[#1e1d1a] flex items-center justify-between z-10">
+            <span className="text-[8px] tracking-widest uppercase text-beige-faint">Sessions</span>
+            <span className="text-[10px] text-[#5a5548]">{sessions.length}</span>
+          </div>
+          
+          <button 
+            onClick={() => setView('analyse')}
+            className={`w-full text-left px-5 py-3 border-b border-[#1e1d1a] text-[9px] tracking-widest uppercase transition-colors
+              ${view === 'analyse' ? 'bg-[#141210] text-beige border-l-2 border-l-beige' : 'text-beige-faint hover:bg-[#0f0e0c]'}`}
+          >
+            ↗ Analyse globale
+          </button>
+
+          <button 
+            onClick={() => { setView('eclats'); setSelectedEclatId(null); }}
+            className={`w-full text-left px-5 py-3 border-b border-[#1e1d1a] text-[9px] tracking-widest uppercase transition-colors flex items-center justify-between
+              ${view === 'eclats' ? 'bg-[#141210] text-beige border-l-2 border-l-beige' : 'text-beige-faint hover:bg-[#0f0e0c]'}`}
+          >
+            <span>✧ Éclats</span>
+            {eclats.length > 0 && <span className="bg-yellow-400/20 text-yellow-500 px-1.5 py-0.5 rounded-full text-[7px]">{eclats.length}</span>}
+          </button>
+
+          <div className="divide-y divide-[#1a1918]">
+            {view === 'eclats' ? (
+              eclats.map(e => {
+                const date = new Date(e.created_at);
+                return (
+                  <div 
+                    key={e.id}
+                    onClick={() => setSelectedEclatId(e.id)}
+                    className={`px-5 py-4 cursor-pointer transition-colors hover:bg-[#0f0e0c]
+                      ${selectedEclatId === e.id ? 'bg-[#141210] border-l-2 border-l-yellow-400' : ''}`}
+                  >
+                    <div className="text-[9px] text-yellow-400/60 tracking-wider mb-1.5 flex justify-between">
+                      <span>{date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-[7px] uppercase opacity-40 italic">Éclat</span>
+                    </div>
+                    <div className="font-serif text-xs text-[#8a8278] italic line-clamp-2">
+                       "{e.request_text}"
+                    </div>
+                  </div>
+                );
+              })
+            ) : sessions.map(s => {
+              const msgs = Array.isArray(s.messages) ? s.messages : [];
+              const firstUserMsg = msgs.find(m => m.role === 'user' && m.content !== "Bonjour, j'ai une situation à vous soumettre.");
+              const preview = firstUserMsg ? firstUserMsg.content.substring(0, 70) : "—";
+              const date = new Date(s.started_at);
+              
+              return (
+                <div 
+                  key={s.id}
+                  onClick={() => { setSelectedSessionId(s.id); setView('list'); }}
+                  className={`px-5 py-4 cursor-pointer transition-colors hover:bg-[#0f0e0c]
+                    ${selectedSessionId === s.id && view === 'list' ? 'bg-[#141210] border-l-2 border-l-beige' : ''}`}
+                >
+                  <div className="text-[9px] text-[#5a5548] tracking-wider mb-1.5">
+                    {date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  <div className="font-serif text-xs text-[#8a8278] italic line-clamp-1 mb-2.5">
+                    {preview}{preview.length > 70 ? "…" : ""}
+                  </div>
+                  <div className="flex gap-2.5 items-center">
+                    <span className="text-[8px] tracking-widest uppercase text-beige-faint">{s.step_reached}/5</span>
+                    {s.step_reached >= 5 && <span className="text-[8px] text-green tracking-wider">✓ complète</span>}
+                    {feedbacks.some(f => f.session_id === s.id) && <span className="text-[8px] text-[#4a6a88] tracking-wider">feedback</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right Panel */}
+        <div className="overflow-y-auto">
+          {view === 'analyse' ? (
+            <div className="p-8">
+               <div className="text-[8px] tracking-[0.2em] uppercase text-beige-faint border-b border-[#1e1d1a] pb-2.5 mb-8">Analyse globale</div>
+               {/* Simplified analysis for now */}
+               <div className="grid grid-cols-4 gap-4 mb-8">
+                  {[
+                    { label: "Sessions", val: sessions.length },
+                    { label: "Complétion", val: `${Math.round((sessions.filter(s => s.step_reached >= 5).length / sessions.length) * 100)}%` },
+                    { label: "Feedbacks", val: feedbacks.length },
+                    { label: "Utilité moyenne", val: feedbacks.length > 0 ? (feedbacks.reduce((a, b) => a + (b.utilite || 0), 0) / feedbacks.length).toFixed(1) : "—" },
+                    { label: "Éclats", val: eclats.length }
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-[#0d0c0a] border border-[#1e1d1a] rounded p-5">
+                      <span className="block text-2xl text-beige font-medium mb-1">{stat.val}</span>
+                      <span className="text-[8px] tracking-widest uppercase text-beige-faint">{stat.label}</span>
+                    </div>
+                  ))}
+               </div>
+            </div>
+          ) : view === 'eclats' ? (
+            selectedEclat ? (
+              <div className="p-8">
+                <div className="flex flex-wrap gap-8 mb-8 border-b border-[#1e1d1a] pb-6">
+                  <div>
+                    <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Date de demande</div>
+                    <div className="text-sm text-beige-dim">{new Date(selectedEclat.created_at).toLocaleString('fr-FR')}</div>
+                  </div>
+                  <div>
+                    <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">ID Client</div>
+                    <div className="text-sm text-beige-dim">{selectedEclat.personal_id}</div>
+                  </div>
+                  <div className="ml-auto">
+                    <button className="bg-yellow-400 text-black px-4 py-2 font-mono text-[9px] uppercase tracking-widest rounded hover:bg-yellow-300 transition-colors">
+                      Générer Réponse PDF
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mb-10">
+                  <div className="text-[8px] tracking-widest uppercase text-yellow-400/40 mb-3 ml-1">Demande spécifique</div>
+                  <div className="bg-[#141208] border border-yellow-400/10 rounded-lg p-6 font-serif italic text-lg leading-relaxed text-beige">
+                    "{selectedEclat.request_text}"
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="space-y-6">
+                    <div className="text-[8px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">Matrice Snapshot</div>
+                    {selectedEclat.matrice_snapshot ? (
+                      <div className="space-y-4">
+                        <div>
+                          <div className="text-[7px] uppercase tracking-widest text-[#F59E0B]/60 mb-2">Schéma Central</div>
+                          <div className="text-sm italic text-beige-faint leading-relaxed">"{selectedEclat.matrice_snapshot.schema_central}"</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                           {selectedEclat.matrice_snapshot.angoisses?.map((a: any, i: number) => (
+                             <div key={i} className="bg-white/5 p-3 rounded">
+                               <div className="text-[7px] uppercase opacity-40 mb-1">{a.label}</div>
+                               <div className="text-[10px] text-beige-faint">{a.manifestations?.[0]}</div>
+                             </div>
+                           ))}
+                        </div>
+                      </div>
+                    ) : <div className="text-xs italic opacity-20">Pas de snapshot disponible</div>}
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="text-[8px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">Sphères & Affects</div>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          {['Familiale', 'Sociale', 'Amoureuse', 'Professionnelle'].map(s => {
+                            const key = s.toLowerCase();
+                            const data = selectedEclat.lien_snapshot?.[s] || selectedEclat.lien_snapshot?.[key];
+                            return (
+                              <div key={s} className="bg-white/5 p-3 rounded">
+                                <div className="text-[7px] uppercase opacity-40 mb-1">{s}</div>
+                                <div className="text-[10px] text-beige-faint">{data?.teinte || '—'} ({data?.intensite}%)</div>
+                              </div>
+                            );
+                          })}
+                       </div>
+                       <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded">
+                          <div className="text-[7px] tracking-widest uppercase text-blue-400/60 mb-2">Élan (Direction)</div>
+                          <div className="text-xs italic text-beige-faint">"{selectedEclat.elan_snapshot?.direction || 'Non évalué'}"</div>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full font-serif italic text-sm text-[#2a2820]">
+                Sélectionner un Éclat pour voir les données transmises
+              </div>
+            )
+          ) : selectedSession ? (
+            <div className="p-8">
+              <div className="flex flex-wrap gap-6 mb-8 border-b border-[#1e1d1a] pb-6">
+                {[
+                  { lbl: 'Date', val: new Date(selectedSession.started_at).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) },
+                  { lbl: 'Messages', val: (selectedSession.messages || []).length },
+                  { lbl: 'Étapes', val: `${selectedSession.step_reached}/5` },
+                  { lbl: 'ID Client', val: selectedSession.personal_id || 'anonyme' }
+                ].map((m, i) => (
+                  <div key={i}>
+                    <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">{m.lbl}</div>
+                    <div className="text-sm text-beige-dim">{m.val}</div>
+                  </div>
+                ))}
+              </div>
+
+              {selectedSession.reflection_card && (
+                <div className="bg-[#0e0d08] border border-[#3a3420] rounded-lg p-6 mb-8 text-left">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="font-mono text-[8px] tracking-[0.16em] uppercase text-[#4a4028]">Carte de réflexion générée</div>
+                      {selectedSession.reflection_card.prisme && (
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 font-mono text-[7px] uppercase">
+                          <Gem className="w-2 h-2" />
+                          Prisme débloqué
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-4">
+                    <div className="border-l border-[#3a3420] pl-4 font-serif text-[12px] leading-relaxed text-[#9a8a68]">
+                      {selectedSession.reflection_card.fragment}
+                    </div>
+                    <div className="border-l border-[#3a3420] pl-4 font-serif text-[12px] leading-relaxed text-[#9a8a68]">
+                      {selectedSession.reflection_card.deplacement}
+                    </div>
+                    <div className="border-l border-[#3a3420] pl-4 font-serif text-[12px] leading-relaxed text-[#9a8a68]">
+                      {selectedSession.reflection_card.direction}
+                    </div>
+                    {selectedSession.reflection_card.texture_relationnelle && (
+                      <div className="pt-3 border-t border-[#3a3420]/30 mt-3 flex justify-between items-center">
+                        <span className="font-mono text-[8px] uppercase tracking-widest text-green/60">
+                          Résonance : {selectedSession.reflection_card.texture_relationnelle}
+                        </span>
+                        {selectedSession.reflection_card.sphere && (
+                          <span className="font-mono text-[8px] uppercase tracking-widest text-beige-faint/40">
+                            {selectedSession.reflection_card.sphere}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+              {sessionFeedback && (
+                <div className="bg-[#0d0c0a] border border-[#1e1d1a] rounded p-5 mb-8">
+                   <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-4">Feedback</div>
+                   <div className="flex gap-8 mb-4">
+                      <div>
+                        <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Utilité</div>
+                        <div className="text-lg text-green">{sessionFeedback.utilite}/5</div>
+                      </div>
+                      <div>
+                        <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Clarté</div>
+                        <div className="text-lg text-beige">{sessionFeedback.clarte}/5</div>
+                      </div>
+                      <div>
+                        <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Posture</div>
+                        <div className={`text-lg ${sessionFeedback.posture_ok ? 'text-green' : 'text-red'}`}>{sessionFeedback.posture_ok ? 'Oui' : 'Non'}</div>
+                      </div>
+                   </div>
+                   {sessionFeedback.commentaire && (
+                     <div className="font-serif italic text-xs text-[#8a8278] leading-relaxed border-t border-[#1e1d1a] pt-4">
+                       "{sessionFeedback.commentaire}"
+                     </div>
+                   )}
+                </div>
+              )}
+
+              <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-5">Transcript</div>
+              <div className="space-y-4">
+                {(selectedSession.messages || []).map((m, i) => (
+                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] p-3.5 font-serif text-[13px] leading-relaxed rounded-md border
+                      ${m.role === 'user' ? 'bg-[#1a2a1a] border-[#2a3a2a] text-[#7a9a78] italic' : 'bg-[#111008] border-[#2a2820] text-beige-dim'}`}>
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full font-serif italic text-sm text-[#2a2820]">
+              Sélectionner une session
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

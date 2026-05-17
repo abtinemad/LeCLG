@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@300;400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Lora", serif;
+  --font-mono: "DM Mono", monospace;
+
+  /* Original app colors */
+  --color-bg: #0d0c0a;
+  --color-bg-alt: #111009;
+  --color-beige: #e8d5b0;
+  --color-beige-dim: #7a7268;
+  --color-beige-faint: #3a3830;
+  --color-green: #6ba368;
+  --color-green-dim: #2a3a2a;
+  --color-red: #8a4848;
+  --color-red-dim: #2a1a1a;
+  --color-border: #1e1d1a;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-beige-dim font-serif antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-[3px];
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-bg;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-[#2a2820] rounded-sm;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Base fade-up animation */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.4s ease-out forwards;
+}
