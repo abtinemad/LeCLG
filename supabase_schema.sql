@@ -69,3 +69,19 @@ CREATE TABLE IF NOT EXISTS public.feedbacks (
 -- Enable RLS (Row Level Security) - though the proxy uses a Service Key, 
 -- it's good practice to have policies or keep it simple for now as requested.
 -- For this app's architecture, we assume the server proxy handles security.
+
+ALTER TABLE public.cartes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS cartes_isolation_policy ON public.cartes;
+CREATE POLICY cartes_isolation_policy ON public.cartes
+    FOR ALL
+    TO anon, authenticated
+    USING (personal_id = COALESCE(nullif(current_setting('app.personal_id', true), ''), current_setting('request.headers', true)::json->>'x-personal-id'))
+    WITH CHECK (personal_id = COALESCE(nullif(current_setting('app.personal_id', true), ''), current_setting('request.headers', true)::json->>'x-personal-id'));
+
+ALTER TABLE public.carnet ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS carnet_isolation_policy ON public.carnet;
+CREATE POLICY carnet_isolation_policy ON public.carnet
+    FOR ALL
+    TO anon, authenticated
+    USING (personal_id = COALESCE(nullif(current_setting('app.personal_id', true), ''), current_setting('request.headers', true)::json->>'x-personal-id'))
+    WITH CHECK (personal_id = COALESCE(nullif(current_setting('app.personal_id', true), ''), current_setting('request.headers', true)::json->>'x-personal-id'));

@@ -27,7 +27,7 @@ const CLARITES: Record<string, GuideStep[]> = {
       icon: <Brain size={14} className="text-beige" />
     }
   ],
-  'carnet-gallery': [
+  'carnet-fragments': [
     {
       id: 'gallery_intro',
       title: 'Les Fragments',
@@ -35,7 +35,7 @@ const CLARITES: Record<string, GuideStep[]> = {
       icon: <BookOpen size={14} className="text-beige" />
     }
   ],
-  'carnet-rhythm': [
+  'carnet-lien': [
     {
       id: 'rhythm_intro',
       title: 'Le Lien',
@@ -72,11 +72,11 @@ const CLARITES: Record<string, GuideStep[]> = {
 const SECTION_COLORS: Record<string, string> = {
   landing: '#E8D5B0',
   chat: '#E8D5B0',
-  'carnet-gallery': '#6ba368',
-  'carnet-rhythm': '#F59E0B',
-  'carnet-affect': '#94A3B8',
+  'carnet-fragments': '#6ba368',
+  'carnet-lien': '#EA580C',
+  'carnet-affect': '#7BA7D7',
   'carnet-elan': '#FAF9F6',
-  'carnet-matrice': '#6ba368',
+  'carnet-matrice': '#8B5CF6',
 };
 
 export type SerpentinEmotion = 'calm' | 'agitated' | 'heavy' | 'bright' | 'mysterious' | 'permanent_unlock';
@@ -118,7 +118,7 @@ const CometAnimation = ({
     if (emotion === 'permanent_unlock') {
       import('canvas-confetti').then((confetti) => {
         const end = Date.now() + (3 * 1000);
-        const colors = ['#6ba368', '#f5f5f4', '#F59E0B', '#94A3B8'];
+        const colors = ['#6ba368', '#f5f5f4', '#EA580C', '#7BA7D7'];
 
         (function frame() {
           confetti.default({
@@ -352,9 +352,16 @@ const CometAnimation = ({
   );
 };
 
-export const ClarteSection = ({ section }: { section: string }) => {
+export const ClarteSection = ({ section, forceClose }: { section: string, forceClose?: boolean }) => {
   const steps = CLARITES[section] || [];
   const [isOpen, setIsOpen] = useState(true);
+  
+  useEffect(() => {
+    if (forceClose) {
+      setIsOpen(false);
+    }
+  }, [forceClose]);
+
   const [currentStep, setCurrentStep] = useState(0);
   
   const [isRecording, setIsRecording] = useState(false);
@@ -464,7 +471,7 @@ export const ClarteSection = ({ section }: { section: string }) => {
     return (
       <button 
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-8 right-8 z-[100] p-3 rounded-full bg-bg/80 backdrop-blur-md border border-beige/10 text-beige-faint hover:text-beige transition-all shadow-xl group"
+        className="fixed top-20 right-4 md:right-8 z-[100] p-3 rounded-full bg-bg/80 backdrop-blur-md border border-beige/10 text-beige-faint hover:text-beige transition-all shadow-xl group"
       >
         <HelpCircle size={18} className="group-hover:rotate-12 transition-transform opacity-40 group-hover:opacity-100" />
       </button>
@@ -473,6 +480,8 @@ export const ClarteSection = ({ section }: { section: string }) => {
 
   const step = steps[currentStep];
 
+  if (!step) return null;
+
   const sectionColor = SECTION_COLORS[section] || '#E8D5B0';
 
   return (
@@ -480,135 +489,145 @@ export const ClarteSection = ({ section }: { section: string }) => {
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
       exit={{ opacity: 0, height: 0 }}
-      className="relative mb-8 p-8 rounded-lg border border-white/5 bg-white/[0.015] overflow-hidden group shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] min-h-[160px] flex items-center"
+      className="relative mb-4 p-5 md:p-6 rounded-lg border border-white/5 bg-white/[0.015] overflow-hidden group shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] min-h-[100px] flex flex-col justify-center"
     >
       <CometAnimation section={section} emotion={emotion} intensity={intensity} />
 
-      <div className="relative z-10 w-full">
-        <div className="flex items-start justify-between">
-          <div className="space-y-4 flex-1">
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <div className="font-mono text-[8px] tracking-[0.2em] uppercase" style={{ color: `${sectionColor}80` }}>Clarté</div>
-                <div className="h-px w-4" style={{ backgroundColor: `${sectionColor}20` }} />
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="p-0.5" style={{ color: sectionColor }}>
-                  {step.icon}
-                </div>
-                <h4 className="font-mono text-[9px] tracking-widest uppercase" style={{ color: `${sectionColor}CC` }}>{step.title}</h4>
-              </div>
+      {/* Absolute Header Controls */}
+      <div className="absolute top-3 right-3 z-20">
+        <button 
+          onClick={() => setIsOpen(false)}
+          className="p-1.5 sm:p-2 text-red-500/30 hover:text-red-500 transition-colors rounded-full hover:bg-red-500/10"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Absolute Bottom Controls */}
+      <div className="absolute bottom-4 right-4 md:bottom-5 md:right-5 z-20">
+        <button 
+          onClick={toggleRecording}
+          className={`p-2.5 sm:p-3 rounded-full border transition-all relative shadow-sm ${
+            isRecording 
+              ? 'bg-red-500/10 border-red-500/40 text-red-500' 
+              : 'bg-white/5 border-white/10 hover:border-white/20'
+          }`}
+          style={{
+            color: isRecording ? undefined : `${sectionColor}66`,
+            borderColor: isRecording ? undefined : `${sectionColor}22`,
+            backgroundColor: isRecording ? undefined : `${sectionColor}05`
+          }}
+        >
+          <Mic className="w-[14px] h-[14px] sm:w-[18px] sm:h-[18px]" />
+          {isRecording && (
+            <motion.div 
+              className="absolute inset-0 rounded-full border border-red-500"
+              initial={{ scale: 1, opacity: 1 }}
+              animate={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 1, repeat: Infinity }}
+            />
+          )}
+        </button>
+      </div>
+
+      <div className="relative z-10 w-full flex flex-col min-h-full">
+        <div className="w-full pr-8 mb-3">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <div className="font-mono text-[8px] tracking-[0.2em] uppercase" style={{ color: `${sectionColor}80` }}>Clarté</div>
+              <div className="h-px w-4" style={{ backgroundColor: `${sectionColor}20` }} />
             </div>
-
-            <AnimatePresence mode="wait">
-              {isPermanentUnlock ? (
-                <motion.div
-                  key="permanent-unlock"
-                  initial={{ opacity: 0, x: -5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="space-y-3"
-                >
-                  <p className="text-[13px] text-beige leading-relaxed font-serif italic max-w-xl">
-                    « Vous avez traversé suffisamment pour être, à votre tour, le collègue de quelqu'un. Le collègue vous appartient maintenant, sans abonnement, pour toujours. <strong>Mode Reconnaissance activé.</strong> »
-                  </p>
-                  <div className="font-mono text-[7px] tracking-[0.3em] uppercase text-green/60">
-                    L'Union des Fées Comètes
-                  </div>
-                </motion.div>
-              ) : aiResponse ? (
-                <motion.div
-                  key="ai-res"
-                  initial={{ opacity: 0, x: -5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 5 }}
-                  className="space-y-3"
-                >
-                  <p className="text-[13px] text-beige leading-relaxed font-serif italic max-w-xl">
-                    « {aiResponse} »
-                  </p>
-                  <button 
-                    onClick={() => setAiResponse(null)}
-                    className="font-mono text-[7px] tracking-widest uppercase transition-colors"
-                    style={{ color: `${sectionColor}66` }}
-                  >
-                    Revenir au guide
-                  </button>
-                </motion.div>
-              ) : isThinking ? (
-                <motion.div 
-                  key="thinking"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center gap-3"
-                  style={{ color: `${sectionColor}66` }}
-                >
-                  <Loader2 size={14} className="animate-spin" />
-                  <span className="font-mono text-[9px] tracking-widest uppercase">Écoute du Serpentin...</span>
-                </motion.div>
-              ) : (
-                <motion.p 
-                  key={step.id}
-                  initial={{ opacity: 0, x: -5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 5 }}
-                  className="text-[13px] leading-relaxed font-serif italic max-w-xl"
-                  style={{ color: `${sectionColor}EE` }}
-                >
-                  « {step.content} »
-                </motion.p>
-              )}
-            </AnimatePresence>
-
-            {!aiResponse && !isThinking && steps.length > 1 && (
-              <div className="flex gap-1.5 pt-1">
-                {steps.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setCurrentStep(idx)}
-                    className="w-1 h-1 rounded-full transition-all"
-                    style={{ 
-                      width: idx === currentStep ? '12px' : '4px',
-                      backgroundColor: idx === currentStep ? `${sectionColor}99` : `${sectionColor}22`
-                    }}
-                  />
-                ))}
+            <div className="flex items-center gap-2">
+              <div className="p-0.5" style={{ color: sectionColor }}>
+                {step.icon}
               </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-4 ml-8">
-            <button 
-              onClick={toggleRecording}
-              className={`p-3 rounded-full border transition-all relative ${
-                isRecording 
-                  ? 'bg-red-500/10 border-red-500/40 text-red-500' 
-                  : 'bg-white/5 border-white/10 hover:border-white/20'
-              }`}
-              style={{
-                color: isRecording ? undefined : `${sectionColor}66`,
-                borderColor: isRecording ? undefined : `${sectionColor}22`,
-                backgroundColor: isRecording ? undefined : `${sectionColor}05`
-              }}
-            >
-              <Mic size={18} />
-              {isRecording && (
-                <motion.div 
-                  className="absolute inset-0 rounded-full border border-red-500"
-                  initial={{ scale: 1, opacity: 1 }}
-                  animate={{ scale: 1.5, opacity: 0 }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                />
-              )}
-            </button>
-            <button 
-              onClick={() => setIsOpen(false)}
-              className="p-1 text-white/5 hover:text-white/20 transition-colors"
-            >
-              <X size={14} />
-            </button>
+              <h4 className="font-mono text-[9px] tracking-widest uppercase" style={{ color: `${sectionColor}CC` }}>{step.title}</h4>
+            </div>
           </div>
         </div>
+
+        <div className="w-full relative flex-1">
+          <AnimatePresence mode="wait">
+            {isPermanentUnlock ? (
+              <motion.div
+                key="permanent-unlock"
+                initial={{ opacity: 0, x: -5 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="w-full"
+              >
+                <div className="text-[15px] leading-relaxed font-serif italic text-pretty" style={{ color: sectionColor }}>
+                  « Vous avez traversé suffisamment pour être, à votre tour, le collègue de quelqu'un. Le collègue vous appartient maintenant, sans abonnement, pour toujours. <strong style={{ color: sectionColor }}>Mode Reconnaissance activé.</strong> »
+                  <span className="inline-block w-14 h-8 float-right invisible"></span>
+                </div>
+                <div className="font-mono text-[7px] tracking-[0.3em] uppercase mt-3" style={{ color: `${sectionColor}CC` }}>
+                  L'Union des Fées Comètes
+                </div>
+              </motion.div>
+            ) : aiResponse ? (
+              <motion.div
+                key="ai-res"
+                initial={{ opacity: 0, x: -5 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 5 }}
+                className="w-full"
+              >
+                <div className="text-[15px] leading-relaxed font-serif italic text-pretty" style={{ color: sectionColor }}>
+                  « {aiResponse} »
+                  <span className="inline-block w-14 h-8 float-right invisible"></span>
+                </div>
+                <button 
+                  onClick={() => setAiResponse(null)}
+                  className="font-mono text-[7px] tracking-widest uppercase transition-colors mt-3"
+                  style={{ color: `${sectionColor}66` }}
+                >
+                  Revenir au guide
+                </button>
+              </motion.div>
+            ) : isThinking ? (
+              <motion.div 
+                key="thinking"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center gap-3 w-full"
+                style={{ color: `${sectionColor}66` }}
+              >
+                <Loader2 size={14} className="animate-spin" />
+                <span className="font-mono text-[9px] tracking-widest uppercase">Écoute du Serpentin...</span>
+              </motion.div>
+            ) : (
+              <motion.div 
+                key={step.id}
+                initial={{ opacity: 0, x: -5 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 5 }}
+                className="w-full"
+                style={{ color: `${sectionColor}EE` }}
+              >
+                <div className="text-[15px] leading-relaxed font-serif italic text-pretty">
+                  « {step.content} »
+                  <span className="inline-block w-10 h-8 sm:w-14 float-right invisible"></span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {!aiResponse && !isThinking && steps.length > 1 && (
+          <div className="flex gap-1.5 pt-4 w-full">
+            {steps.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentStep(idx)}
+                className="w-1 h-1 rounded-full transition-all"
+                style={{ 
+                  width: idx === currentStep ? '12px' : '4px',
+                  backgroundColor: idx === currentStep ? `${sectionColor}99` : `${sectionColor}22`
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -656,11 +675,11 @@ export const PrismeExplainer = ({
                 <Gem size={22} style={{ color: color }} />
               </div>
 
-              <h3 className="text-xl font-serif italic text-beige mb-4">{title}</h3>
+              <h3 className="text-xl font-serif italic mb-4" style={{ color: color }}>{title}</h3>
               
-              <div className="w-full max-w-[200px] h-[1px] bg-gradient-to-r from-transparent via-white/5 to-transparent mb-6" />
+              <div className="w-full max-w-[200px] h-[1px] mb-6" style={{ background: `linear-gradient(to right, transparent, ${color}44, transparent)` }} />
 
-              <p className="text-[14px] text-beige-faint leading-relaxed font-serif italic mb-8">
+              <p className="text-[16px] leading-relaxed font-serif italic mb-8" style={{ color: `${color}E6` }}>
                 « {content} »
               </p>
 
@@ -668,10 +687,10 @@ export const PrismeExplainer = ({
                 onClick={onClose}
                 className="group flex flex-col items-center gap-2 transition-all"
               >
-                <div className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center group-hover:bg-white/5 transition-colors">
-                  <X size={14} className="text-beige-faint" />
+                <div className="w-8 h-8 rounded-full border border-red-500/20 flex items-center justify-center group-hover:bg-red-500/10 transition-colors">
+                  <X size={14} className="text-red-500/60" />
                 </div>
-                <span className="font-mono text-[8px] uppercase tracking-widest text-beige/20 group-hover:text-beige/40">Fermer la clarté</span>
+                <span className="font-mono text-[8px] uppercase tracking-widest text-red-500/40 group-hover:text-red-500/80">Fermer la clarté</span>
               </button>
             </div>
           </motion.div>

@@ -96,7 +96,7 @@ export default function Admin() {
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAuth()}
             placeholder="Mot de passe" 
-            className="w-full bg-[#161512] border border-[#2a2820] rounded px-3 py-2.5 text-sm text-beige-dim outline-none mb-3 focus:border-beige-faint"
+            className="w-full bg-[#161512] border border-[#2a2820] rounded px-3 py-2.5 text-[16px] text-beige-dim outline-none mb-3 focus:border-beige-faint"
           />
           {authError && <p className="text-[9px] text-red tracking-wider mb-4 animate-pulse">Mot de passe incorrect.</p>}
           <button 
@@ -280,7 +280,7 @@ export default function Admin() {
                     {selectedEclat.matrice_snapshot ? (
                       <div className="space-y-4">
                         <div>
-                          <div className="text-[7px] uppercase tracking-widest text-[#F59E0B]/60 mb-2">Schéma Central</div>
+                          <div className="text-[7px] uppercase tracking-widest text-[#EA580C]/60 mb-2">Schéma Central</div>
                           <div className="text-sm italic text-beige-faint leading-relaxed">"{selectedEclat.matrice_snapshot.schema_central}"</div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
