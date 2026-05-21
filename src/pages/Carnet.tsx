@@ -521,7 +521,7 @@ export default function Carnet() {
     let minDist = Infinity;
     let closestKey = lockedInView[0];
     for (const k of lockedInView) {
-       const res = reqs[k];
+       const res = reqs[k as string];
        let dist = 1000; // fallback high distance if not mapped
        if (res) {
           dist = 0;
