@@ -52,9 +52,11 @@ interface ReflectionRequest {
   prompt: string;
 }
 
-interface SupabaseProxyRequest {
+interface ProxyRequest {
   type: string;
-  data: any;
+  data?: any;
+  messages?: any[];
+  max_tokens?: number;
 }
 
 // Gemini AI Initialize
@@ -766,7 +768,7 @@ app.post("/api/chat", asyncHandler(async (req: Request, res: Response) => {
   const fullInstruction = `${SYSTEM_PROMPT}${resonances ? `\n\nNotes de résonance : ${resonances}` : ""}${stepInjection || ""}${diffractionExtra || ""}`;
 
   const result = await ai.models.generateContentStream({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.5-flash",
     contents: [...history, { role: 'user', parts: [{ text }] }],
     config: {
       systemInstruction: fullInstruction
@@ -791,7 +793,7 @@ app.post("/api/evaluate", asyncHandler(async (req: Request, res: Response) => {
   const { history }: EvalRequest = req.body;
 
   const result = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.5-flash",
     contents: history,
     config: { 
       systemInstruction: EVAL_SYSTEM,
@@ -806,7 +808,7 @@ app.post("/api/summarize", asyncHandler(async (req: Request, res: Response) => {
   const { prompt }: SummarizeRequest = req.body;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.5-flash",
     contents: prompt
   });
   res.json({ text: response.text });
@@ -816,7 +818,7 @@ app.post("/api/reflection", asyncHandler(async (req: Request, res: Response) => 
   const { prompt }: ReflectionRequest = req.body;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.5-flash",
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { responseMimeType: "application/json" }
   });
@@ -857,7 +859,7 @@ app.post("/api/clarte", asyncHandler(async (req: Request, res: Response) => {
   const { text, section }: { text: string; section: string } = req.body;
 
   const result = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.5-flash",
     contents: [{ role: 'user', parts: [{ text: `L'utilisateur est dans la section "${section}". Il demande : ${text}` }] }],
     config: {
       systemInstruction: CLARTE_SYSTEM,
@@ -873,12 +875,14 @@ function remapPayload(payload: any, forceUserId: boolean = false) {
   if (!payload || typeof payload !== 'object') return payload;
   const newPayload = { ...payload };
   
-  // Transition: prisme -> rune for old schemas
-  if (newPayload.prisme !== undefined) {
-    newPayload.rune = newPayload.prisme;
+  // Transition: rune -> prisme for modern schemas
+  if (newPayload.rune !== undefined) {
+    newPayload.prisme = newPayload.rune;
+    delete newPayload.rune;
   }
-  if (newPayload.prismes_unlocked !== undefined) {
-    newPayload.runes_unlocked = newPayload.prismes_unlocked;
+  if (newPayload.runes_unlocked !== undefined) {
+    newPayload.prismes_unlocked = newPayload.runes_unlocked;
+    delete newPayload.runes_unlocked;
   }
   
   // Column name fallback: personal_id <-> user_id
@@ -889,6 +893,7 @@ function remapPayload(payload: any, forceUserId: boolean = false) {
     }
   } else if (newPayload.user_id !== undefined && newPayload.personal_id === undefined) {
     newPayload.personal_id = newPayload.user_id;
+    delete newPayload.user_id;
   }
   
   return newPayload;
@@ -902,11 +907,13 @@ function remapResult(result: any): any {
   const newResult = { ...result };
   
   // Transition: rune -> prisme for result compatibility
-  if (newResult.rune !== undefined && newResult.prisme === undefined) {
-    newResult.prisme = newResult.rune;
+  if (newResult.rune !== undefined) {
+    if (newResult.prisme === undefined) newResult.prisme = newResult.rune;
+    delete newResult.rune;
   }
-  if (newResult.runes_unlocked !== undefined && newResult.prismes_unlocked === undefined) {
-    newResult.prismes_unlocked = newResult.runes_unlocked;
+  if (newResult.runes_unlocked !== undefined) {
+    if (newResult.prismes_unlocked === undefined) newResult.prismes_unlocked = newResult.runes_unlocked;
+    delete newResult.runes_unlocked;
   }
   
   // Unwrap 'data' JSONB column fields if they exist
@@ -919,8 +926,9 @@ function remapResult(result: any): any {
   }
   
   // Backwards compatibility for ID columns
-  if (newResult.user_id !== undefined && newResult.personal_id === undefined) {
-    newResult.personal_id = newResult.user_id;
+  if (newResult.user_id !== undefined) {
+    if (newResult.personal_id === undefined) newResult.personal_id = newResult.user_id;
+    delete newResult.user_id;
   }
   
   // Also recursively handle nested objects (like data or reflection_card)
@@ -933,9 +941,17 @@ function remapResult(result: any): any {
   return newResult;
 }
 
+app.get("/api/schema", asyncHandler(async (req, res) => {
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY || "";
+  const url = process.env.SUPABASE_URL || "https://REDACTED.supabase.co";
+  const r = await fetch(`${url}/rest/v1/?apikey=${serviceKey}`);
+  const json = await r.json();
+  res.json(json);
+}));
+
 // Supabase Proxy Routes (Compatibility with worker logic)
 app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
-  const { type, data }: SupabaseProxyRequest = req.body;
+  const { type, data, messages, max_tokens }: ProxyRequest = req.body;
   const serviceKey = process.env.SUPABASE_SERVICE_KEY || "";
   const adminPassword = process.env.ADMIN_PASSWORD || "";
 
@@ -947,34 +963,30 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
 
   if (type === "sb_insert") {
     try {
-      const row = await sbRequest("POST", data.table, data.payload, serviceKey, personalId);
+      // Homogenize column names FIRST to avoid retry latency (always send user_id / prisme)
+      const standardPayload = remapPayload(data.payload, true);
+      const row = await sbRequest("POST", data.table, standardPayload, serviceKey, personalId);
       return res.json({ row: row ? row[0] : null });
     } catch (e: any) {
       const isColumnErr = e.message && (e.message.includes("column") || e.message.includes("42703") || e.message.includes("PGRST204"));
       
       if (isColumnErr) {
-        console.warn(`Retrying insert on ${data.table} with remapped payload (try 1)...`);
+        console.warn(`Retrying insert on ${data.table} with direct payload...`);
         try {
-          const row = await sbRequest("POST", data.table, remapPayload(data.payload), serviceKey, personalId);
+          const row = await sbRequest("POST", data.table, data.payload, serviceKey, personalId);
           return res.json({ row: row ? row[0] : null });
         } catch (e2) {
-          console.warn(`Retrying insert on ${data.table} with forced user_id column...`);
+          console.warn(`Retrying insert on ${data.table} with wrapped data and personal_id column...`);
           try {
-            const row = await sbRequest("POST", data.table, remapPayload(data.payload, true), serviceKey, personalId);
+            const row = await sbRequest("POST", data.table, { personal_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
             return res.json({ row: row ? row[0] : null });
           } catch (e3) {
-            console.warn(`Retrying insert on ${data.table} with wrapped data and personal_id column...`);
+            console.warn(`Retrying insert on ${data.table} with wrapped data and user_id column...`);
             try {
-              const row = await sbRequest("POST", data.table, { personal_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
+              const row = await sbRequest("POST", data.table, { user_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
               return res.json({ row: row ? row[0] : null });
             } catch (e4) {
-              console.warn(`Retrying insert on ${data.table} with wrapped data and user_id column...`);
-              try {
-                const row = await sbRequest("POST", data.table, { user_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
-                return res.json({ row: row ? row[0] : null });
-              } catch (e5) {
-                throw e; // throw original
-              }
+              throw e; // throw original
             }
           }
         }
@@ -985,29 +997,26 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
 
   if (type === "sb_update") {
     try {
-      await sbRequest("PATCH", `${data.table}?id=eq.${data.id}`, data.payload, serviceKey, personalId);
+      const standardPayload = remapPayload(data.payload, true);
+      await sbRequest("PATCH", `${data.table}?id=eq.${data.id}`, standardPayload, serviceKey, personalId);
     } catch (e: any) {
       // Handle missing column or schema mismatch
       const isColumnErr = e.message && (e.message.includes("column") || e.message.includes("42703") || e.message.includes("PGRST204"));
       
       if (isColumnErr) {
-        console.warn(`Retrying update on ${data.table} with remapped payload...`);
+        console.warn(`Retrying update on ${data.table} with direct payload...`);
         try {
-          await sbRequest("PATCH", `${data.table}?id=eq.${data.id}`, remapPayload(data.payload), serviceKey, personalId);
+          await sbRequest("PATCH", `${data.table}?id=eq.${data.id}`, data.payload, serviceKey, personalId);
         } catch (e2) {
+          // If fallback also fails, try wrapped 'data' (some older versions used a 'data' column)
+          console.warn("Retrying update with wrapped 'data' due to schema mismatch...");
           try {
-            await sbRequest("PATCH", `${data.table}?id=eq.${data.id}`, remapPayload(data.payload, true), serviceKey, personalId);
+            await sbRequest("PATCH", `${data.table}?id=eq.${data.id}`, { personal_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
           } catch (e3) {
-            // If fallback also fails, try wrapped 'data' (some older versions used a 'data' column)
-            console.warn("Retrying update with wrapped 'data' due to schema mismatch...");
             try {
-              await sbRequest("PATCH", `${data.table}?id=eq.${data.id}`, { personal_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
+              await sbRequest("PATCH", `${data.table}?id=eq.${data.id}`, { user_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
             } catch (e4) {
-              try {
-                await sbRequest("PATCH", `${data.table}?id=eq.${data.id}`, { user_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
-              } catch (e5) {
-                throw e; // throw original if all fail
-              }
+              throw e; // throw original if all fail
             }
           }
         }
@@ -1020,36 +1029,91 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
 
   if (type === "sb_read") {
     const isUserTable = ["carnet", "cartes", "sessions", "feedbacks"].includes(data.table);
-    const hasPersonalIdFilter = data.params && (data.params.includes("personal_id=eq.") || data.params.includes("user_id=eq."));
-    const authorized = (data && data.password === adminPassword) || (isUserTable && hasPersonalIdFilter);
+    // Standardize query param to user_id for the first try
+    let queryParams = data.params ? data.params.replace("personal_id=eq.", "user_id=eq.") : "";
+    const hasUserIdFilter = queryParams.includes("user_id=eq.");
+    const authorized = (data && data.password === adminPassword) || (isUserTable && hasUserIdFilter);
 
     if (!authorized) return res.status(401).json({ error: "Unauthorized" });
     
-    const params = data.params ? `select=*&${data.params}` : "select=*";
+    const params = queryParams ? `select=*&${queryParams}` : "select=*";
     try {
       const result = await sbRequest("GET", `${data.table}?${params}`, null, serviceKey, personalId);
       return res.json(remapResult(result) || []);
     } catch (e: any) {
-      // Fallback: if personal_id query fails, try user_id query
+      // Fallback: if user_id query fails, try personal_id query
       const isColumnErr = e.message && (e.message.includes("column") || e.message.includes("42703") || e.message.includes("PGRST204"));
       
-      if (isColumnErr && data.params && data.params.includes("personal_id=eq.")) {
-        const fallbackParams = data.params.replace("personal_id=eq.", "user_id=eq.");
+      if (isColumnErr && queryParams.includes("user_id=eq.")) {
+        const fallbackParams = queryParams.replace("user_id=eq.", "personal_id=eq.");
         try {
           const result = await sbRequest("GET", `${data.table}?select=*&${fallbackParams}`, null, serviceKey, personalId);
           return res.json(remapResult(result) || []);
-        } catch (e2) {
+        } catch (e2: any) {
+          console.error("READ FALLBACK ERROR:", e2.message);
           return res.json([]);
         }
       }
+      console.error("READ ERROR:", e.message);
       return res.json([]);
     }
   }
 
   // AI Workers
+  const EXTERNAL_WORKER_URL = process.env.CF_WORKER_URL || "https://internal-worker.example";
+  
+  if (type === "chat") {
+    // Proxy stream to external Cloudflare Worker
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    try {
+      const response = await fetch(EXTERNAL_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "chat", messages, max_tokens })
+      });
+      
+      if (!response.body) throw new Error("No response body from worker");
+      
+      // Node.js stream pipe-like behavior using Web Streams
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        // The worker sends SSE format natively. We just pass it through.
+        res.write(decoder.decode(value, { stream: true }));
+      }
+      res.end();
+    } catch (e: any) {
+      console.error("Chat proxy error:", e.message);
+      res.write(`data: ${JSON.stringify({ delta: { text: "\n[Erreur de réseau avec l'IA]" } })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    }
+    return;
+  }
+
+  if (type === "eval") {
+    try {
+      const response = await fetch(EXTERNAL_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "eval", messages, max_tokens })
+      });
+      const data = await response.json();
+      return res.json(data);
+    } catch (e: any) {
+      console.error("Eval proxy error:", e.message);
+      return res.status(500).json({ error: "Eval proxy error" });
+    }
+  }
+
   if (type === "enrich_fragments") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { 
         systemInstruction: `Tu es un analyste silencieux. Analyse ces cartes de réflexion.
@@ -1065,7 +1129,7 @@ Retourne un JSON pur : { "mots_recurrents": ["mot1", "mot2", "mot3"], "pattern_a
 
   if (type === "enrich_lien") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { 
         systemInstruction: `Analyse ces données pour trouver la corrélation entre les Prismes (émotions) et les sphères de vie (Familiale, Sociale, Amoureuse, Professionnelle).
@@ -1079,7 +1143,7 @@ Retourne un JSON pur : { "familiale": "Dominance : [...]", "sociale": "...", "am
 
   if (type === "enrich_affect") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { 
         systemInstruction: `Analyse l'historique des dates et heures des cartes (sessions).
@@ -1094,7 +1158,7 @@ Retourne un JSON pur : { "rythme": "..." }`,
 
   if (type === "enrich_elan") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { 
         systemInstruction: `Analyse le contenu de ces cartes.
@@ -1109,7 +1173,7 @@ Retourne un JSON pur : { "clusters_recurrents": "..." }`,
 
   if (type === "enrich_matrice") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { 
         systemInstruction: `Analyse la Matrice courante et l'historique des cartes/songes.
@@ -1132,7 +1196,7 @@ Retourne un JSON pur :
 
   if (type === "eval_lien") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data.cards) }] }],
       config: { systemInstruction: EVAL_LIEN_PROMPT, responseMimeType: "application/json" }
     });
@@ -1141,7 +1205,7 @@ Retourne un JSON pur :
 
   if (type === "eval_affect") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { systemInstruction: EVAL_AFFECT_PROMPT, responseMimeType: "application/json" }
     });
@@ -1150,7 +1214,7 @@ Retourne un JSON pur :
 
   if (type === "eval_elan") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { systemInstruction: EVAL_ELAN_PROMPT, responseMimeType: "application/json" }
     });
@@ -1159,7 +1223,7 @@ Retourne un JSON pur :
 
   if (type === "eval_matrice") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { systemInstruction: METACOGNITION_SYSTEM, responseMimeType: "application/json" }
     });
@@ -1168,7 +1232,7 @@ Retourne un JSON pur :
 
   if (type === "eval_prisme") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data.card) }] }],
       config: { systemInstruction: EVAL_PRISME_PROMPT, responseMimeType: "application/json" }
     });
@@ -1177,7 +1241,7 @@ Retourne un JSON pur :
 
   if (type === "eval_lueur") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify({
         matrice: data.matrice,
         lien: data.lien,
@@ -1193,7 +1257,7 @@ Retourne un JSON pur :
 
   if (type === "eval_network") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data.cards) }] }],
       config: { systemInstruction: EVAL_NETWORK_PROMPT, responseMimeType: "application/json" }
     });
@@ -1202,7 +1266,7 @@ Retourne un JSON pur :
 
   if (type === "eclat") {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { systemInstruction: ECLAT_PROMPT }
     });
@@ -1284,7 +1348,7 @@ app.post("/api/metacognition", asyncHandler(async (req: Request, res: Response) 
 Analyse ce matériau holistique et produis la structure métacognitive demandée.`;
 
   const result = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.5-flash",
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { 
       systemInstruction: METACOGNITION_SYSTEM,

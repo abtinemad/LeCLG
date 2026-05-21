@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion } from "motion/react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -398,13 +398,150 @@ export default function Carnet() {
     );
 
     return {
-      fragments: cards.length >= 1,
-      lien: cards.length >= 2,
-      affect: cards.length >= 3,
-      elan: diffDays >= 7 && cards.length >= 2,
-      matrice: diffDays >= 30 && cards.length >= 3, // simplification for months
+      fragments: true,
+      lien: true,
+      elan: true,
+      affect: diffDays >= 3 && cards.length >= 2,
+      matrice: diffDays >= 21 && cards.length >= 5 && prismesCount >= 2,
     };
-  }, [cards]);
+  }, [cards, prismesCount]);
+
+  const unlockedBlocks = useMemo(() => {
+    const now = new Date();
+    const firstCardDate = cards.length > 0 ? new Date(cards[cards.length - 1].date) : now;
+    const diffDays = Math.floor((now.getTime() - firstCardDate.getTime()) / (1000 * 3600 * 24));
+    const uniqueDays = new Set(cards.map(c => new Date(c.date).toDateString())).size;
+    const hasSonges = cards.some(c => c.user_note && c.user_note.trim().length > 10);
+    const sessionsWithStepsCount = sessionsData.filter(s => s.step_reached !== undefined).length;
+    const songesCount = cards.filter(c => c.user_note && c.user_note.trim().length > 10).length;
+    
+    return {
+      fragments_progression: sessionsWithStepsCount >= 2,
+      fragments_relation_prismes: cards.length >= 3 && prismesCount >= 2,
+      fragments_resistances: cards.length >= 4 && uniqueDays >= 3,
+      fragments_echo: cards.length >= 5,
+      fragments_signaux: cards.length >= 5 && !!enrichFragments,
+      fragments_sillage: songesCount >= 2 && diffDays >= 7,
+
+      lien_texture: cards.length >= 3 && uniqueDays >= 2,
+      lien_correlation: cards.length >= 3 && uniqueDays >= 2 && prismesCount >= 2,
+      lien_constellation: cards.length >= 3 && uniqueDays >= 2 && prismesCount >= 3,
+      lien_structure: cards.length >= 4 && prismesCount >= 3,
+      lien_fragilite: cards.length >= 5 && prismesCount >= 3,
+      
+      affect_rythme: true,
+      affect_gradients: cards.length >= 5,
+      affect_luminescence: cards.length >= 3 && uniqueDays >= 3,
+      affect_lecture: prismesCount >= 2,
+      
+      elan_clusters: diffDays >= 7 && cards.length >= 3 && prismesCount >= 1,
+      elan_mouvement: diffDays >= 7 && cards.length >= 4 && prismesCount >= 1,
+      elan_direction: diffDays >= 7 && cards.length >= 5 && prismesCount >= 1,
+      elan_question: diffDays >= 7 && cards.length >= 6 && prismesCount >= 1,
+      
+      matrice_evolution: true,
+      matrice_validation_songes: hasSonges
+    };
+  }, [cards, prismesCount, sessionsData, enrichFragments]);
+
+  const isNextLocked = useCallback((key: keyof typeof unlockedBlocks, viewMode: "fragments" | "lien" | "affect" | "elan" | "matrice") => {
+    const viewKeys: Record<string, (keyof typeof unlockedBlocks)[]> = {
+      fragments: [
+        'fragments_progression',
+        'fragments_relation_prismes',
+        'fragments_resistances',
+        'fragments_echo',
+        'fragments_signaux',
+        'fragments_sillage'
+      ],
+      lien: [
+        'lien_texture',
+        'lien_correlation',
+        'lien_constellation',
+        'lien_structure',
+        'lien_fragilite'
+      ],
+      affect: [
+        'affect_rythme', 
+        'affect_lecture',
+        'affect_luminescence',
+        'affect_gradients'
+      ],
+      elan: [
+        'elan_clusters',
+        'elan_mouvement',
+        'elan_direction',
+        'elan_question'
+      ],
+      matrice: [
+        'matrice_evolution',
+        'matrice_validation_songes'
+      ]
+    };
+
+    const lockedInView = (viewKeys[viewMode] || []).filter(k => !unlockedBlocks[k]);
+    if (lockedInView.length === 0) return false;
+
+    const now = new Date();
+    const firstCardDate = cards.length > 0 ? new Date(cards[cards.length - 1].date) : now;
+    const diffDays = Math.floor((now.getTime() - firstCardDate.getTime()) / (1000 * 3600 * 24));
+    const uniqueDays = new Set(cards.map(c => new Date(c.date).toDateString())).size;
+    const sessionsWithStepsCount = sessionsData.filter(s => s.step_reached !== undefined).length;
+    const songesCount = cards.filter(c => c.user_note && c.user_note.trim().length > 10).length;
+    const hasSonges = songesCount > 0;
+
+    const reqs: Record<string, { c?: number; p?: number; u?: number; d?: number; s?: number; so?: number; e?: number; hs?: number }> = {
+      fragments_progression: { s: 2 },
+      fragments_relation_prismes: { c: 3, p: 2 },
+      fragments_resistances: { c: 4, u: 3 },
+      fragments_echo: { c: 5 },
+      fragments_signaux: { c: 5, e: enrichFragments ? 0 : 1 },
+      fragments_sillage: { so: 2, d: 7 },
+
+      lien_texture: { c: 3, u: 2 },
+      lien_correlation: { c: 3, u: 2, p: 2 },
+      lien_constellation: { c: 3, u: 2, p: 3 },
+      lien_structure: { c: 4, p: 3 },
+      lien_fragilite: { c: 5, p: 3 },
+
+      affect_rythme: { c: 3 },
+      affect_gradients: { c: 5 },
+      affect_luminescence: { c: 3, u: 3 },
+      affect_lecture: { p: 2 },
+
+      elan_clusters: { d: 7, c: 3, p: 1 },
+      elan_mouvement: { d: 7, c: 4, p: 1 },
+      elan_direction: { d: 7, c: 5, p: 1 },
+      elan_question: { d: 7, c: 6, p: 1 },
+
+      matrice_evolution: { hs: 0 },
+      matrice_validation_songes: { hs: hasSonges ? 0 : 1 }
+    };
+
+    let minDist = Infinity;
+    let closestKey = lockedInView[0];
+    for (const k of lockedInView) {
+       const res = reqs[k];
+       let dist = 1000; // fallback high distance if not mapped
+       if (res) {
+          dist = 0;
+          if (res.c) dist += Math.max(0, res.c - cards.length);
+          if (res.p) dist += Math.max(0, res.p - prismesCount);
+          if (res.u) dist += Math.max(0, res.u - uniqueDays);
+          if (res.d) dist += Math.max(0, res.d - diffDays);
+          if (res.s) dist += Math.max(0, res.s - sessionsWithStepsCount);
+          if (res.so) dist += Math.max(0, res.so - songesCount);
+          if (res.e) dist += res.e;
+          if (res.hs) dist += res.hs;
+       }
+       if (dist < minDist) {
+          minDist = dist;
+          closestKey = k;
+       }
+    }
+
+    return closestKey === key;
+  }, [unlockedBlocks, cards, prismesCount, sessionsData, enrichFragments]);
 
   const copyToClipboard = (text: string, section: string) => {
     if (!text) return;
@@ -501,7 +638,7 @@ export default function Carnet() {
   };
 
   useEffect(() => {
-    if (cards.length >= 2 && !lienData) {
+    if (unlockedSections.lien && !lienData) {
       runAnalysis("eval_lien", { cards }).then((data) => {
         if (data) {
           setLienData(data);
@@ -509,7 +646,7 @@ export default function Carnet() {
         }
       });
     }
-    if (cards.length >= 3 && !affectData) {
+    if (unlockedSections.affect && !affectData) {
       runAnalysis("eval_affect", {
         fragments: cards,
         lien: lienData,
@@ -604,7 +741,7 @@ export default function Carnet() {
         }
       });
     }
-    if (cards.length >= 3 && !networkData) {
+    if (cards.length >= 5 && !networkData) {
       runAnalysis("eval_network", { cards }).then((data) => {
         if (data) {
           setNetworkData(data);
@@ -613,7 +750,8 @@ export default function Carnet() {
       });
     }
 
-    if (cards.length >= 2 && !enrichFragments) {
+    const hasAnySonge = cards.some(c => c.user_note && c.user_note.trim().length > 10);
+    if (cards.length >= 3 && hasAnySonge && !enrichFragments) {
       runAnalysis("enrich_fragments", { 
          cards,
          couples_fragment_songe: cards.filter(c => c.user_note).map(c => ({ id: c.id, fragment: c.fragment, songe: c.user_note }))
@@ -1080,6 +1218,17 @@ export default function Carnet() {
     </div>
   );
 
+  const LockedBlock = ({ title, requirements }: { title: string; requirements: string }) => (
+    <div className="flex flex-col items-center justify-center p-6 text-center border border-white/5 bg-white/[0.01] rounded-lg border-dashed">
+      <div className="font-mono text-[9px] uppercase tracking-widest text-white/30 mb-2">
+        {title}
+      </div>
+      <div className="text-[8px] font-mono tracking-widest uppercase opacity-40">
+        Requis : {requirements}
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-bg text-beige-dim font-serif pt-[48px]">
       <header className="fixed top-0 left-0 right-0 border-b border-border bg-bg/90 backdrop-blur-md z-[9999]">
@@ -1255,348 +1404,6 @@ export default function Carnet() {
 
         {view === "fragments" ? (
           <div className="space-y-6">
-            {cards.length > 0 && (
-              <div className="mb-12 bg-white/[0.02] border border-white/5 p-6 md:p-8 rounded-lg space-y-12">
-                {sessionsData.filter(s => s.step_reached !== undefined).length >= 5 && (
-                  <div className="border-b border-white/5 pb-8">
-                     <div className="flex flex-col items-center">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
-                           <Activity className="w-3 h-3" />
-                           Progression dans les étapes
-                        </div>
-                        <div className="w-full max-w-xl h-24 relative flex items-end">
-                           <div className="absolute inset-0 flex flex-col justify-between">
-                              {[5,4,3,2,1].map(lvl => (
-                                 <div key={lvl} className="w-full border-t border-white/5" />
-                              ))}
-                           </div>
-                           <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={sessionsData.filter(s => s.step_reached !== undefined).map((s, idx) => ({ name: idx, step: s.step_reached }))} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                 <YAxis domain={[1, 5]} hide={true} />
-                                 <Line type="stepAfter" dataKey="step" stroke="#7BA7D7" strokeWidth={1} dot={false} isAnimationActive={false} />
-                              </LineChart>
-                           </ResponsiveContainer>
-                        </div>
-                     </div>
-                  </div>
-                )}
-                {(() => {
-                   const cardsWithSteps = cards.map(c => {
-                     const s = sessionsData.find(sess => sess.reflection_card?.id === c.id || sess.reflection_card?.date === c.date);
-                     return { prisme: c.prisme, step: s?.step_reached };
-                   }).filter(c => c.prisme && c.step !== undefined);
-                   
-                   if (cardsWithSteps.length < 10) return null;
-                   
-                   const prismeStats: Record<string, { totalStep: number; count: number }> = {};
-                   for (const c of cardsWithSteps) {
-                     if (!c.prisme) continue;
-                     if (!prismeStats[c.prisme]) {
-                       prismeStats[c.prisme] = { totalStep: 0, count: 0 };
-                     }
-                     prismeStats[c.prisme].totalStep += (c.step as number);
-                     prismeStats[c.prisme].count += 1;
-                   }
-                   
-                   const prismeAverages = Object.entries(prismeStats)
-                     .map(([prisme, stats]) => ({ prisme, avg: stats.totalStep / stats.count }));
-                     
-                   if (prismeAverages.length < 2) return null;
-                   prismeAverages.sort((a, b) => b.avg - a.avg);
-                   
-                   const highest = prismeAverages[0];
-                   const lowest = prismeAverages[prismeAverages.length - 1];
-                   
-                   if (highest.avg - lowest.avg < 0.5) return null;
-                   
-                   const article = (p: string) => {
-                     const lower = p.toLowerCase();
-                     if (['honneur','honte','joie','tristesse','colère','peur','confiance','surprise','mélancolie'].includes(lower)) return `la ${p}`;
-                     if (['anticipation'].includes(lower)) return `l'${p}`;
-                     if (['dégoût'].includes(lower)) return `le ${p}`;
-                     return `la ${p}`; 
-                   };
-
-                   return (
-                      <div className="border-b border-white/5 pb-8 mb-8 space-y-4 text-center mt-8">
-                         <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
-                           <Activity className="w-3 h-3" />
-                           Relation Prismes / Étapes
-                         </div>
-                         <div className="flex flex-col items-center max-w-xl mx-auto space-y-4">
-                            <div className="font-serif italic text-[14px] text-beige-faint leading-relaxed border-l-2 border-white/5 pl-4 text-left w-full">
-                               Observation : Les sessions marquées par {article(highest.prisme)} semblent aller plus loin dans le cheminement.
-                            </div>
-                            <div className="font-serif italic text-[14px] text-beige-faint leading-relaxed border-l-2 border-white/5 pl-4 text-left w-full">
-                               Observation : Les sessions marquées par {article(lowest.prisme)} s'arrêtent plus tôt. Ce n'est pas un échec — c'est ce que ce signal permet pour l'instant.
-                            </div>
-                         </div>
-                      </div>
-                   );
-                })()}
-
-                {(() => {
-                   const depObs = (() => {
-                      const spheres = cards.map(c => c.sphere).filter(Boolean);
-                      if (spheres.length < 5) return null;
-                      const emptyWords = ['je ne sais pas', "rien n'a bougé", "je suis resté", "difficile à dire", "rien", "ne sais pas", "aucun"];
-                      const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-                      let sphereSeq: Record<string, number> = {};
-                      let foundSphere = null;
-                      for (const c of chronological) {
-                         if (!c.sphere) continue;
-                         const d = (c.deplacement || '').toLowerCase().trim();
-                         const words = d.split(/\s+/).filter(w => w.length > 0);
-                         if (words.length < 5 || emptyWords.some(ew => d.includes(ew))) {
-                            sphereSeq[c.sphere] = (sphereSeq[c.sphere] || 0) + 1;
-                            if (sphereSeq[c.sphere] >= 3) { foundSphere = c.sphere; break; }
-                         } else {
-                            sphereSeq[c.sphere] = 0;
-                         }
-                      }
-                      return foundSphere ? <div className="font-mono text-[7px] italic text-white/20">Quelque chose résiste au déplacement dans cette sphère.</div> : null;
-                   })();
-
-                   const songesObs = (() => {
-                      if (cards.length < 10) return null;
-                      const missing = cards.filter(c => !c.user_note || c.user_note.trim() === '').length;
-                      return (missing / cards.length > 0.6) ? <div className="font-mono text-[7px] italic text-white/20">La plupart de vos fragments n'ont pas de Songe déposé. L'espace est là.</div> : null;
-                   })();
-
-                   const prismesObs = (() => {
-                      if (cards.length < 10) return null;
-                      const missing = cards.filter(c => !c.prisme).length;
-                      return (missing / cards.length > 0.4) ? <div className="font-mono text-[7px] italic text-white/20">Certaines sessions n'ont pas laissé de signal émotionnel détectable. Ce qui est diffus ou défendu laisse moins de trace.</div> : null;
-                   })();
-
-                   if (!depObs && !songesObs && !prismesObs) return null;
-
-                   return (
-                      <div className="border-b border-white/5 pb-8 space-y-2 text-center flex flex-col items-center">
-                         {depObs}
-                         {songesObs}
-                         {prismesObs}
-                      </div>
-                   );
-                })()}
-                {!loading && enrichFragments && enrichFragments.mots_recurrents && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-b border-white/5 pb-8">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-center md:justify-start gap-2 mb-4">
-                        <div className="w-1 h-1 rounded-full bg-green" />
-                        <div className="font-mono text-[9px] uppercase tracking-widest text-green">
-                          Signaux lexicaux
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap justify-center md:justify-start gap-2">
-                        {(enrichFragments.mots_recurrents as string[]).map((mot, i) => (
-                          <span
-                            key={i}
-                            className="text-[12px] font-serif italic text-beige bg-green/5 px-2.5 py-1 rounded-sm border border-green/10"
-                          >
-                            {mot}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    {enrichFragments.pattern_arret && (
-                      <div className="flex-1 md:border-l border-white/5 md:pl-8 flex flex-col justify-center text-center md:text-left">
-                        <div className="flex items-center justify-center md:justify-start gap-2 mb-3">
-                          <div className="w-1 h-1 rounded-full bg-green" />
-                          <div className="font-mono text-[9px] uppercase tracking-widest text-green/60">
-                            Pattern de clôture
-                          </div>
-                        </div>
-                        <div className="text-[14px] font-serif italic text-beige-faint leading-relaxed">
-                          {enrichFragments.pattern_arret}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 text-center items-start">
-                  <div className="flex flex-col items-center">
-                    <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
-                       <Feather className="w-3 h-3" />
-                       Écho lexical des fragments
-                    </div>
-                    <div className="flex flex-wrap justify-center items-baseline gap-x-6 gap-y-4 max-w-sm">
-                      {(() => {
-                         const stopWords = new Set(['le','la','les','un','une','des','et','ou','mais','donc','car','ni','est','sont','que','qu','qui','quoi','je','tu','il','elle','nous','vous','ils','elles','mon','ton','son','ma','ta','sa','mes','tes','ses','notre','votre','leur','nos','vos','leurs','de','du','au','aux','à','en','pour','par','sur','sous','avec','sans','dans','ce','cet','cette','ces','pas','plus','très','trop','tout','tous','toute','toutes','être','avoir','faire','comme','y','ne','se','me','te','cette','vers','dont', 'bien', 'fait', 'plus', 'quand']);
-                         const wordCounts: Record<string, number> = {};
-                         cards.forEach(c => {
-                           const t = `${c.fragment || ''} ${c.deplacement || ''} ${c.direction || ''}`;
-                           const words = t.toLowerCase().replace(/[.,!?;:()’']/g, ' ').split(/\s+/);
-                           words.forEach(w => {
-                             if (w.length > 3 && !stopWords.has(w)) {
-                               wordCounts[w] = (wordCounts[w] || 0) + 1;
-                             }
-                           });
-                         });
-                         const sorted = Object.entries(wordCounts).sort((a,b) => b[1] - a[1]).slice(0, 30);
-                         if (sorted.length === 0) return <div className="text-[11px] text-white/20 italic font-mono uppercase">Pas encore assez de résonance</div>;
-                         const maxC = sorted[0][1];
-                         return sorted.map(([w, c], idx) => {
-                             const size = Math.max(0.85, 0.85 + (c / maxC) * 1.5);
-                             const opacity = Math.max(0.3, (c / maxC));
-                             return (
-                               <span key={idx} style={{ fontSize: `${size}rem`, opacity }} className="font-serif italic text-beige transition-all duration-500 hover:opacity-100 hover:text-white cursor-default">
-                                 {w}
-                               </span>
-                             )
-                         })
-                      })()}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-center">
-                    <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
-                       <Waves className="w-3 h-3" />
-                       Sillage sémantique des Songes
-                    </div>
-                    {(() => {
-                      const tensionWords = ['coincé', 'bloqué', 'pression', 'peur', 'fatigue', 'lourd', 'sombre', 'vide', 'dur', 'impossible', 'seul', 'perte', 'jamais', 'rien'];
-                      const openWords = ['souffle', 'libre', 'espace', 'calme', 'clair', 'léger', 'mouvement', 'aller', 'faire', 'possible', 'lien', 'voir', 'mieux', 'envie', 'besoin'];
-                      
-                      const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).filter(c => c.user_note);
-                      if (chronological.length < 3) return <div className="text-[11px] text-white/20 italic font-mono uppercase text-center mt-4">Pas assez de songes déposés dans le temps</div>;
-                      
-                      const firstHalf = chronological.slice(0, Math.ceil(chronological.length/2));
-                      const secondHalf = chronological.slice(Math.ceil(chronological.length/2));
-                      
-                      let t1=0, o1=0, t2=0, o2=0;
-                      firstHalf.forEach(c => {
-                         const w = (c.user_note||'').toLowerCase();
-                         tensionWords.forEach(t => { if(w.includes(t)) t1++; });
-                         openWords.forEach(o => { if(w.includes(o)) o1++; });
-                      });
-                      secondHalf.forEach(c => {
-                         const w = (c.user_note||'').toLowerCase();
-                         tensionWords.forEach(t => { if(w.includes(t)) t2++; });
-                         openWords.forEach(o => { if(w.includes(o)) o2++; });
-                      });
-                      
-                      if (t1+o1+t2+o2 === 0) return <div className="text-[11px] text-white/20 italic font-mono uppercase text-center">Peu de mots de charge détectés</div>;
-
-                      const tensionRatio1 = t1+o1 > 0 ? t1/(t1+o1) : 0.5;
-                      const tensionRatio2 = t2+o2 > 0 ? t2/(t2+o2) : 0.5;
-                      
-                      let observation = "Équilibre sémantique stable.";
-                      if (tensionRatio2 < tensionRatio1 - 0.15) observation = "Glissement lexical : de la tension vers l'ouverture.";
-                      if (tensionRatio2 > tensionRatio1 + 0.15) observation = "Glissement lexical : le sillage s'alourdit.";
-                      
-                      return (
-                         <div className="flex flex-col items-center gap-6 w-full max-w-[200px]">
-                           <div className="flex justify-between w-full text-[9px] font-mono uppercase opacity-50">
-                             <span>Tension</span>
-                             <span>Ouverture</span>
-                           </div>
-                           <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden flex relative">
-                              <div className="absolute top-0 bottom-0 w-[1px] bg-white/20 z-10" style={{left: `${tensionRatio1*100}%`}} title="Tension initiale" />
-                              <motion.div initial={{width:0}} animate={{width:`${tensionRatio2*100}%`}} className="h-full bg-orange-500/80" transition={{duration:1}} />
-                              <motion.div initial={{width:0}} animate={{width:`${(1-tensionRatio2)*100}%`}} className="h-full bg-blue-400/80" transition={{duration:1}} />
-                           </div>
-                           <div className="font-serif italic text-[14px] text-beige-faint leading-relaxed">
-                             Observation : {observation}
-                           </div>
-                         </div>
-                      )
-                    })()}
-                  </div>
-                </div>
-
-                {affectData?.texture_croisee && affectData.texture_croisee.length > 0 && (
-                   <div className="border-t border-white/5 pt-8 text-center pb-8">
-                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
-                       <Waves className="w-3 h-3" />
-                       Texture relationnelle croisée
-                     </div>
-                     <div className="space-y-4 max-w-xl mx-auto flex flex-col items-center">
-                        {affectData.texture_croisee.map((obs: string, idx: number) => (
-                           <div key={idx} className="font-serif italic text-[14px] text-beige-faint leading-relaxed border-l-2 border-white/5 pl-3 text-left">
-                              Observation : {obs}
-                           </div>
-                        ))}
-                     </div>
-                   </div>
-                )}
-                <div className="grid md:grid-cols-2 gap-12 border-t border-white/5 pt-8">
-                  <div className="flex flex-col items-center text-center">
-                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
-                       <Waves className="w-3 h-3" />
-                       Évolution de la texture
-                     </div>
-                     {(() => {
-                        const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).filter(c => c.texture_relationnelle);
-                        if (chronological.length < 3) return <div className="text-[10px] font-mono italic opacity-40">Observation en cours de sédimentation.</div>;
-                        
-                        const tWords = ['tendu', 'pression', 'lourd', 'difficile', 'coincé', 'peur', 'dur', 'sombre', 'bloqué'];
-                        const oWords = ['calme', 'fluide', 'doux', 'léger', 'apaisé', 'clair', 'ouvert', 'bien', 'souffle'];
-                        
-                        const firstHalf = chronological.slice(0, Math.ceil(chronological.length/2));
-                        const secondHalf = chronological.slice(Math.ceil(chronological.length/2));
-                        
-                        let t1=0, o1=0, t2=0, o2=0;
-                        firstHalf.forEach(c => {
-                           const w = c.texture_relationnelle!.toLowerCase();
-                           tWords.forEach(t => { if(w.includes(t)) t1++; });
-                           oWords.forEach(o => { if(w.includes(o)) o1++; });
-                        });
-                        secondHalf.forEach(c => {
-                           const w = c.texture_relationnelle!.toLowerCase();
-                           tWords.forEach(t => { if(w.includes(t)) t2++; });
-                           oWords.forEach(o => { if(w.includes(o)) o2++; });
-                        });
-                        
-                        let direction = "La texture relationnelle maintient sa densité.";
-                        if (t1 > o1 && o2 > t2) direction = "Observation : Évolution notable vers l'apaisement.";
-                        if (o1 >= t1 && t2 > o2) direction = "Observation : La résonance se fait plus tendue au fil du temps.";
-                        if (t1 > o1 && t2 > o2) direction = "Observation : La tension reste ancrée dans la structure.";
-                        if (o1 >= t1 && o2 >= t2) direction = "Observation : Le calme caractérise ce mouvement continu.";
-                        
-                        return <div className="font-serif italic text-beige-faint text-[13px]">{direction}</div>;
-                     })()}
-                  </div>
-                  
-                  <div className="flex flex-col items-center text-center">
-                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
-                       <Orbit className="w-3 h-3" />
-                       Amplitude du mouvement
-                     </div>
-                     {(() => {
-                        const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).filter(c => c.deplacement);
-                        if (chronological.length < 3) return <div className="text-[10px] font-mono italic opacity-40">Observation en cours de sédimentation.</div>;
-                        
-                        const surfaceWords = ['peu', 'léger', 'surface', 'détail', 'quotidien'];
-                        const depthWords = ['fond', 'profond', 'racine', 'structure', 'bouleverse', 'grand', 'vaste'];
-                        
-                        let s1=0, d1=0, s2=0, d2=0;
-                        const firstHalf = chronological.slice(0, Math.ceil(chronological.length/2));
-                        const secondHalf = chronological.slice(Math.ceil(chronological.length/2));
-                        
-                        firstHalf.forEach(c => {
-                           const w = c.deplacement!.toLowerCase();
-                           surfaceWords.forEach(t => { if(w.includes(t)) s1++; });
-                           depthWords.forEach(o => { if(w.includes(o)) d1++; });
-                        });
-                        secondHalf.forEach(c => {
-                           const w = c.deplacement!.toLowerCase();
-                           surfaceWords.forEach(t => { if(w.includes(t)) s2++; });
-                           depthWords.forEach(o => { if(w.includes(o)) d2++; });
-                        });
-                        
-                        let amplitude = "Les déplacements maintiennent une amplitude mesurée.";
-                        if (d2 > d1) amplitude = "Observation : Le mouvement s'approfondit et touche aux fondations.";
-                        if (d1 === 0 && d2 === 0) amplitude = "Observation : Le mouvement reste dans un registre quotidien.";
-                        
-                        return <div className="font-serif italic text-beige-faint text-[13px]">{amplitude}</div>;
-                     })()}
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="grid md:grid-cols-2 gap-6">
               {loading ? (
                 <div className="col-span-2 text-center py-20 font-mono text-[9px] uppercase tracking-widest opacity-40">
@@ -1786,231 +1593,384 @@ export default function Carnet() {
                 })
               )}
             </div>
+
+            {cards.length > 0 && (
+              <div className="mt-12 bg-white/[0.02] border border-[#FCFBF4]/40 shadow-[0_0_15px_rgba(252,251,244,0.15)] p-6 md:p-8 rounded-lg space-y-12">
+                {unlockedBlocks.fragments_progression ? (
+                  <div className="border-b border-white/5 pb-8">
+                     <div className="flex flex-col items-center">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                           <Activity className="w-3 h-3" />
+                           Progression dans les étapes
+                        </div>
+                        <div className="w-full max-w-xl h-24 relative flex items-end">
+                           <div className="absolute inset-0 flex flex-col justify-between">
+                              {[5,4,3,2,1].map(lvl => (
+                                 <div key={lvl} className="w-full border-t border-white/5" />
+                              ))}
+                           </div>
+                           <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={sessionsData.filter(s => s.step_reached !== undefined).map((s, idx) => ({ name: idx, step: s.step_reached }))} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                 <YAxis domain={[1, 5]} hide={true} />
+                                 <Line type="stepAfter" dataKey="step" stroke="#7BA7D7" strokeWidth={1} dot={false} isAnimationActive={false} />
+                              </LineChart>
+                           </ResponsiveContainer>
+                        </div>
+                     </div>
+                  </div>
+                ) : isNextLocked('fragments_progression', 'fragments') && (
+                  <div className="border-b border-white/5 pb-8 flex flex-col items-center">
+                    <div className="w-full max-w-sm"><LockedBlock title="Progression dans les étapes" requirements="2 sessions" /></div>
+                  </div>
+                )}
+                
+                {unlockedBlocks.fragments_relation_prismes ? (() => {
+                   const cardsWithSteps = cards.map(c => {
+                     const s = sessionsData.find(sess => sess.reflection_card?.id === c.id || sess.reflection_card?.date === c.date);
+                     return { prisme: c.prisme, step: s?.step_reached };
+                   }).filter(c => c.prisme && c.step !== undefined);
+                   
+                   const prismeStats: Record<string, { totalStep: number; count: number }> = {};
+                   for (const c of cardsWithSteps) {
+                     if (!c.prisme) continue;
+                     if (!prismeStats[c.prisme]) {
+                       prismeStats[c.prisme] = { totalStep: 0, count: 0 };
+                     }
+                     prismeStats[c.prisme].totalStep += (c.step as number);
+                     prismeStats[c.prisme].count += 1;
+                   }
+                   
+                   const prismeAverages = Object.entries(prismeStats)
+                     .map(([prisme, stats]) => ({ prisme, avg: stats.totalStep / stats.count }));
+                     
+                   if (prismeAverages.length < 2) return <div className="border-b border-white/5 pb-8 mb-8 text-center text-[11px] text-white/20 italic font-mono uppercase">Pas assez de diversité affective</div>;
+                   prismeAverages.sort((a, b) => b.avg - a.avg);
+                   
+                   const highest = prismeAverages[0];
+                   const lowest = prismeAverages[prismeAverages.length - 1];
+                   
+                   if (highest.avg - lowest.avg < 0.5) return <div className="border-b border-white/5 pb-8 mb-8 text-center text-[11px] text-white/20 italic font-mono uppercase">Aucune corrélation nette détectée (écarts &lt; 0.5)</div>;
+                   
+                   const article = (p: string) => {
+                     const lower = p.toLowerCase();
+                     if (['honneur','honte','joie','tristesse','colère','peur','confiance','surprise','mélancolie'].includes(lower)) return `la ${p}`;
+                     if (['anticipation'].includes(lower)) return `l'${p}`;
+                     if (['dégoût'].includes(lower)) return `le ${p}`;
+                     return `la ${p}`; 
+                   };
+
+                   return (
+                      <div className="border-b border-white/5 pb-8 mb-8 space-y-4 text-center mt-8">
+                         <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                           <Activity className="w-3 h-3" />
+                           Relation Prismes / Étapes
+                         </div>
+                         <div className="flex flex-col items-center max-w-xl mx-auto space-y-4">
+                            <div className="font-serif italic text-[14px] text-beige-faint leading-relaxed border-l-2 border-white/5 pl-4 text-left w-full">
+                               Observation : Les sessions marquées par {article(highest.prisme)} semblent aller plus loin dans le cheminement.
+                            </div>
+                            <div className="font-serif italic text-[14px] text-beige-faint leading-relaxed border-l-2 border-white/5 pl-4 text-left w-full">
+                               Observation : Les sessions marquées par {article(lowest.prisme)} s'arrêtent plus tôt. Ce n'est pas un échec — c'est ce que ce signal permet pour l'instant.
+                            </div>
+                         </div>
+                      </div>
+                   );
+                })() : isNextLocked('fragments_relation_prismes', 'fragments') && (
+                  <div className="border-b border-white/5 pb-8 mb-8 flex flex-col items-center mt-8">
+                    <div className="w-full max-w-sm"><LockedBlock title="Relation Prismes / Étapes" requirements="3 fragments + 2 prismes conscients distincts" /></div>
+                  </div>
+                )}
+
+                {unlockedBlocks.fragments_resistances ? (() => {
+                   const depObs = (() => {
+                      const spheres = cards.map(c => c.sphere).filter(Boolean);
+                      const emptyWords = ['je ne sais pas', "rien n'a bougé", "je suis resté", "difficile à dire", "rien", "ne sais pas", "aucun"];
+                      const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                      let sphereSeq: Record<string, number> = {};
+                      let foundSphere = null;
+                      for (const c of chronological) {
+                         if (!c.sphere) continue;
+                         const d = (c.deplacement || '').toLowerCase().trim();
+                         const words = d.split(/\s+/).filter(w => w.length > 0);
+                         if (words.length < 5 || emptyWords.some(ew => d.includes(ew))) {
+                            sphereSeq[c.sphere] = (sphereSeq[c.sphere] || 0) + 1;
+                            if (sphereSeq[c.sphere] >= 3) { foundSphere = c.sphere; break; }
+                         } else {
+                            sphereSeq[c.sphere] = 0;
+                         }
+                      }
+                      return foundSphere ? <div className="font-mono text-[7px] italic text-white/20">Quelque chose résiste au déplacement dans cette sphère.</div> : null;
+                   })();
+
+                   const songesObs = (() => {
+                      const missing = cards.filter(c => !c.user_note || c.user_note.trim() === '').length;
+                      return (missing / cards.length > 0.6) ? <div className="font-mono text-[7px] italic text-white/20">La plupart de vos fragments n'ont pas de Songe déposé. L'espace est là.</div> : null;
+                   })();
+
+                   const prismesObs = (() => {
+                      const missing = cards.filter(c => !c.prisme).length;
+                      return (missing / cards.length > 0.4) ? <div className="font-mono text-[7px] italic text-white/20">Certaines sessions n'ont pas laissé de signal émotionnel détectable. Ce qui est diffus ou défendu laisse moins de trace.</div> : null;
+                   })();
+
+                   if (!depObs && !songesObs && !prismesObs) return null;
+
+                   return (
+                      <div className="border-b border-white/5 pb-8 space-y-2 text-center flex flex-col items-center">
+                         {depObs}
+                         {songesObs}
+                         {prismesObs}
+                      </div>
+                   );
+                })() : isNextLocked('fragments_resistances', 'fragments') && (
+                  <div className="border-b border-white/5 pb-8 mb-8 flex flex-col items-center">
+                    <div className="w-full max-w-sm"><LockedBlock title="Résistances et blancs" requirements="4 fragments + 3 jours différents" /></div>
+                  </div>
+                )}
+                {unlockedBlocks.fragments_signaux ? (
+                  !loading && enrichFragments && enrichFragments.mots_recurrents && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-b border-white/5 pb-8">
+                      <div className="flex-1">
+                        <div className="flex items-center justify-center md:justify-start gap-2 mb-4">
+                          <div className="w-1 h-1 rounded-full bg-green" />
+                          <div className="font-mono text-[9px] uppercase tracking-widest text-green">
+                            Signaux lexicaux
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                          {(enrichFragments.mots_recurrents as string[]).map((mot, i) => (
+                            <span
+                              key={i}
+                              className="text-[12px] font-serif italic text-beige bg-green/5 px-2.5 py-1 rounded-sm border border-green/10"
+                            >
+                              {mot}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      {enrichFragments.pattern_arret && (
+                        <div className="flex-1 md:border-l border-white/5 md:pl-8 flex flex-col justify-center text-center md:text-left">
+                          <div className="flex items-center justify-center md:justify-start gap-2 mb-3">
+                            <div className="w-1 h-1 rounded-full bg-green" />
+                            <div className="font-mono text-[9px] uppercase tracking-widest text-green/60">
+                              Pattern de clôture
+                            </div>
+                          </div>
+                          <div className="text-[14px] font-serif italic text-beige-faint leading-relaxed">
+                            {enrichFragments.pattern_arret}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                ) : isNextLocked('fragments_signaux', 'fragments') && (
+                  <div className="border-b border-white/5 pb-8 flex flex-col items-center">
+                    <div className="w-full max-w-sm"><LockedBlock title="Signaux & Pattern lexicaux" requirements="5 fragments + Analyse de fond active" /></div>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 text-center items-start pt-4">
+                  <div className="flex flex-col items-center">
+                    {unlockedBlocks.fragments_echo ? (
+                      <>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                           <Feather className="w-3 h-3" />
+                           Écho lexical des fragments
+                        </div>
+                        <div className="flex flex-wrap justify-center items-baseline gap-x-6 gap-y-4 max-w-sm">
+                          {(() => {
+                             const stopWords = new Set(['le','la','les','un','une','des','et','ou','mais','donc','car','ni','est','sont','que','qu','qui','quoi','je','tu','il','elle','nous','vous','ils','elles','mon','ton','son','ma','ta','sa','mes','tes','ses','notre','votre','leur','nos','vos','leurs','de','du','au','aux','à','en','pour','par','sur','sous','avec','sans','dans','ce','cet','cette','ces','pas','plus','très','trop','tout','tous','toute','toutes','être','avoir','faire','comme','y','ne','se','me','te','cette','vers','dont', 'bien', 'fait', 'plus', 'quand']);
+                             const wordCounts: Record<string, number> = {};
+                             cards.forEach(c => {
+                               const t = `${c.fragment || ''} ${c.deplacement || ''} ${c.direction || ''}`;
+                               const words = t.toLowerCase().replace(/[.,!?;:()’']/g, ' ').split(/\s+/);
+                               words.forEach(w => {
+                                 if (w.length > 3 && !stopWords.has(w)) {
+                                   wordCounts[w] = (wordCounts[w] || 0) + 1;
+                                 }
+                               });
+                             });
+                             const sorted = Object.entries(wordCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
+                             if (sorted.length === 0) return <div className="text-[11px] text-white/20 italic font-mono uppercase">Pas encore assez de résonance</div>;
+                             const maxC = sorted[0][1];
+                             return sorted.map(([w, c], idx) => {
+                                 const size = Math.max(0.85, 0.85 + (c / maxC) * 1.5);
+                                 const opacity = Math.max(0.3, (c / maxC));
+                                 return (
+                                   <span key={idx} style={{ fontSize: `${size}rem`, opacity }} className="font-serif italic text-beige transition-all duration-500 hover:opacity-100 hover:text-white cursor-default">
+                                     {w}
+                                   </span>
+                                 )
+                             })
+                          })()}
+                        </div>
+                      </>
+                    ) : isNextLocked('fragments_echo', 'fragments') && (
+                      <div className="w-full max-w-sm"><LockedBlock title="Écho lexical" requirements="5 fragments" /></div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col items-center">
+                    {unlockedBlocks.fragments_sillage ? (
+                      <>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                           <Waves className="w-3 h-3" />
+                           Sillage sémantique des Songes
+                        </div>
+                        {(() => {
+                          const tensionWords = ['coincé', 'bloqué', 'pression', 'peur', 'fatigue', 'lourd', 'sombre', 'vide', 'dur', 'impossible', 'seul', 'perte', 'jamais', 'rien'];
+                          const openWords = ['souffle', 'libre', 'espace', 'calme', 'clair', 'léger', 'mouvement', 'aller', 'faire', 'possible', 'lien', 'voir', 'mieux', 'envie', 'besoin'];
+                          
+                          const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).filter(c => c.user_note && c.user_note.trim().length > 10);
+                          
+                          const firstHalf = chronological.slice(0, Math.ceil(chronological.length/2));
+                          const secondHalf = chronological.slice(Math.ceil(chronological.length/2));
+                          
+                          let t1=0, o1=0, t2=0, o2=0;
+                          firstHalf.forEach(c => {
+                             const w = (c.user_note||'').toLowerCase();
+                             tensionWords.forEach(t => { if(w.includes(t)) t1++; });
+                             openWords.forEach(o => { if(w.includes(o)) o1++; });
+                          });
+                          secondHalf.forEach(c => {
+                             const w = (c.user_note||'').toLowerCase();
+                             tensionWords.forEach(t => { if(w.includes(t)) t2++; });
+                             openWords.forEach(o => { if(w.includes(o)) o2++; });
+                          });
+                          
+                          if (t1+o1+t2+o2 === 0) return <div className="text-[11px] text-white/20 italic font-mono uppercase text-center mt-4">Peu de mots de charge détectés</div>;
+
+                          const tensionRatio1 = t1+o1 > 0 ? t1/(t1+o1) : 0.5;
+                      const tensionRatio2 = t2+o2 > 0 ? t2/(t2+o2) : 0.5;
+                      
+                      let observation = "Équilibre sémantique stable.";
+                      if (tensionRatio2 < tensionRatio1 - 0.15) observation = "Glissement lexical : de la tension vers l'ouverture.";
+                      if (tensionRatio2 > tensionRatio1 + 0.15) observation = "Glissement lexical : le sillage s'alourdit.";
+                      
+                      return (
+                         <div className="flex flex-col items-center gap-6 w-full max-w-[200px]">
+                           <div className="flex justify-between w-full text-[9px] font-mono uppercase opacity-50">
+                             <span>Tension</span>
+                             <span>Ouverture</span>
+                           </div>
+                           <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden flex relative">
+                              <div className="absolute top-0 bottom-0 w-[1px] bg-white/20 z-10" style={{left: `${tensionRatio1*100}%`}} title="Tension initiale" />
+                              <motion.div initial={{width:0}} animate={{width:`${tensionRatio2*100}%`}} className="h-full bg-orange-500/80" transition={{duration:1}} />
+                              <motion.div initial={{width:0}} animate={{width:`${(1-tensionRatio2)*100}%`}} className="h-full bg-blue-400/80" transition={{duration:1}} />
+                           </div>
+                           <div className="font-serif italic text-[14px] text-beige-faint leading-relaxed">
+                             Observation : {observation}
+                           </div>
+                         </div>
+                      )
+                    })()}
+                  </>
+                ) : isNextLocked('fragments_sillage', 'fragments') && (
+                  <div className="w-full max-w-sm"><LockedBlock title="Sillage sémantique des Songes" requirements="2 songes remplis + 7 jours" /></div>
+                )}
+                  </div>
+                </div>
+
+                {affectData?.texture_croisee && affectData.texture_croisee.length > 0 && (
+                   <div className="border-t border-white/5 pt-8 text-center pb-8">
+                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                       <Waves className="w-3 h-3" />
+                       Texture relationnelle croisée
+                     </div>
+                     <div className="space-y-4 max-w-xl mx-auto flex flex-col items-center">
+                        {affectData.texture_croisee.map((obs: string, idx: number) => (
+                           <div key={idx} className="font-serif italic text-[14px] text-beige-faint leading-relaxed border-l-2 border-white/5 pl-3 text-left">
+                              Observation : {obs}
+                           </div>
+                        ))}
+                     </div>
+                   </div>
+                )}
+                <div className="grid md:grid-cols-2 gap-12 border-t border-white/5 pt-8">
+                  <div className="flex flex-col items-center text-center">
+                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                       <Waves className="w-3 h-3" />
+                       Évolution de la texture
+                     </div>
+                     {(() => {
+                        const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).filter(c => c.texture_relationnelle);
+                        if (chronological.length < 3) return <div className="text-[10px] font-mono italic opacity-40">Observation en cours de sédimentation.</div>;
+                        
+                        const tWords = ['tendu', 'pression', 'lourd', 'difficile', 'coincé', 'peur', 'dur', 'sombre', 'bloqué'];
+                        const oWords = ['calme', 'fluide', 'doux', 'léger', 'apaisé', 'clair', 'ouvert', 'bien', 'souffle'];
+                        
+                        const firstHalf = chronological.slice(0, Math.ceil(chronological.length/2));
+                        const secondHalf = chronological.slice(Math.ceil(chronological.length/2));
+                        
+                        let t1=0, o1=0, t2=0, o2=0;
+                        firstHalf.forEach(c => {
+                           const w = c.texture_relationnelle!.toLowerCase();
+                           tWords.forEach(t => { if(w.includes(t)) t1++; });
+                           oWords.forEach(o => { if(w.includes(o)) o1++; });
+                        });
+                        secondHalf.forEach(c => {
+                           const w = c.texture_relationnelle!.toLowerCase();
+                           tWords.forEach(t => { if(w.includes(t)) t2++; });
+                           oWords.forEach(o => { if(w.includes(o)) o2++; });
+                        });
+                        
+                        let direction = "La texture relationnelle maintient sa densité.";
+                        if (t1 > o1 && o2 > t2) direction = "Observation : Évolution notable vers l'apaisement.";
+                        if (o1 >= t1 && t2 > o2) direction = "Observation : La résonance se fait plus tendue au fil du temps.";
+                        if (t1 > o1 && t2 > o2) direction = "Observation : La tension reste ancrée dans la structure.";
+                        if (o1 >= t1 && o2 >= t2) direction = "Observation : Le calme caractérise ce mouvement continu.";
+                        
+                        return <div className="font-serif italic text-beige-faint text-[13px]">{direction}</div>;
+                     })()}
+                  </div>
+                  
+                  <div className="flex flex-col items-center text-center">
+                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                       <Orbit className="w-3 h-3" />
+                       Amplitude du mouvement
+                     </div>
+                     {(() => {
+                        const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).filter(c => c.deplacement);
+                        if (chronological.length < 3) return <div className="text-[10px] font-mono italic opacity-40">Observation en cours de sédimentation.</div>;
+                        
+                        const surfaceWords = ['peu', 'léger', 'surface', 'détail', 'quotidien'];
+                        const depthWords = ['fond', 'profond', 'racine', 'structure', 'bouleverse', 'grand', 'vaste'];
+                        
+                        let s1=0, d1=0, s2=0, d2=0;
+                        const firstHalf = chronological.slice(0, Math.ceil(chronological.length/2));
+                        const secondHalf = chronological.slice(Math.ceil(chronological.length/2));
+                        
+                        firstHalf.forEach(c => {
+                           const w = c.deplacement!.toLowerCase();
+                           surfaceWords.forEach(t => { if(w.includes(t)) s1++; });
+                           depthWords.forEach(o => { if(w.includes(o)) d1++; });
+                        });
+                        secondHalf.forEach(c => {
+                           const w = c.deplacement!.toLowerCase();
+                           surfaceWords.forEach(t => { if(w.includes(t)) s2++; });
+                           depthWords.forEach(o => { if(w.includes(o)) d2++; });
+                        });
+                        
+                        let amplitude = "Les déplacements maintiennent une amplitude mesurée.";
+                        if (d2 > d1) amplitude = "Observation : Le mouvement s'approfondit et touche aux fondations.";
+                        if (d1 === 0 && d2 === 0) amplitude = "Observation : Le mouvement reste dans un registre quotidien.";
+                        
+                        return <div className="font-serif italic text-beige-faint text-[13px]">{amplitude}</div>;
+                     })()}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : view === "lien" ? (
           <div className="space-y-12 animate-fade-up max-w-4xl mx-auto">
             {!unlockedSections.lien ? (
               <LockedSection
                 title="Lien"
-                requirements="Minimum 2 fragments sédimentés"
+                requirements="Toujours visible"
                 icon={Heart}
               />
             ) : lienData ? (
               <>
-                <div className="mb-12 bg-white/[0.02] border border-white/5 p-6 md:p-8 rounded-lg space-y-12">
-                  <div className="flex flex-col md:flex-row gap-12">
-                    <div className="flex-1 space-y-8">
-                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2">
-                         <Network className="w-3 h-3" />
-                         Texture & Dissociation
-                       </div>
-                       
-                       {/* DISSOCIATION DETECTION */}
-                       {(() => {
-                          const spherePrismes = { familiale:0, sociale:0, amoureuse:0, professionnelle:0 };
-                          const sphereSongesCount = { familiale:0, sociale:0, amoureuse:0, professionnelle:0 };
-                          
-                          cards.forEach(c => {
-                             if (c.prisme && c.sphere) {
-                                const s = c.sphere.toLowerCase() as keyof typeof spherePrismes;
-                                if (spherePrismes[s] !== undefined) spherePrismes[s]++;
-                             }
-                          });
-                          
-                          Object.keys(sphereSonges).forEach(k => {
-                             const s = k.toLowerCase() as keyof typeof sphereSongesCount;
-                             if (sphereSongesCount[s] !== undefined && sphereSonges[k] && sphereSonges[k].trim().length > 10) {
-                                sphereSongesCount[s] += sphereSonges[k].length;
-                             }
-                          });
-                          
-                          const maxPrismeSphere = Object.keys(spherePrismes).reduce((a,b) => spherePrismes[a as keyof typeof spherePrismes] > spherePrismes[b as keyof typeof spherePrismes] ? a : b) as keyof typeof spherePrismes;
-                          const maxSongeSphere = Object.keys(sphereSongesCount).reduce((a,b) => sphereSongesCount[a as keyof typeof sphereSongesCount] > sphereSongesCount[b as keyof typeof sphereSongesCount] ? a : b) as keyof typeof sphereSongesCount;
-                          
-                          if (spherePrismes[maxPrismeSphere] > 3 && 
-                              sphereSongesCount[maxSongeSphere] > 50 && 
-                              maxPrismeSphere !== maxSongeSphere && 
-                              sphereSongesCount[maxPrismeSphere] < 20) {
-                              return (
-                                 <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-sm">
-                                    <div className="font-serif italic text-[14px] text-beige-faint">
-                                      Observation : Déplacement de l'attention. Sédimentation affective focalisée sur la sphère <span className="text-white/80">{maxPrismeSphere}</span>, mais élaboration de fond orientée vers la sphère <span className="text-white/80">{maxSongeSphere}</span>.
-                                    </div>
-                                 </div>
-                              );
-                          }
-                          return null;
-                       })()}
-
-                       {/* CORRELATION TEXTURE / SPHERE & MOTS / PRISMES */}
-                       <div className="grid grid-cols-2 gap-6">
-                         {["familiale", "sociale", "amoureuse", "professionnelle"].map(key => {
-                             const textureCount = { tendu: 0, calme: 0 };
-                             cards.filter(c => (c.sphere||'').toLowerCase() === key).forEach(c => {
-                                 const t = (c.texture_relationnelle||'').toLowerCase();
-                                 if(t.includes('tendu') || t.includes('pression') || t.includes('bloqué') || t.includes('lourd') || t.includes('peur') || t.includes('difficile') || t.includes('dur')) textureCount.tendu++;
-                                 if(t.includes('calme') || t.includes('apaisé') || t.includes('doux') || t.includes('fluide') || t.includes('léger') || t.includes('bien')) textureCount.calme++;
-                             });
-                             
-                             let obsT = null;
-                             if (textureCount.tendu > textureCount.calme + 1) obsT = "Texture y est tendue";
-                             if (textureCount.calme > textureCount.tendu + 1) obsT = "Texture majoritairement apaisée";
-                             
-                             const sSonge = (sphereSonges[key] || sphereSonges[key.charAt(0).toUpperCase() + key.slice(1)] || "").toLowerCase();
-                             const tensionWords = ['coincé', 'bloqué', 'pression', 'peur', 'fatigue', 'lourd', 'seul', 'dur', 'sombre', 'impossible'];
-                             let hasTension = tensionWords.some(w => sSonge.includes(w));
-                             
-                             const thisSpherePrismes = cards.filter(c => (c.sphere||'').toLowerCase() === key && c.prisme).map(c => c.prisme);
-                             const tensionPrismes = ['colere', 'peur', 'tristesse', 'degout', 'honte'];
-                             
-                             let hasTensionPrisme = thisSpherePrismes.some(p => tensionPrismes.includes(p as string));
-                             let hasOpenPrisme = thisSpherePrismes.some(p => ['joie', 'confiance', 'anticipation', 'surprise'].includes(p as string));
-                             
-                             let obsM = null;
-                             if (hasTension && hasTensionPrisme) obsM = "Mots & Prismes : Charge confirmée";
-                             if (hasTension && hasOpenPrisme) obsM = "Lourdeur résiduelle vs affect ouvert";
-
-                             if (!obsT && !obsM) return null;
-                             
-                             return (
-                               <div key={key} className="space-y-1">
-                                 <div className="font-mono text-[8px] uppercase text-[#EA580C]/50 tracking-widest">{key}</div>
-                                 <div className="font-serif italic text-beige-faint text-[12px] opacity-80 leading-snug">
-                                   {obsT && <div>• {obsT}</div>}
-                                   {obsM && <div>• {obsM}</div>}
-                                 </div>
-                               </div>
-                             );
-                         })}
-                       </div>
-                    </div>
-                    
-                    <div className="flex-1 space-y-8 md:border-l border-white/5 md:pl-12">
-                       {/* CONSTELLATION DES PRISMES - SVG */}
-                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2">
-                         <Orbit className="w-3 h-3" />
-                         Constellation des Prismes
-                       </div>
-                       {(() => {
-                          const validCards = cards.filter(c => c.prisme && c.sphere);
-                          if (validCards.length < 5) return <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas assez de données sédimentées</div>;
-
-                          const SPHERES = [
-                            { id: 'familiale', label: 'Familiale', color: '#F59E0B', angle: 225 },
-                            { id: 'sociale', label: 'Sociale', color: '#8B5CF6', angle: 315 },
-                            { id: 'amoureuse', label: 'Amoureuse', color: '#F472B6', angle: 45 },
-                            { id: 'professionnelle', label: 'Professionnelle', color: '#94A3B8', angle: 135 }
-                          ];
-
-                          const EMOTION_LAYOUT: Record<string, {rOffset: number, aOffset: number}> = {
-                            joie: { rOffset: -20, aOffset: -30 }, tristesse: { rOffset: 10, aOffset: -25 }, colere: { rOffset: -5, aOffset: -15 },
-                            peur: { rOffset: 25, aOffset: -5 }, degout: { rOffset: -30, aOffset: 5 }, surprise: { rOffset: 15, aOffset: 15 },
-                            confiance: { rOffset: -10, aOffset: 25 }, anticipation: { rOffset: 20, aOffset: 35 }, honte: { rOffset: 0, aOffset: -40 },
-                            melancolie: { rOffset: 0, aOffset: 40 }, envie: { rOffset: -15, aOffset: 45 }, soulagement: { rOffset: -25, aOffset: 20 },
-                            gratitude: { rOffset: 5, aOffset: 50 }, jalousie: { rOffset: 10, aOffset: -35 }, amour: { rOffset: 30, aOffset: -20 },
-                            culpabilite: { rOffset: 20, aOffset: -50 }
-                          };
-
-                          const EMOTION_COLORS: Record<string, string> = {
-                            joie:'#FACC15', tristesse:'#60A5FA', colere:'#F87171', peur:'#A78BFA', degout:'#A3E635', surprise:'#FB923C',
-                            confiance:'#34D399', anticipation:'#FDBA74', honte:'#C084FC', melancolie:'#93C5FD', envie:'#86EFAC',
-                            soulagement:'#6EE7B7', gratitude:'#FDE047', jalousie:'#BEF264', amour:'#F9A8D4', culpabilite:'#D8B4FE'
-                          };
-
-                          const grouped = validCards.reduce((acc, card) => {
-                             const key = `${card.sphere}-${card.prisme}`;
-                             if (!acc[key]) acc[key] = { sphere: card.sphere, prisme: card.prisme, count: 0 };
-                             acc[key].count++;
-                             return acc;
-                          }, {} as Record<string, any>);
-
-                          const cx = 150, cy = 150, baseRadius = 80;
-                          const points: any[] = [];
-                          const lines: any[] = [];
-                          
-                          Object.values(grouped).forEach((g: any) => {
-                             const sp = SPHERES.find(s => s.id === g.sphere?.toLowerCase());
-                             if (!sp) return;
-                             const el = EMOTION_LAYOUT[g.prisme?.toLowerCase()] || { rOffset: (Math.random()-0.5)*40, aOffset: (Math.random()-0.5)*40 };
-                             
-                             const r = baseRadius + el.rOffset;
-                             const a = (sp.angle + el.aOffset) * (Math.PI / 180);
-                             
-                             const px = cx + r * Math.cos(a);
-                             const py = cy + r * Math.sin(a);
-                             const size = Math.max(3, Math.min(10, g.count * 1.5));
-                             const eCol = EMOTION_COLORS[g.prisme?.toLowerCase()] || '#ffffff';
-                             
-                             points.push({ x: px, y: py, size, color: eCol, label: g.prisme, count: g.count });
-                             lines.push({ x1: cx, y1: cy, x2: px, y2: py, color: sp.color });
-                          });
-
-                          return (
-                            <div className="w-full flex justify-center">
-                              <svg width="300" height="300" viewBox="0 0 300 300" className="overflow-visible">
-                                 <circle cx={cx} cy={cy} r="2" fill="#fff" opacity="0.5" />
-                                 <circle cx={cx} cy={cy} r={baseRadius} fill="none" stroke="#ffffff10" strokeDasharray="2 4" />
-                                 <circle cx={cx} cy={cy} r={baseRadius+40} fill="none" stroke="#ffffff05" strokeDasharray="1 6" />
-                                 
-                                 {SPHERES.map(s => {
-                                    const tx = cx + (baseRadius + 60) * Math.cos(s.angle * Math.PI/180);
-                                    const ty = cy + (baseRadius + 60) * Math.sin(s.angle * Math.PI/180);
-                                    return (
-                                      <text key={s.id} x={tx} y={ty} fill={s.color} className="font-mono text-[7px] uppercase" textAnchor="middle" alignmentBaseline="middle" opacity="0.8">
-                                        {s.label}
-                                      </text>
-                                    )
-                                 })}
-
-                                 {lines.map((l, idx) => (
-                                    <motion.line key={`l-${idx}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth="1" strokeOpacity="0.15" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, delay: 0.5 }} />
-                                 ))}
-
-                                 {points.map((p, idx) => (
-                                    <motion.g key={`p-${idx}`} className="group cursor-default" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", delay: 0.2 + idx * 0.05 }}>
-                                       <circle cx={p.x} cy={p.y} r={p.size} fill={p.color} />
-                                       <circle cx={p.x} cy={p.y} r={p.size * 2} fill="transparent" />
-                                       <g className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                          <text x={p.x + 8} y={p.y - 8} fill={p.color} className="font-mono text-[8px] uppercase" style={{ textShadow: "0px 1px 3px rgba(0,0,0,1)" }}>
-                                            {p.label} <tspan fill="#fff">×{p.count}</tspan>
-                                          </text>
-                                       </g>
-                                    </motion.g>
-                                 ))}
-                              </svg>
-                            </div>
-                          );
-                       })()}
-                    </div>
-                  </div>
-                  
-                  {enrichLien && Object.keys(enrichLien).some(k => enrichLien[k] && enrichLien[k] !== "Aucun signal clair" && k !== "rythme") && (
-                    <div className="pt-8 border-t border-white/5">
-                      <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] mb-6 inline-flex items-center gap-2">
-                        <Waves className="w-3 h-3" />
-                        Topographie des affects
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-6 md:gap-8">
-                        {["Familiale", "Sociale", "Amoureuse", "Professionnelle"].map((s, i) => {
-                          const key = s.toLowerCase();
-                          const val = enrichLien[s] || enrichLien[key];
-                          if (!val || val === "Aucun signal clair") return null;
-                          return (
-                            <div key={i} className="space-y-2">
-                              <div className="text-[9px] font-mono uppercase opacity-70" style={{ color: "#EA580C" }}>
-                                {s}
-                              </div>
-                              <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
-                                {val}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
                 {/* Lien Graphique */}
                 <div className="mb-12 h-[300px] w-full max-w-lg mx-auto relative group flex flex-col items-center justify-center">
                   <div className="absolute inset-0 bg-[#EA580C]/5 blur-2xl rounded-full -z-10 group-hover:bg-[#EA580C]/10 transition-colors" />
@@ -2180,16 +2140,254 @@ export default function Carnet() {
                     },
                   )}
                 </div>
-                <div className="py-12 border-t border-white/5 text-center mt-12">
-                  <div className="font-mono text-[8px] uppercase tracking-[0.5em] text-white/20 mb-4">
-                    Structure Invisible
+                {unlockedBlocks.lien_structure ? (
+                  <div className="py-12 border-t border-white/5 text-center mt-12">
+                    <div className="font-mono text-[8px] uppercase tracking-[0.5em] text-white/20 mb-4">
+                      Structure Invisible
+                    </div>
+                    <p className="text-xl md:text-2xl font-serif italic text-beige leading-relaxed max-w-2xl mx-auto">
+                      "{lienData.relief}"
+                    </p>
+                    <p className="mt-8 font-mono text-[9px] uppercase tracking-widest text-beige-faint italic opacity-40">
+                      Avant le mouvement, avant la pensée.
+                    </p>
                   </div>
-                  <p className="text-xl md:text-2xl font-serif italic text-beige leading-relaxed max-w-2xl mx-auto">
-                    "{lienData.relief}"
-                  </p>
-                  <p className="mt-8 font-mono text-[9px] uppercase tracking-widest text-beige-faint italic opacity-40">
-                    Avant le mouvement, avant la pensée.
-                  </p>
+                ) : isNextLocked('lien_structure', 'lien') && (
+                  <div className="py-12 border-t border-white/5 text-center mt-12 flex justify-center">
+                     <div className="w-full max-w-sm"><LockedBlock title="Structure Invisible" requirements="4 fragments + 3 prismes" /></div>
+                  </div>
+                )}
+
+                <div className="mt-12 bg-white/[0.02] border border-[#FCFBF4]/40 shadow-[0_0_15px_rgba(252,251,244,0.15)] p-6 md:p-8 rounded-lg space-y-12">
+                  <div className="flex flex-col md:flex-row gap-12">
+                    <div className="flex-1 space-y-8">
+                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2">
+                         <Network className="w-3 h-3" />
+                         Texture & Dissociation
+                       </div>
+                       
+                       {/* DISSOCIATION DETECTION */}
+                       {unlockedBlocks.lien_texture ? (
+                         (() => {
+                            const spherePrismes = { familiale:0, sociale:0, amoureuse:0, professionnelle:0 };
+                            const sphereSongesCount = { familiale:0, sociale:0, amoureuse:0, professionnelle:0 };
+                            
+                            cards.forEach(c => {
+                               if (c.prisme && c.sphere) {
+                                  const s = c.sphere.toLowerCase() as keyof typeof spherePrismes;
+                                  if (spherePrismes[s] !== undefined) spherePrismes[s]++;
+                               }
+                            });
+                            
+                            Object.keys(sphereSonges).forEach(k => {
+                               const s = k.toLowerCase() as keyof typeof sphereSongesCount;
+                               if (sphereSongesCount[s] !== undefined && sphereSonges[k] && sphereSonges[k].trim().length > 10) {
+                                  sphereSongesCount[s] += sphereSonges[k].length;
+                               }
+                            });
+                            
+                            const maxPrismeSphere = Object.keys(spherePrismes).reduce((a,b) => spherePrismes[a as keyof typeof spherePrismes] > spherePrismes[b as keyof typeof spherePrismes] ? a : b) as keyof typeof spherePrismes;
+                            const maxSongeSphere = Object.keys(sphereSongesCount).reduce((a,b) => sphereSongesCount[a as keyof typeof sphereSongesCount] > sphereSongesCount[b as keyof typeof sphereSongesCount] ? a : b) as keyof typeof sphereSongesCount;
+                            
+                            if (spherePrismes[maxPrismeSphere] > 3 && 
+                                sphereSongesCount[maxSongeSphere] > 50 && 
+                                maxPrismeSphere !== maxSongeSphere && 
+                                sphereSongesCount[maxPrismeSphere] < 20) {
+                                return (
+                                   <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-sm">
+                                      <div className="font-serif italic text-[14px] text-beige-faint">
+                                        Observation : Déplacement de l'attention. Sédimentation affective focalisée sur la sphère <span className="text-white/80">{maxPrismeSphere}</span>, mais élaboration de fond orientée vers la sphère <span className="text-white/80">{maxSongeSphere}</span>.
+                                      </div>
+                                   </div>
+                                );
+                            }
+                            return <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas de dissociation majeure détectée</div>;
+                         })()
+                       ) : isNextLocked('lien_texture', 'lien') && (
+                         <LockedBlock title="Texture & Dissociation" requirements="3 fragments + 2 jours" />
+                       )}
+
+                       {/* CORRELATION TEXTURE / SPHERE & MOTS / PRISMES */}
+                       {unlockedBlocks.lien_correlation ? (
+                         <div className="grid grid-cols-2 gap-6 pt-4 border-t border-white/5 mt-4">
+                           {["familiale", "sociale", "amoureuse", "professionnelle"].map(key => {
+                               const textureCount = { tendu: 0, calme: 0 };
+                               cards.filter(c => (c.sphere||'').toLowerCase() === key).forEach(c => {
+                                   const t = (c.texture_relationnelle||'').toLowerCase();
+                                   if(t.includes('tendu') || t.includes('pression') || t.includes('bloqué') || t.includes('lourd') || t.includes('peur') || t.includes('difficile') || t.includes('dur')) textureCount.tendu++;
+                                   if(t.includes('calme') || t.includes('apaisé') || t.includes('doux') || t.includes('fluide') || t.includes('léger') || t.includes('bien')) textureCount.calme++;
+                               });
+                               
+                               let obsT = null;
+                               if (textureCount.tendu > textureCount.calme + 1) obsT = "Texture y est tendue";
+                               if (textureCount.calme > textureCount.tendu + 1) obsT = "Texture majoritairement apaisée";
+                               
+                               const sSonge = (sphereSonges[key] || sphereSonges[key.charAt(0).toUpperCase() + key.slice(1)] || "").toLowerCase();
+                               const tensionWords = ['coincé', 'bloqué', 'pression', 'peur', 'fatigue', 'lourd', 'seul', 'dur', 'sombre', 'impossible'];
+                               let hasTension = tensionWords.some(w => sSonge.includes(w));
+                               
+                               const thisSpherePrismes = cards.filter(c => (c.sphere||'').toLowerCase() === key && c.prisme).map(c => c.prisme);
+                               const tensionPrismes = ['colere', 'peur', 'tristesse', 'degout', 'honte'];
+                               
+                               let hasTensionPrisme = thisSpherePrismes.some(p => tensionPrismes.includes(p as string));
+                               let hasOpenPrisme = thisSpherePrismes.some(p => ['joie', 'confiance', 'anticipation', 'surprise'].includes(p as string));
+                               
+                               let obsM = null;
+                               if (hasTension && hasTensionPrisme) obsM = "Mots & Prismes : Charge confirmée";
+                               if (hasTension && hasOpenPrisme) obsM = "Lourdeur résiduelle vs affect ouvert";
+
+                               if (!obsT && !obsM) return null;
+                               
+                               return (
+                                 <div key={key} className="space-y-1">
+                                   <div className="font-mono text-[8px] uppercase text-[#EA580C]/50 tracking-widest">{key}</div>
+                                   <div className="font-serif italic text-beige-faint text-[12px] opacity-80 leading-snug">
+                                     {obsT && <div>• {obsT}</div>}
+                                     {obsM && <div>• {obsM}</div>}
+                                   </div>
+                                 </div>
+                               );
+                           })}
+                         </div>
+                       ) : isNextLocked('lien_correlation', 'lien') && (
+                         <div className="mt-4"><LockedBlock title="Corrélation Texture / Prismes" requirements="3 fragments + 2 jours + 2 prismes" /></div>
+                       )}
+                    </div>
+                    
+                    <div className="flex-1 space-y-8 md:border-l border-white/5 md:pl-12">
+                       {/* CONSTELLATION DES PRISMES - SVG */}
+                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2">
+                         <Orbit className="w-3 h-3" />
+                         Constellation des Prismes
+                       </div>
+                       {unlockedBlocks.lien_constellation ? (
+                         (() => {
+                            const validCards = cards.filter(c => c.prisme && c.sphere);
+                            if (validCards.length < 5) return <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas assez de données sédimentées</div>;
+
+                            const SPHERES = [
+                            { id: 'familiale', label: 'Familiale', color: '#F59E0B', angle: 225 },
+                            { id: 'sociale', label: 'Sociale', color: '#8B5CF6', angle: 315 },
+                            { id: 'amoureuse', label: 'Amoureuse', color: '#F472B6', angle: 45 },
+                            { id: 'professionnelle', label: 'Professionnelle', color: '#94A3B8', angle: 135 }
+                          ];
+
+                          const EMOTION_LAYOUT: Record<string, {rOffset: number, aOffset: number}> = {
+                            joie: { rOffset: -20, aOffset: -30 }, tristesse: { rOffset: 10, aOffset: -25 }, colere: { rOffset: -5, aOffset: -15 },
+                            peur: { rOffset: 25, aOffset: -5 }, degout: { rOffset: -30, aOffset: 5 }, surprise: { rOffset: 15, aOffset: 15 },
+                            confiance: { rOffset: -10, aOffset: 25 }, anticipation: { rOffset: 20, aOffset: 35 }, honte: { rOffset: 0, aOffset: -40 },
+                            melancolie: { rOffset: 0, aOffset: 40 }, envie: { rOffset: -15, aOffset: 45 }, soulagement: { rOffset: -25, aOffset: 20 },
+                            gratitude: { rOffset: 5, aOffset: 50 }, jalousie: { rOffset: 10, aOffset: -35 }, amour: { rOffset: 30, aOffset: -20 },
+                            culpabilite: { rOffset: 20, aOffset: -50 }
+                          };
+
+                          const EMOTION_COLORS: Record<string, string> = {
+                            joie:'#FACC15', tristesse:'#60A5FA', colere:'#F87171', peur:'#A78BFA', degout:'#A3E635', surprise:'#FB923C',
+                            confiance:'#34D399', anticipation:'#FDBA74', honte:'#C084FC', melancolie:'#93C5FD', envie:'#86EFAC',
+                            soulagement:'#6EE7B7', gratitude:'#FDE047', jalousie:'#BEF264', amour:'#F9A8D4', culpabilite:'#D8B4FE'
+                          };
+
+                          const grouped = validCards.reduce((acc, card) => {
+                             const key = `${card.sphere}-${card.prisme}`;
+                             if (!acc[key]) acc[key] = { sphere: card.sphere, prisme: card.prisme, count: 0 };
+                             acc[key].count++;
+                             return acc;
+                          }, {} as Record<string, any>);
+
+                          const cx = 150, cy = 150, baseRadius = 80;
+                          const points: any[] = [];
+                          const lines: any[] = [];
+                          
+                          Object.values(grouped).forEach((g: any) => {
+                             const sp = SPHERES.find(s => s.id === g.sphere?.toLowerCase());
+                             if (!sp) return;
+                             const el = EMOTION_LAYOUT[g.prisme?.toLowerCase()] || { rOffset: (Math.random()-0.5)*40, aOffset: (Math.random()-0.5)*40 };
+                             
+                             const r = baseRadius + el.rOffset;
+                             const a = (sp.angle + el.aOffset) * (Math.PI / 180);
+                             
+                             const px = cx + r * Math.cos(a);
+                             const py = cy + r * Math.sin(a);
+                             const size = Math.max(3, Math.min(10, g.count * 1.5));
+                             const eCol = EMOTION_COLORS[g.prisme?.toLowerCase()] || '#ffffff';
+                             
+                             points.push({ x: px, y: py, size, color: eCol, label: g.prisme, count: g.count });
+                             lines.push({ x1: cx, y1: cy, x2: px, y2: py, color: sp.color });
+                          });
+
+                          return (
+                            <div className="w-full flex justify-center">
+                              <svg width="300" height="300" viewBox="0 0 300 300" className="overflow-visible">
+                                 <circle cx={cx} cy={cy} r="2" fill="#fff" opacity="0.5" />
+                                 <circle cx={cx} cy={cy} r={baseRadius} fill="none" stroke="#ffffff10" strokeDasharray="2 4" />
+                                 <circle cx={cx} cy={cy} r={baseRadius+40} fill="none" stroke="#ffffff05" strokeDasharray="1 6" />
+                                 
+                                 {SPHERES.map(s => {
+                                    const tx = cx + (baseRadius + 60) * Math.cos(s.angle * Math.PI/180);
+                                    const ty = cy + (baseRadius + 60) * Math.sin(s.angle * Math.PI/180);
+                                    return (
+                                      <text key={s.id} x={tx} y={ty} fill={s.color} className="font-mono text-[7px] uppercase" textAnchor="middle" alignmentBaseline="middle" opacity="0.8">
+                                        {s.label}
+                                      </text>
+                                    )
+                                 })}
+
+                                 {lines.map((l, idx) => (
+                                    <motion.line key={`l-${idx}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth="1" strokeOpacity="0.15" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, delay: 0.5 }} />
+                                 ))}
+
+                                 {points.map((p, idx) => (
+                                    <motion.g key={`p-${idx}`} className="group cursor-default" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", delay: 0.2 + idx * 0.05 }}>
+                                       <circle cx={p.x} cy={p.y} r={p.size} fill={p.color} />
+                                       <circle cx={p.x} cy={p.y} r={p.size * 2} fill="transparent" />
+                                       <g className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                          <text x={p.x + 8} y={p.y - 8} fill={p.color} className="font-mono text-[8px] uppercase" style={{ textShadow: "0px 1px 3px rgba(0,0,0,1)" }}>
+                                            {p.label} <tspan fill="#fff">×{p.count}</tspan>
+                                          </text>
+                                       </g>
+                                    </motion.g>
+                                 ))}
+                              </svg>
+                            </div>
+                          );
+                       })()
+                      ) : isNextLocked('lien_constellation', 'lien') && (
+                         <div className="mt-4"><LockedBlock title="Constellation des Prismes" requirements="3 fragments + 2 jours + 3 prismes" /></div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {unlockedBlocks.lien_fragilite ? (
+                    enrichLien && Object.keys(enrichLien).some(k => enrichLien[k] && enrichLien[k] !== "Aucun signal clair" && k !== "rythme") && (
+                      <div className="pt-8 border-t border-white/5">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] mb-6 inline-flex items-center gap-2">
+                          <Waves className="w-3 h-3" />
+                          Points de fragilité & Ressources (Topographie)
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+                          {["Familiale", "Sociale", "Amoureuse", "Professionnelle"].map((s, i) => {
+                             const key = s.toLowerCase();
+                             const val = enrichLien[s] || enrichLien[key];
+                             if (!val || val === "Aucun signal clair") return null;
+                             return (
+                               <div key={i} className="space-y-2">
+                                 <div className="text-[9px] font-mono uppercase opacity-70" style={{ color: "#EA580C" }}>
+                                   {s}
+                                 </div>
+                                 <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
+                                   {val}
+                                 </div>
+                               </div>
+                             );
+                          })}
+                        </div>
+                      </div>
+                    )
+                  ) : isNextLocked('lien_fragilite', 'lien') && (
+                    <div className="pt-8 border-t border-white/5 flex items-center justify-center">
+                       <div className="w-full max-w-sm"><LockedBlock title="Points de fragilité & Ressources" requirements="5 fragments + 3 prismes" /></div>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -2203,12 +2401,81 @@ export default function Carnet() {
             {!unlockedSections.affect ? (
               <LockedSection
                 title="Affect"
-                requirements="Minimum 3 fragments sédimentés"
+                requirements="3 jours + 2 fragments"
                 icon={Waves}
               />
             ) : affectData ? (
               <>
-                <div className="mb-12 bg-white/[0.02] border border-white/5 p-6 md:p-8 rounded-lg space-y-12">
+                {unlockedBlocks.affect_gradients ? (
+                  <div className="grid md:grid-cols-3 gap-8">
+                    {["active", "inhibe", "emerge"].map((key) => (
+                      <div key={key} className="space-y-4">
+                        <h3 className="font-mono text-[9px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">
+                          Gradients de Profondeur {" ("}
+                          {key === "active"
+                             ? "moteurs"
+                             : key === "inhibe"
+                               ? "inhibiteurs"
+                               : "émergents"}
+                          {")"}
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {affectData[key]?.map((a: string, i: number) => (
+                            <div
+                              key={i}
+                              className={`px-3 py-1.5 rounded-sm border font-serif text-[15px] italic
+                               ${
+                                 key === "active"
+                                   ? "border-yellow-400/20 bg-yellow-400/5 text-yellow-400"
+                                   : key === "inhibe"
+                                     ? "border-blue-400/20 bg-blue-400/5 text-blue-400"
+                                     : "border-purple-400/20 bg-purple-400/5 text-purple-400"
+                               }`}
+                            >
+                              {a}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : isNextLocked('affect_gradients', 'affect') && (
+                  <div className="w-full flex justify-center py-6">
+                    <div className="w-full max-w-lg">
+                      <LockedBlock title="Gradients de Profondeur" requirements="5 fragments" />
+                    </div>
+                  </div>
+                )}
+
+                <div className="py-12 border-t border-white/5 mt-12">
+                  <div className="font-mono text-[8px] uppercase tracking-widest text-white/20 mb-4 italic">
+                    Texture affective de la semaine
+                  </div>
+                  <p className="text-lg font-serif italic text-beige-faint leading-relaxed">
+                    "{affectData.texture_semaine}"
+                  </p>
+                  
+                  {unlockedBlocks.affect_lecture ? (
+                    affectData.lecture_croisee_affect_prismes && affectData.lecture_croisee_affect_prismes.length > 0 && (
+                       <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
+                          <div className="font-mono text-[8px] uppercase tracking-widest text-[#7BA7D7]/50 mb-4 inline-flex items-center gap-2">
+                             Lecture croisée Affects / Prismes
+                          </div>
+                          {affectData.lecture_croisee_affect_prismes.map((obs: string, idx: number) => (
+                             <div key={idx} className="font-serif italic text-[14px] text-beige-faint opacity-80 leading-relaxed border-l border-[#7BA7D7]/20 pl-4">
+                                Observation : {obs}
+                             </div>
+                          ))}
+                       </div>
+                    )
+                  ) : isNextLocked('affect_lecture', 'affect') && (
+                    <div className="mt-8 pt-8 border-t border-white/5 flex justify-center">
+                       <div className="w-full max-w-sm"><LockedBlock title="Lecture Croisée" requirements="2 prismes distincts" /></div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-12 bg-white/[0.02] border border-[#FCFBF4]/40 shadow-[0_0_15px_rgba(252,251,244,0.15)] p-6 md:p-8 rounded-lg space-y-12">
                   <div className="grid md:grid-cols-2 gap-12">
                      {/* HEATMAP TEMPORELLE & RYTHME */}
                      <div className="space-y-6">
@@ -2270,126 +2537,80 @@ export default function Carnet() {
                      <div className="space-y-6 flex flex-col">
                         <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] inline-flex items-center gap-2">
                            <Waves className="w-3 h-3" />
-                           Évolution par semaine
+                           Luminescence Émotionnelle (Évolution)
                         </div>
-                        <div className="flex-1 min-h-[150px] w-full relative">
-                          {(() => {
-                            const moteurs = ['joie', 'colere', 'anticipation', 'confiance'];
-                            const inhibiteurs = ['tristesse', 'peur', 'degout', 'honte', 'melancolie'];
-                            const emergents = ['surprise'];
-                            
-                            const weeks: Record<string, {name:string, moteurs:number, inhibiteurs:number, emergents:number}> = {};
-                            const sortedCards = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-                            sortedCards.forEach(c => {
-                               if(!c.date) return;
-                               const d = new Date(c.date);
-                               const dCopy = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-                               const dayNum = dCopy.getUTCDay() || 7;
-                               dCopy.setUTCDate(dCopy.getUTCDate() + 4 - dayNum);
-                               const yearStart = new Date(Date.UTC(dCopy.getUTCFullYear(),0,1));
-                               const weekNo = Math.ceil((((dCopy.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
-                               const w = `S${weekNo}`;
-                               
-                               if(!weeks[w]) weeks[w] = { name: w, moteurs:0, inhibiteurs:0, emergents:0 };
-                               
-                               const p = c.prisme;
-                               if(p) {
-                                 if(moteurs.includes(p)) weeks[w].moteurs++;
-                                 else if(inhibiteurs.includes(p)) weeks[w].inhibiteurs++;
-                                 else if(emergents.includes(p)) weeks[w].emergents++;
+                        {unlockedBlocks.affect_luminescence ? (
+                          <>
+                            <div className="flex-1 min-h-[150px] w-full relative">
+                              {(() => {
+                                const moteurs = ['joie', 'colere', 'anticipation', 'confiance'];
+                                const inhibiteurs = ['tristesse', 'peur', 'degout', 'honte', 'melancolie'];
+                                const emergents = ['surprise'];
+                                
+                                const weeks: Record<string, {name:string, moteurs:number, inhibiteurs:number, emergents:number}> = {};
+                                const sortedCards = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                                sortedCards.forEach(c => {
+                                   if(!c.date) return;
+                                   const d = new Date(c.date);
+                                   const dCopy = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+                                   const dayNum = dCopy.getUTCDay() || 7;
+                                   dCopy.setUTCDate(dCopy.getUTCDate() + 4 - dayNum);
+                                   const yearStart = new Date(Date.UTC(dCopy.getUTCFullYear(),0,1));
+                                   const weekNo = Math.ceil((((dCopy.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+                                   const w = `S${weekNo}`;
+                                   
+                                   if(!weeks[w]) weeks[w] = { name: w, moteurs:0, inhibiteurs:0, emergents:0 };
+                                   
+                                   const p = c.prisme;
+                                   if(p) {
+                                     if(moteurs.includes(p)) weeks[w].moteurs++;
+                                     else if(inhibiteurs.includes(p)) weeks[w].inhibiteurs++;
+                                     else if(emergents.includes(p)) weeks[w].emergents++;
+                                   }
+                                });
+                                const chartData = Object.values(weeks);
+                                if (chartData.length === 0) return <div className="text-[11px] text-white/20 italic font-mono uppercase">Pas encore de données</div>;
+                                
+                                return (
+                                   <ResponsiveContainer width="100%" height="100%">
+                                     <LineChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 20 }}>
+                                       <XAxis dataKey="name" stroke="#ffffff20" fontSize={10} tickLine={false} axisLine={false} />
+                                       <Tooltip contentStyle={{backgroundColor:'#151515', borderColor:'#ffffff10', fontSize:'11px'}} itemStyle={{fontFamily:'monospace', fontSize:'10px'}} />
+                                       <Line type="monotone" name="Moteurs" dataKey="moteurs" stroke="#FACC15" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
+                                       <Line type="monotone" name="Inhibiteurs" dataKey="inhibiteurs" stroke="#60A5FA" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
+                                       <Line type="monotone" name="Émergents" dataKey="emergents" stroke="#FB923C" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
+                                     </LineChart>
+                                   </ResponsiveContainer>
+                                )
+                              })()}
+                            </div>
+                            {(() => {
+                               const sortedCards = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                               if (sortedCards.length < 5) return null;
+                               let countAnticipation = 0;
+                               for(let i=0; i<sortedCards.length-1; i++) {
+                                  const sWord = (sortedCards[i].user_note||'').toLowerCase();
+                                  const nextP = sortedCards[i+1].prisme;
+                                  if(sWord.length > 5 && nextP) {
+                                     if (nextP === 'colere' && (sWord.includes('bloqué') || sWord.includes('pression') || sWord.includes('injuste'))) countAnticipation++;
+                                     if (nextP === 'peur' && (sWord.includes('vide') || sWord.includes('seul') || sWord.includes('ombre'))) countAnticipation++;
+                                     if ((nextP === 'joie' || nextP === 'confiance') && (sWord.includes('clair') || sWord.includes('calme') || sWord.includes('mouvement') || sWord.includes('souffle'))) countAnticipation++;
+                                     if (nextP === 'tristesse' && (sWord.includes('perte') || sWord.includes('jamais') || sWord.includes('rien'))) countAnticipation++;
+                                  }
                                }
-                            });
-                            const chartData = Object.values(weeks);
-                            if (chartData.length === 0) return <div className="text-[11px] text-white/20 italic font-mono uppercase">Pas encore de données</div>;
-                            
-                            return (
-                               <ResponsiveContainer width="100%" height="100%">
-                                 <LineChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 20 }}>
-                                   <XAxis dataKey="name" stroke="#ffffff20" fontSize={10} tickLine={false} axisLine={false} />
-                                   <Tooltip contentStyle={{backgroundColor:'#151515', borderColor:'#ffffff10', fontSize:'11px'}} itemStyle={{fontFamily:'monospace', fontSize:'10px'}} />
-                                   <Line type="monotone" name="Moteurs" dataKey="moteurs" stroke="#FACC15" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
-                                   <Line type="monotone" name="Inhibiteurs" dataKey="inhibiteurs" stroke="#60A5FA" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
-                                   <Line type="monotone" name="Émergents" dataKey="emergents" stroke="#FB923C" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
-                                 </LineChart>
-                               </ResponsiveContainer>
-                            )
-                          })()}
-                        </div>
-                        {(() => {
-                           const sortedCards = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-                           if (sortedCards.length < 5) return null;
-                           let countAnticipation = 0;
-                           for(let i=0; i<sortedCards.length-1; i++) {
-                              const sWord = (sortedCards[i].user_note||'').toLowerCase();
-                              const nextP = sortedCards[i+1].prisme;
-                              if(sWord.length > 5 && nextP) {
-                                 if (nextP === 'colere' && (sWord.includes('bloqué') || sWord.includes('pression') || sWord.includes('injuste'))) countAnticipation++;
-                                 if (nextP === 'peur' && (sWord.includes('vide') || sWord.includes('seul') || sWord.includes('ombre'))) countAnticipation++;
-                                 if ((nextP === 'joie' || nextP === 'confiance') && (sWord.includes('clair') || sWord.includes('calme') || sWord.includes('mouvement') || sWord.includes('souffle'))) countAnticipation++;
-                                 if (nextP === 'tristesse' && (sWord.includes('perte') || sWord.includes('jamais') || sWord.includes('rien'))) countAnticipation++;
-                              }
-                           }
-                           if(countAnticipation >= 1) {
-                              return <div className="text-[11px] font-serif italic text-beige-faint opacity-60">Observation : Corrélation d'anticipation. Les songes préfigurent fréquemment l'affect de la session suivante.</div>;
-                           }
-                           return null;
-                        })()}
-                     </div>
-                  </div>
-                </div>
-
-                <div className="grid md:grid-cols-3 gap-8">
-                  {["active", "inhibe", "emerge"].map((key) => (
-                    <div key={key} className="space-y-4">
-                      <h3 className="font-mono text-[9px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">
-                        Affects{" "}
-                        {key === "active"
-                          ? "moteurs"
-                          : key === "inhibe"
-                            ? "inhibiteurs"
-                            : "émergents"}
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {affectData[key]?.map((a: string, i: number) => (
-                          <div
-                            key={i}
-                            className={`px-3 py-1.5 rounded-sm border font-serif text-[15px] italic
-                             ${
-                               key === "active"
-                                 ? "border-yellow-400/20 bg-yellow-400/5 text-yellow-400"
-                                 : key === "inhibe"
-                                   ? "border-blue-400/20 bg-blue-400/5 text-blue-400"
-                                   : "border-purple-400/20 bg-purple-400/5 text-purple-400"
-                             }`}
-                          >
-                            {a}
+                               if(countAnticipation >= 1) {
+                                  return <div className="text-[11px] font-serif italic text-beige-faint opacity-60 mt-4">Observation : Corrélation d'anticipation. Les songes préfigurent fréquemment l'affect de la session suivante.</div>;
+                               }
+                               return null;
+                            })()}
+                          </>
+                        ) : isNextLocked('affect_luminescence', 'affect') && (
+                          <div className="flex-1 flex items-center mt-4">
+                            <div className="w-full"><LockedBlock title="Luminescence Émotionnelle" requirements="3 fragments sur 3 jours" /></div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="py-12 border-t border-white/5 mt-12">
-                  <div className="font-mono text-[8px] uppercase tracking-widest text-white/20 mb-4 italic">
-                    Texture affective de la semaine
-                  </div>
-                  <p className="text-lg font-serif italic text-beige-faint leading-relaxed">
-                    "{affectData.texture_semaine}"
-                  </p>
-                  
-                  {affectData.lecture_croisee_affect_prismes && affectData.lecture_croisee_affect_prismes.length > 0 && (
-                     <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
-                        <div className="font-mono text-[8px] uppercase tracking-widest text-[#7BA7D7]/50 mb-4 inline-flex items-center gap-2">
-                           Lecture croisée Affects / Prismes
-                        </div>
-                        {affectData.lecture_croisee_affect_prismes.map((obs: string, idx: number) => (
-                           <div key={idx} className="font-serif italic text-[14px] text-beige-faint opacity-80 leading-relaxed border-l border-[#7BA7D7]/20 pl-4">
-                              Observation : {obs}
-                           </div>
-                        ))}
+                        )}
                      </div>
-                  )}
+                  </div>
                 </div>
               </>
             ) : (
@@ -2403,140 +2624,22 @@ export default function Carnet() {
             {!unlockedSections.elan ? (
               <LockedSection
                 title="Élan"
-                requirements="7 jours de sédimentation et 2 fragments minimum"
+                requirements="Toujours visible"
                 icon={Orbit}
               />
             ) : elanDataAnalysis ? (
               <div className="space-y-12">
-                <div className="mb-12 bg-white/[0.02] border border-white/5 p-6 md:p-8 rounded-lg space-y-12 text-left">
-                   <div className="grid md:grid-cols-2 gap-12">
-                     <div className="space-y-6">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-white/50 inline-flex items-center gap-2">
-                           <Orbit className="w-3 h-3" />
-                           Clusters récurrents
-                        </div>
-                        {enrichElan && enrichElan.clusters_recurrents ? (
-                          <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
-                            {enrichElan.clusters_recurrents}
-                          </div>
-                        ) : (
-                          <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas de clusters détectés</div>
-                        )}
-
-                        <div className="pt-6 border-t border-white/5">
-                           {(() => {
-                              const directionWords = ['aller', 'faire', 'changer', 'partir', 'mieux', 'besoin', 'envie', 'vouloir', 'décision', 'choix'];
-                              const songeCards = cards.filter(c => c.user_note && c.user_note.length > 5);
-                              
-                              let matches = 0;
-                              songeCards.forEach(c => {
-                                 if (directionWords.some(w => c.user_note!.toLowerCase().includes(w))) matches++;
-                              });
-
-                              if (matches >= 2) {
-                                  return (
-                                     <div className="font-serif italic text-[#EA580C] opacity-80 text-[13px]">
-                                       Observation : La personne savait avant de savoir. Les mouvements de direction étaient déjà murmurés dans les songes.
-                                     </div>
-                                  );
-                              }
-                              return <div className="text-[11px] font-mono italic opacity-40 uppercase">Aucun signal précurseur clair</div>;
-                           })()}
-                           
-                           {(() => {
-                              if (cards.length < 6) return null;
-                              const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-                              let sansSuiteCount = 0;
-                              const stopWords = new Set(['le','la','les','un','une','des','et','ou','mais','donc','car','ni','est','sont','que','qu','qui','quoi','je','tu','il','elle','nous','vous','ils','elles','mon','ton','son','ma','ta','sa','mes','tes','ses','notre','votre','leur','nos','vos','leurs','de','du','au','aux','à','en','pour','par','sur','sous','avec','sans','dans','ce','cet','cette','ces','pas','plus','très','trop','tout','tous','toute','toutes','être','avoir','faire','comme','y','ne','se','me','te','cette','vers','dont', 'bien', 'fait', 'plus', 'quand']);
-                              
-                              const spherePrev: Record<string, ReflectionCard> = {};
-                              
-                              for (const c of chronological) {
-                                 if (!c.sphere) continue;
-                                 const prev = spherePrev[c.sphere];
-                                 if (prev && prev.direction && prev.direction.split(/\s+/).length > 3) {
-                                    const nextText = `${c.fragment || ''} ${c.deplacement || ''} ${c.user_note || ''}`.toLowerCase();
-                                    const dirWords = prev.direction.toLowerCase().replace(/[.,!?;:()’']/g, ' ').split(/\s+/).filter(w => w.length > 4 && !stopWords.has(w));
-                                    
-                                    let hasOverlap = false;
-                                    for (const w of dirWords) {
-                                       if (nextText.includes(w)) { hasOverlap = true; break; }
-                                    }
-                                    
-                                    if (!hasOverlap && dirWords.length > 0) {
-                                       sansSuiteCount++;
-                                    }
-                                 }
-                                 spherePrev[c.sphere] = c;
-                              }
-                              
-                              if (sansSuiteCount >= 3) {
-                                 return (
-                                    <div className="font-serif italic text-white/50 text-[13px] mt-4 pt-4 border-t border-white/5 leading-relaxed">
-                                      Observation : Certaines directions formulées ici ne semblent pas avoir trouvé de suite. Ce qui peut être pensé et ce qui peut être agi ne coïncident pas toujours.
-                                    </div>
-                                 );
-                              }
-                              return null;
-                           })()}
-                        </div>
-                     </div>
-                     <div className="space-y-6 md:border-l border-white/5 md:pl-12">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-white/50 inline-flex items-center gap-2">
-                           <Network className="w-3 h-3" />
-                           Convergence des directions
-                        </div>
-                        {(() => {
-                            const directions = cards.map(c => (c.direction||'').toLowerCase()).filter(d => d.length > 5);
-                            
-                            let regAction = 0;
-                            let regSens = 0;
-                            let regLien = 0;
-                            
-                            const actionD = ['faire', 'agir', 'changer', 'choix', 'décider'];
-                            const sensD = ['comprendre', 'pourquoi', 'sens', 'voir', 'besoin'];
-                            const lienD = ['autre', 'parler', 'relation', 'ensemble', 'limite'];
-                            
-                            directions.forEach(d => {
-                               if (actionD.some(w => d.includes(w))) regAction++;
-                               if (sensD.some(w => d.includes(w))) regSens++;
-                               if (lienD.some(w => d.includes(w))) regLien++;
-                            });
-                            
-                            let obs = null;
-                            if (regAction > regSens && regAction > regLien) obs = "Action et décision";
-                            else if (regSens > regAction && regSens > regLien) obs = "Quête de sens et clarté";
-                            else if (regLien > regAction && regLien > regSens) obs = "Réarticulation des liens";
-
-                            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-                            const recentDirs = cards.filter(c => c.date && new Date(c.date) > thirtyDaysAgo && c.direction).map(c => c.direction!.toLowerCase());
-                            const fondObs = recentDirs.length > 4 ? "Un mouvement de fond se dessine activement." : "Convergence lente en cours de décantation.";
-
-                            return (
-                               <div className="space-y-4">
-                                  <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
-                                     {fondObs}
-                                  </div>
-                                  {obs && (
-                                    <div className="p-4 bg-white/[0.02] border border-white/5 rounded-sm">
-                                      <div className="text-[10px] font-mono uppercase text-white/40 mb-1">Polarité dominante</div>
-                                      <div className="font-serif italic text-white/80">{obs}</div>
-                                    </div>
-                                  )}
-                               </div>
-                            );
-                        })()}
-                     </div>
-                   </div>
-                </div>
-
                 <div className="space-y-4 text-center">
                   <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/20">
                     Mouvement
                   </div>
-                  <p className="text-2xl md:text-3xl font-serif italic text-beige leading-snug">
-                    "{elanDataAnalysis.mouvement}"
-                  </p>
+                  {unlockedBlocks.elan_mouvement ? (
+                    <p className="text-2xl md:text-3xl font-serif italic text-beige leading-snug">
+                      "{elanDataAnalysis.mouvement}"
+                    </p>
+                  ) : isNextLocked('elan_mouvement', 'elan') && (
+                    <div className="w-full flex justify-center"><div className="max-w-sm w-full"><LockedBlock title="Analyse de Mouvement" requirements="7 jours + 4 fragments" /></div></div>
+                  )}
                 </div>
 
                 <div className="w-12 h-px bg-white/10 mx-auto" />
@@ -2545,18 +2648,156 @@ export default function Carnet() {
                   <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/20">
                     Direction
                   </div>
-                  <p className="text-lg font-serif text-beige-faint leading-relaxed">
-                    {elanDataAnalysis.direction}
-                  </p>
+                  {unlockedBlocks.elan_direction ? (
+                    <p className="text-lg font-serif text-beige-faint leading-relaxed">
+                      {elanDataAnalysis.direction}
+                    </p>
+                  ) : isNextLocked('elan_direction', 'elan') && (
+                    <div className="w-full flex justify-center"><div className="max-w-sm w-full"><LockedBlock title="Direction" requirements="7 jours + 5 fragments" /></div></div>
+                  )}
                 </div>
 
                 <div className="pt-12 border-t border-white/5 text-center">
                   <div className="font-mono text-[8px] tracking-[0.4em] uppercase text-green/40 mb-4 italic">
                     La question qui travaille
                   </div>
-                  <p className="text-xl font-serif italic text-white leading-relaxed">
-                    "{elanDataAnalysis.question}"
-                  </p>
+                  {unlockedBlocks.elan_question ? (
+                    <p className="text-xl font-serif italic text-white leading-relaxed">
+                      "{elanDataAnalysis.question}"
+                    </p>
+                  ) : isNextLocked('elan_question', 'elan') && (
+                    <div className="w-full flex justify-center mt-4"><div className="max-w-sm w-full"><LockedBlock title="La question qui travaille" requirements="7 jours + 6 fragments" /></div></div>
+                  )}
+                </div>
+
+                <div className="mt-12 bg-white/[0.02] border border-[#FCFBF4]/40 shadow-[0_0_15px_rgba(252,251,244,0.15)] p-6 md:p-8 rounded-lg space-y-12 text-left">
+                   <div className="grid md:grid-cols-2 gap-12">
+                     <div className="space-y-6">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-white/50 inline-flex items-center gap-2">
+                           <Orbit className="w-3 h-3" />
+                           Clusters récurrents & Signaux
+                        </div>
+                        {unlockedBlocks.elan_clusters ? (
+                          <>
+                            {enrichElan && enrichElan.clusters_recurrents ? (
+                              <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
+                                {enrichElan.clusters_recurrents}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas de clusters détectés</div>
+                            )}
+
+                            <div className="pt-6 border-t border-white/5">
+                               {(() => {
+                                  const directionWords = ['aller', 'faire', 'changer', 'partir', 'mieux', 'besoin', 'envie', 'vouloir', 'décision', 'choix'];
+                                  const songeCards = cards.filter(c => c.user_note && c.user_note.length > 5);
+                                  
+                                  let matches = 0;
+                                  songeCards.forEach(c => {
+                                     if (directionWords.some(w => c.user_note!.toLowerCase().includes(w))) matches++;
+                                  });
+
+                                  if (matches >= 2) {
+                                      return (
+                                         <div className="font-serif italic text-[#EA580C] opacity-80 text-[13px]">
+                                           Observation : La personne savait avant de savoir. Les mouvements de direction étaient déjà murmurés dans les songes.
+                                         </div>
+                                      );
+                                  }
+                                  return <div className="text-[11px] font-mono italic opacity-40 uppercase">Aucun signal précurseur clair</div>;
+                               })()}
+                               
+                               {(() => {
+                                  if (cards.length < 6) return null;
+                                  const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                                  let sansSuiteCount = 0;
+                                  const stopWords = new Set(['le','la','les','un','une','des','et','ou','mais','donc','car','ni','est','sont','que','qu','qui','quoi','je','tu','il','elle','nous','vous','ils','elles','mon','ton','son','ma','ta','sa','mes','tes','ses','notre','votre','leur','nos','vos','leurs','de','du','au','aux','à','en','pour','par','sur','sous','avec','sans','dans','ce','cet','cette','ces','pas','plus','très','trop','tout','tous','toute','toutes','être','avoir','faire','comme','y','ne','se','me','te','cette','vers','dont', 'bien', 'fait', 'plus', 'quand']);
+                                  
+                                  const spherePrev: Record<string, ReflectionCard> = {};
+                                  
+                                  for (const c of chronological) {
+                                     if (!c.sphere) continue;
+                                     const prev = spherePrev[c.sphere];
+                                     if (prev && prev.direction && prev.direction.split(/\s+/).length > 3) {
+                                        const nextText = `${c.fragment || ''} ${c.deplacement || ''} ${c.user_note || ''}`.toLowerCase();
+                                        const dirWords = prev.direction.toLowerCase().replace(/[.,!?;:()’']/g, ' ').split(/\s+/).filter(w => w.length > 4 && !stopWords.has(w));
+                                        
+                                        let hasOverlap = false;
+                                        for (const w of dirWords) {
+                                           if (nextText.includes(w)) { hasOverlap = true; break; }
+                                        }
+                                        
+                                        if (!hasOverlap && dirWords.length > 0) {
+                                           sansSuiteCount++;
+                                        }
+                                     }
+                                     spherePrev[c.sphere] = c;
+                                  }
+                                  
+                                  if (sansSuiteCount >= 3) {
+                                     return (
+                                        <div className="font-serif italic text-white/50 text-[13px] mt-4 pt-4 border-t border-white/5 leading-relaxed">
+                                          Observation : Certaines directions formulées ici ne semblent pas avoir trouvé de suite. Ce qui peut être pensé et ce qui peut être agi ne coïncident pas toujours.
+                                        </div>
+                                     );
+                                  }
+                                  return null;
+                               })()}
+                            </div>
+                          </>
+                        ) : isNextLocked('elan_clusters', 'elan') && (
+                          <div className="mt-4"><LockedBlock title="Clusters Récurrents" requirements="7 jours + 3 fragments" /></div>
+                        )}
+                     </div>
+                     <div className="space-y-6 md:border-l border-white/5 md:pl-12">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-white/50 inline-flex items-center gap-2">
+                           <Network className="w-3 h-3" />
+                           Convergence des directions
+                        </div>
+                        {unlockedBlocks.elan_direction ? (
+                          (() => {
+                              const directions = cards.map(c => (c.direction||'').toLowerCase()).filter(d => d.length > 5);
+                              
+                              let regAction = 0;
+                              let regSens = 0;
+                              let regLien = 0;
+                              
+                              const actionD = ['faire', 'agir', 'changer', 'choix', 'décider'];
+                              const sensD = ['comprendre', 'pourquoi', 'sens', 'voir', 'besoin'];
+                              const lienD = ['autre', 'parler', 'relation', 'ensemble', 'limite'];
+                              
+                              directions.forEach(d => {
+                                 if (actionD.some(w => d.includes(w))) regAction++;
+                                 if (sensD.some(w => d.includes(w))) regSens++;
+                                 if (lienD.some(w => d.includes(w))) regLien++;
+                              });
+                              
+                              let obs = null;
+                              if (regAction > regSens && regAction > regLien) obs = "Action et décision";
+                              else if (regSens > regAction && regSens > regLien) obs = "Quête de sens et clarté";
+                              else if (regLien > regAction && regLien > regSens) obs = "Réarticulation des liens";
+
+                              const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+                              const recentDirs = cards.filter(c => c.date && new Date(c.date) > thirtyDaysAgo && c.direction).map(c => c.direction!.toLowerCase());
+                              const fondObs = recentDirs.length > 4 ? "Un mouvement de fond se dessine activement." : "Convergence lente en cours de décantation.";
+
+                              return (
+                                 <div className="space-y-4">
+                                    <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
+                                       {fondObs}
+                                    </div>
+                                    {obs && (
+                                      <div className="p-4 bg-white/[0.02] border border-white/5 rounded-sm">
+                                        <div className="text-[10px] font-mono uppercase text-white/40 mb-1">Polarité dominante</div>
+                                        <div className="font-serif italic text-white/80">{obs}</div>
+                                      </div>
+                                    )}
+                                 </div>
+                              );
+                          })()
+                        ) : null}
+                     </div>
+                   </div>
                 </div>
               </div>
             ) : (
@@ -2571,102 +2812,11 @@ export default function Carnet() {
             {!unlockedSections.matrice ? (
               <LockedSection
                 title="Matrice"
-                requirements="30 jours de sédimentation et 3 fragments minimum"
+                requirements="21 jours, 5 fragments et 2 prismes"
                 icon={Fingerprint}
               />
             ) : matriceDataAnalysis ? (
               <>
-                <div className="mb-12 bg-white/[0.02] border border-white/5 p-6 md:p-8 rounded-lg space-y-12">
-                  <div className="grid md:grid-cols-2 gap-12">
-                    {/* EVOLUTION & VALIDATION SONGES */}
-                    <div className="space-y-6">
-                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#8B5CF6] inline-flex items-center gap-2">
-                          <Fingerprint className="w-3 h-3" />
-                          Évolution du fond
-                       </div>
-                       {enrichMatrice ? (
-                          <div className="space-y-6">
-                            {enrichMatrice.evolution && (
-                              <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
-                                {enrichMatrice.evolution}
-                              </div>
-                            )}
-                            {enrichMatrice.validation_songes && (
-                              <div className="text-[11px] font-serif italic text-white/50 border-l border-[#8B5CF6]/30 pl-3">
-                                {enrichMatrice.validation_songes}
-                              </div>
-                            )}
-                          </div>
-                       ) : (
-                          <div className="text-[11px] font-mono italic opacity-40 uppercase">Analyse en cours...</div>
-                       )}
-                    </div>
-                    
-                    {/* STRUCTURE DU MOUVEMENT COGNITIF */}
-                    <div className="space-y-6 md:border-l border-white/5 md:pl-12">
-                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#8B5CF6] inline-flex items-center gap-2">
-                          <Brain className="w-3 h-3" />
-                          Mouvement Cognitif
-                       </div>
-                       {(() => {
-                          if (cards.length < 5) return <div className="text-[11px] font-mono italic opacity-40 uppercase">Sédimentation insuffisante</div>;
-                          
-                          const validDirs = cards.map(c => (c.direction||'').toLowerCase()).filter(d => d.length > 5);
-                          let asQuestions = 0; let asResolutions = 0; let asImages = 0;
-                          
-                          const qWords = ['pourquoi', 'comment', 'est-ce', '?'];
-                          const rWords = ['je dois', 'il faut', 'décider', 'arrêter', 'continuer', 'faire', 'aller'];
-                          const iWords = ['comme', 'ressemble', 'impression', 'sensation', 'mur', 'vide', 'lumière', 'chemin'];
-                          
-                          validDirs.forEach(d => {
-                             if (qWords.some(w => d.includes(w))) asQuestions++;
-                             if (rWords.some(w => d.includes(w))) asResolutions++;
-                             if (iWords.some(w => d.includes(w))) asImages++;
-                          });
-                          
-                          const validDeps = cards.map(c => (c.deplacement||'').toLowerCase()).filter(d => d.length > 5);
-                          let regRelational: number = 0, regExistential: number = 0, regPractical: number = 0;
-                          
-                          const relWords = ['autre', 'parler', 'relation', 'lien', 'ils', 'avec'];
-                          const exiWords = ['sens', 'vie', 'mort', 'toujours', 'jamais', 'peur', 'profond', 'fond'];
-                          const praWords = ['travail', 'temps', 'organisation', 'faire', 'concret', 'quotidien', 'détail'];
-                          
-                          validDeps.forEach(d => {
-                             if (relWords.some(w => d.includes(w))) regRelational++;
-                             if (exiWords.some(w => d.includes(w))) regExistential++;
-                             if (praWords.some(w => d.includes(w))) regPractical++;
-                          });
-                          
-                          let formulation = "";
-                          if (asQuestions > asResolutions && asQuestions > asImages) formulation = "privilégie la délibération et le questionnement ouvert";
-                          else if (asResolutions > asQuestions && asResolutions > asImages) formulation = "tend vers des actes de résolution et de décision courte";
-                          else if (asImages > asQuestions && asImages > asResolutions) formulation = "s'appuie sur une symbolisation par métaphores et sensations";
-                          else formulation = "articule délibérations, images et tentatives de résolution (forme composite)";
-                          
-                          let registre = "";
-                          if (regRelational > regExistential && regRelational > regPractical) registre = "le maillage relationnel";
-                          else if (regExistential > regRelational && regExistential > regPractical) registre = "le fond existentiel invisible";
-                          else if (regPractical > regRelational && regExistential < regPractical) registre = "l'ancrage dans la réalité pratique";
-                          else registre = "une dynamique articulée entre pragmatisme et affects de fond";
-                          
-                          return (
-                             <div className="space-y-4">
-                                <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
-                                   La structure de pensée {formulation}. Le mouvement vient préférentiellement traiter et interroger {registre}.
-                                </div>
-                                {enrichMatrice && enrichMatrice.mouvement_cognitif && (
-                                   <div className="p-4 bg-white/[0.02] border border-white/5 rounded-sm">
-                                      <div className="text-[10px] font-mono uppercase text-white/40 mb-1">Dynamique formelle</div>
-                                      <div className="font-serif italic text-beige-faint/80 text-[12px]">{enrichMatrice.mouvement_cognitif}</div>
-                                   </div>
-                                )}
-                             </div>
-                          );
-                       })()}
-                    </div>
-                  </div>
-                </div>
-
                 <div className="grid md:grid-cols-2 gap-12">
                   {/* Angoisses */}
                   <div className="space-y-6">
@@ -2895,6 +3045,102 @@ export default function Carnet() {
                   <p className="font-mono text-[7px] text-white/20 uppercase tracking-widest italic mb-4">
                     Structure cristallisée · Prête pour l'Eclat
                   </p>
+                </div>
+
+                <div className="mt-12 bg-white/[0.02] border border-[#FCFBF4]/40 shadow-[0_0_15px_rgba(252,251,244,0.15)] p-6 md:p-8 rounded-lg space-y-12">
+                  <div className="grid md:grid-cols-2 gap-12">
+                    {/* EVOLUTION & VALIDATION SONGES */}
+                    <div className="space-y-6">
+                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#8B5CF6] inline-flex items-center gap-2">
+                          <Fingerprint className="w-3 h-3" />
+                          Évolution du fond
+                       </div>
+                       {enrichMatrice ? (
+                          <div className="space-y-6">
+                            {enrichMatrice.evolution && (
+                              <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
+                                {enrichMatrice.evolution}
+                              </div>
+                            )}
+                            
+                            {unlockedBlocks.matrice_validation_songes ? (
+                              enrichMatrice.validation_songes && (
+                                <div className="text-[11px] font-serif italic text-white/50 border-l border-[#8B5CF6]/30 pl-3">
+                                  {enrichMatrice.validation_songes}
+                                </div>
+                              )
+                            ) : isNextLocked('matrice_validation_songes', 'matrice') && (
+                              <div className="mt-4"><LockedBlock title="Validation des Songes" requirements="1 songe rempli (exploration des Liens)" /></div>
+                            )}
+                          </div>
+                       ) : (
+                          <div className="text-[11px] font-mono italic opacity-40 uppercase">Analyse en cours...</div>
+                       )}
+                    </div>
+                    
+                    {/* STRUCTURE DU MOUVEMENT COGNITIF */}
+                    <div className="space-y-6 md:border-l border-white/5 md:pl-12">
+                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#8B5CF6] inline-flex items-center gap-2">
+                          <Brain className="w-3 h-3" />
+                          Mouvement Cognitif
+                       </div>
+                       {(() => {
+                          if (cards.length < 5) return <div className="text-[11px] font-mono italic opacity-40 uppercase">Sédimentation insuffisante</div>;
+                          
+                          const validDirs = cards.map(c => (c.direction||'').toLowerCase()).filter(d => d.length > 5);
+                          let asQuestions = 0; let asResolutions = 0; let asImages = 0;
+                          
+                          const qWords = ['pourquoi', 'comment', 'est-ce', '?'];
+                          const rWords = ['je dois', 'il faut', 'décider', 'arrêter', 'continuer', 'faire', 'aller'];
+                          const iWords = ['comme', 'ressemble', 'impression', 'sensation', 'mur', 'vide', 'lumière', 'chemin'];
+                          
+                          validDirs.forEach(d => {
+                             if (qWords.some(w => d.includes(w))) asQuestions++;
+                             if (rWords.some(w => d.includes(w))) asResolutions++;
+                             if (iWords.some(w => d.includes(w))) asImages++;
+                          });
+                          
+                          const validDeps = cards.map(c => (c.deplacement||'').toLowerCase()).filter(d => d.length > 5);
+                          let regRelational: number = 0, regExistential: number = 0, regPractical: number = 0;
+                          
+                          const relWords = ['autre', 'parler', 'relation', 'lien', 'ils', 'avec'];
+                          const exiWords = ['sens', 'vie', 'mort', 'toujours', 'jamais', 'peur', 'profond', 'fond'];
+                          const praWords = ['travail', 'temps', 'organisation', 'faire', 'concret', 'quotidien', 'détail'];
+                          
+                          validDeps.forEach(d => {
+                             if (relWords.some(w => d.includes(w))) regRelational++;
+                             if (exiWords.some(w => d.includes(w))) regExistential++;
+                             if (praWords.some(w => d.includes(w))) regPractical++;
+                          });
+                          
+                          let formulation = "";
+                          if (asQuestions > asResolutions && asQuestions > asImages) formulation = "privilégie la délibération et le questionnement ouvert";
+                          else if (asResolutions > asQuestions && asResolutions > asImages) formulation = "tend vers des actes de résolution et de décision courte";
+                          else if (asImages > asQuestions && asImages > asResolutions) formulation = "s'appuie sur une symbolisation par métaphores et sensations";
+                          else formulation = "articule délibérations, images et tentatives de résolution (forme composite)";
+                          
+                          let registre = "";
+                          if (regRelational > regExistential && regRelational > regPractical) registre = "le maillage relationnel";
+                          else if (regExistential > regRelational && regExistential > regPractical) registre = "le fond existentiel invisible";
+                          else if (regPractical > regRelational && regExistential < regPractical) registre = "l'ancrage dans la réalité pratique";
+                          else registre = "une dynamique articulée entre pragmatisme et affects de fond";
+                          
+                          return (
+                             <div className="space-y-4">
+                                <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
+                                   La structure de pensée {formulation}. Le mouvement vient préférentiellement traiter et interroger {registre}.
+                                </div>
+                                {enrichMatrice && enrichMatrice.mouvement_cognitif && (
+                                   <div className="p-4 bg-white/[0.02] border border-white/5 rounded-sm">
+                                      <div className="text-[10px] font-mono uppercase text-white/40 mb-1">Dynamique formelle</div>
+                                      <div className="font-serif italic text-beige-faint/80 text-[12px]">{enrichMatrice.mouvement_cognitif}</div>
+                                   </div>
+                                )}
+                             </div>
+                          );
+                       })()}
+                    </div>
+                  </div>
                 </div>
               </>
             ) : (

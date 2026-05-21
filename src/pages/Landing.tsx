@@ -173,22 +173,6 @@ export default function Landing() {
       {/* Grain Overlay */}
       <div className="fixed inset-0 pointer-events-none z-[9999] opacity-60 mix-blend-soft-light" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")` }}></div>
 
-      <nav className="fixed top-0 left-0 right-0 z-[999] flex justify-between items-center px-4 md:px-12 py-3 md:py-4 bg-bg/90 backdrop-blur-md border-b border-white/5">
-        <Link to="/" className="flex items-center group">
-          <span className="font-mono text-[11px] tracking-[0.14em] uppercase text-beige-faint group-hover:text-beige-dim transition-colors">Le collègue</span>
-        </Link>
-        <div className="flex items-center gap-3">
-          <Link to="/chat" className="font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-beige-faint hover:text-beige ring-1 ring-beige-faint/20 hover:bg-white/5">
-            <Brain size={10} strokeWidth={1.5} />
-            <span>penser</span>
-          </Link>
-          <Link to="/carnet" className="font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-beige-faint hover:text-beige ring-1 ring-beige-faint/20 hover:bg-white/5">
-            <BookOpen size={10} strokeWidth={1.5} />
-            <span>carnet</span>
-          </Link>
-        </div>
-      </nav>
-
       <main className="max-w-[720px] mx-auto px-6 md:px-8">
         {/* Hero */}
         <section className="min-h-screen flex flex-col justify-center pt-32 pb-12 md:pt-48 md:pb-12">

@@ -43,7 +43,7 @@ const Lips = ({ className }: { className?: string }) => (
 // WORKER — seul point d'entrée pour tous les appels IA
 // ============================================================
 const API_BASE = "/api";
-const WORKER_URL = "https://internal-worker.example";
+const WORKER_URL = "/api/worker";
 
 const toWorkerMessages = (msgs: any[]) => {
   const formatted = msgs.map((m) => ({
