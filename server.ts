@@ -107,6 +107,29 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 
+// Appelle Gemini en attendant un JSON. Gemini renvoie parfois un JSON malformé
+// ou tronqué : dans ce cas l'appel est relancé une fois. Si la réponse est
+// encore invalide, une erreur claire est levée — jamais un JSON.parse opaque.
+async function geminiJSON(args: any): Promise<any> {
+  args.config = {
+    ...(args.config || {}),
+    responseMimeType: "application/json",
+    maxOutputTokens: 8192,
+  };
+  let lastErr: any;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const result = await ai.models.generateContent(args);
+    const raw = (result.text || "").replace(/```json/g, "").replace(/```/g, "").trim();
+    try {
+      return JSON.parse(raw);
+    } catch (e: any) {
+      lastErr = e;
+      console.warn(`geminiJSON: réponse non-JSON (tentative ${attempt}/2): ${e.message}`);
+    }
+  }
+  throw new Error(`Gemini n'a pas renvoyé de JSON valide après 2 tentatives: ${lastErr?.message}`);
+}
+
 // Supabase Helper
 async function sbRequest(method: string, tablePath: string, body: any, serviceKey: string, upsert: boolean = false) {
   const prefer: string[] = [];
@@ -208,7 +231,7 @@ Réponds au format JSON :
 app.post("/api/clarte", asyncHandler(async (req: Request, res: Response) => {
   const { text, section }: { text: string; section: string } = req.body;
 
-  const result = await ai.models.generateContent({
+  const parsed = await geminiJSON({
     model: "gemini-3.5-flash",
     contents: [{ role: 'user', parts: [{ text: `L'utilisateur est dans la section "${section}". Il demande : ${text}` }] }],
     config: {
@@ -217,7 +240,7 @@ app.post("/api/clarte", asyncHandler(async (req: Request, res: Response) => {
     }
   });
 
-  res.json(JSON.parse(result.text));
+  res.json(parsed);
 }));
 
 // Supabase Proxy Routes (Compatibility with worker logic)
@@ -338,7 +361,7 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (type === "enrich_fragments") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: {
@@ -350,11 +373,11 @@ Retourne un JSON pur : { "mots_recurrents": ["mot1", "mot2", "mot3"], "pattern_a
         responseMimeType: "application/json"
       }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "enrich_lien") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: {
@@ -364,11 +387,11 @@ Retourne un JSON pur : { "familiale": "Dominance : [...]", "sociale": "...", "am
         responseMimeType: "application/json"
       }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "enrich_affect") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: {
@@ -379,11 +402,11 @@ Retourne un JSON pur : { "rythme": "..." }`,
         responseMimeType: "application/json"
       }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "enrich_elan") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: {
@@ -394,11 +417,11 @@ Retourne un JSON pur : { "clusters_recurrents": "..." }`,
         responseMimeType: "application/json"
       }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "enrich_matrice") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: {
@@ -417,56 +440,56 @@ Retourne un JSON pur :
         responseMimeType: "application/json"
       }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "eval_lien") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data.cards) }] }],
       config: { systemInstruction: EVAL_LIEN_PROMPT, responseMimeType: "application/json" }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "eval_affect") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { systemInstruction: EVAL_AFFECT_PROMPT, responseMimeType: "application/json" }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "eval_elan") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { systemInstruction: EVAL_ELAN_PROMPT, responseMimeType: "application/json" }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "eval_matrice") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: { systemInstruction: METACOGNITION_SYSTEM, responseMimeType: "application/json" }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "eval_prisme") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data.card) }] }],
       config: { systemInstruction: EVAL_PRISME_PROMPT, responseMimeType: "application/json" }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "eval_lueur") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify({
         matrice: data.matrice,
@@ -478,16 +501,16 @@ Retourne un JSON pur :
       }) }] }],
       config: { systemInstruction: EVAL_LUEUR_PROMPT, responseMimeType: "application/json" }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "eval_network") {
-    const result = await ai.models.generateContent({
+    const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data.cards) }] }],
       config: { systemInstruction: EVAL_NETWORK_PROMPT, responseMimeType: "application/json" }
     });
-    return res.json(JSON.parse(result.text));
+    return res.json(parsed);
   }
 
   if (type === "eclat") {
@@ -573,7 +596,7 @@ app.post("/api/metacognition", asyncHandler(async (req: Request, res: Response) 
 
 Analyse ce matériau holistique et produis la structure métacognitive demandée.`;
 
-  const result = await ai.models.generateContent({
+  const parsed = await geminiJSON({
     model: "gemini-3.5-flash",
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: {
@@ -582,7 +605,7 @@ Analyse ce matériau holistique et produis la structure métacognitive demandée
     }
   });
 
-  res.json(JSON.parse(result.text));
+  res.json(parsed);
 }));
 
 // Route for global climate visualization (Anonymized)

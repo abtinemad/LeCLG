@@ -1870,6 +1870,13 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
           console.error("Prisme eval failed", e);
         }
 
+        // Normalise prisme et émotion vers la forme canonique (clé de EMOTIONS :
+        // minuscule, sans accent). La base stocke "colere", jamais "Colère".
+        const canon = (v?: string) =>
+          (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+        card.emotion = canon(card.emotion);
+        card.prisme = canon(card.prisme);
+
         setReflectionCard(card);
 
         // IA Générative d'images de "Texture" (Piste 6)

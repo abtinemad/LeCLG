@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion } from "motion/react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -144,7 +144,9 @@ export default function Carnet() {
   const [view, setView] = useState<
     "fragments" | "lien" | "affect" | "elan" | "matrice"
   >("fragments");
-  const [metacognitionData, setMetacognitionData] = useState<any>(null);
+  const [metacognitionData, setMetacognitionData] = useState<any>(
+    JSON.parse(localStorage.getItem("collegue_metacognition") || "null"),
+  );
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [affectNote, setAffectNote] = useState(
     localStorage.getItem("collegue_affect_note") || "",
@@ -239,6 +241,10 @@ export default function Carnet() {
   const [enrichMatrice, setEnrichMatrice] = useState<any>(
     JSON.parse(localStorage.getItem("collegue_enrich_matrice") || "null"),
   );
+
+  // Mémorise les analyses dont un calcul est en cours — évite de lancer deux
+  // fois la même analyse en parallèle.
+  const runningFor = useRef<Record<string, boolean>>({});
   const [lueurs, setLueurs] = useState<any[]>(
     JSON.parse(localStorage.getItem("collegue_lueurs") || "[]"),
   );
@@ -384,6 +390,11 @@ export default function Carnet() {
     sendEclatRequest();
   };
 
+  // Normalise un prisme (minuscule, sans accent) pour le comparer aux clés
+  // de EMOTIONS — les cartes stockent "Joie", "Colère", la clé est "joie".
+  const prismeKey = (v?: string) =>
+    (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
   const prismesCount = useMemo(() => {
     const uniquePrismes = new Set(cards.map((c) => c.prisme).filter(Boolean));
     return uniquePrismes.size;
@@ -400,7 +411,7 @@ export default function Carnet() {
     return {
       fragments: true,
       lien: true,
-      elan: diffDays >= 3 && cards.length >= 3,
+      elan: diffDays >= 7 && cards.length >= 3,
       affect: true,
       matrice: diffDays >= 21 && cards.length >= 5 && prismesCount >= 2,
     };
@@ -492,7 +503,17 @@ export default function Carnet() {
   };
 
   const loadMetacognition = async () => {
-    if (metacognitionData || cards.length < 5) return;
+    if (cards.length < 5) return;
+    // À jour si la métacognition a été recalculée il y a moins de 21 jours.
+    if (
+      metacognitionData &&
+      typeof metacognitionData._t === "number" &&
+      Date.now() - metacognitionData._t < 21 * 86400000
+    ) {
+      return;
+    }
+    if (runningFor.current["metacognition"]) return; // déjà en cours
+    runningFor.current["metacognition"] = true;
     setLoadingMeta(true);
     try {
       const res = await fetch("/api/metacognition", {
@@ -509,17 +530,20 @@ export default function Carnet() {
       });
       if (res.ok) {
         const data = await res.json();
+        data._t = Date.now();
         setMetacognitionData(data);
+        localStorage.setItem("collegue_metacognition", JSON.stringify(data));
       }
     } catch (e) {
       console.error("Metacognition error:", e);
     } finally {
       setLoadingMeta(false);
+      runningFor.current["metacognition"] = false;
     }
   };
 
   useEffect(() => {
-    if (view === "matrice" && !metacognitionData) {
+    if (view === "matrice") {
       loadMetacognition();
     }
   }, [view, cards]);
@@ -544,63 +568,141 @@ export default function Carnet() {
 
   useEffect(() => {
     if (cards.length === 0) return;
-    if (unlockedSections.lien && !lienData) {
-      runAnalysis("eval_lien", { cards }).then((data) => {
-        if (data) {
-          setLienData(data);
-          localStorage.setItem("collegue_lien", JSON.stringify(data));
-        }
-      });
-    }
-    if (unlockedSections.affect && !affectData) {
-      runAnalysis("eval_affect", {
-        fragments: cards,
-        lien: lienData,
-        prismes: cards.map((c) => c.prisme).filter(Boolean),
-        songes: sphereSonges,
-        structure_invisible: lienData?.relief,
-        triplets_texture: cards.map(c => {
-           const s = sessionsData.find(sess => sess.reflection_card?.id === c.id || sess.reflection_card?.date === c.date);
-           return { texture: c.texture_relationnelle, prisme: c.prisme, sphere: c.sphere, step: s?.step_reached };
-        })
-      }).then((data) => {
-        if (data) {
-          setAffectData(data);
-          localStorage.setItem("collegue_affect", JSON.stringify(data));
-        }
-      });
-    }
-    if (unlockedSections.elan && !elanDataAnalysis) {
-      runAnalysis("eval_elan", {
-        fragments: cards,
-        lien: lienData,
-        affect: affectData,
-        prismes: cards.map((c) => c.prisme).filter(Boolean),
-        songes: sphereSonges,
-        structure_invisible: lienData?.relief,
-      }).then((data) => {
-        if (data) {
-          setElanDataAnalysis(data);
-          localStorage.setItem("collegue_elan_eval", JSON.stringify(data));
-        }
-      });
-    }
-    if (unlockedSections.matrice && !matriceDataAnalysis) {
-      runAnalysis("eval_matrice", {
-        fragments: cards,
-        lien: lienData,
-        affect: affectData,
-        elan: elanDataAnalysis,
-        question_elan: elanDataAnalysis?.question,
-        prismes: cards.map((c) => c.prisme).filter(Boolean),
-        songes: sphereSonges,
-        structure_invisible: lienData?.relief,
-      }).then((data) => {
-        if (data) {
-          setMatriceDataAnalysis(data);
-          localStorage.setItem("collegue_matrice_eval", JSON.stringify(data));
+    const n = cards.length;
 
-          // Trigger Lueur eval if not present for current month
+    // --- Tests "à jour" ---
+    // Par fragment : le résultat a été calculé pour le nombre actuel de cartes.
+    const freshByCount = (r: any) => !!r && r._n === n;
+    // Par temps : le résultat a été calculé il y a moins de `days` jours.
+    const freshByAge = (days: number) => (r: any) =>
+      !!r && typeof r._t === "number" && Date.now() - r._t < days * 86400000;
+    const elanFresh = freshByAge(7); // Élan : 1x / semaine
+    const matriceFresh = freshByAge(21); // Matrice : 1x / 21 jours
+
+    // Lance une analyse UNIQUEMENT si son résultat n'est pas à jour et qu'aucun
+    // calcul n'est déjà en cours. Estampille le résultat (_n et _t), le met en
+    // état et en cache.
+    const refresh = (
+      key: string,
+      current: any,
+      isFresh: (r: any) => boolean,
+      type: string,
+      payload: any,
+      setResult: (d: any) => void,
+      lsKey: string,
+      after?: (d: any) => void,
+    ) => {
+      if (isFresh(current)) return; // déjà à jour
+      if (runningFor.current[key]) return; // déjà en cours
+      runningFor.current[key] = true;
+      runAnalysis(type, payload).then((data) => {
+        runningFor.current[key] = false;
+        if (data) {
+          data._n = n;
+          data._t = Date.now();
+          setResult(data);
+          localStorage.setItem(lsKey, JSON.stringify(data));
+          if (after) after(data);
+        }
+      });
+    };
+
+    // --- Chaîne principale : lien -> affect -> elan -> matrice ---
+    // Chaque maillon attend que son parent soit à jour (ou non concerné).
+
+    // Lien — par fragment
+    if (unlockedSections.lien) {
+      refresh(
+        "lien",
+        lienData,
+        freshByCount,
+        "eval_lien",
+        { cards },
+        setLienData,
+        "collegue_lien",
+      );
+    }
+
+    // Affect — par fragment
+    if (unlockedSections.affect && (!unlockedSections.lien || freshByCount(lienData))) {
+      refresh(
+        "affect",
+        affectData,
+        freshByCount,
+        "eval_affect",
+        {
+          fragments: cards,
+          lien: lienData,
+          prismes: cards.map((c) => c.prisme).filter(Boolean),
+          songes: sphereSonges,
+          structure_invisible: lienData?.relief,
+          triplets_texture: cards.map((c) => {
+            const s = sessionsData.find(
+              (sess) =>
+                sess.reflection_card?.id === c.id ||
+                sess.reflection_card?.date === c.date,
+            );
+            return {
+              texture: c.texture_relationnelle,
+              prisme: c.prisme,
+              sphere: c.sphere,
+              step: s?.step_reached,
+            };
+          }),
+        },
+        setAffectData,
+        "collegue_affect",
+      );
+    }
+
+    // Élan — 1x / semaine
+    if (
+      unlockedSections.elan &&
+      (!unlockedSections.affect || freshByCount(affectData))
+    ) {
+      refresh(
+        "elan",
+        elanDataAnalysis,
+        elanFresh,
+        "eval_elan",
+        {
+          fragments: cards,
+          lien: lienData,
+          affect: affectData,
+          prismes: cards.map((c) => c.prisme).filter(Boolean),
+          songes: sphereSonges,
+          structure_invisible: lienData?.relief,
+        },
+        setElanDataAnalysis,
+        "collegue_elan_eval",
+      );
+    }
+
+    // Matrice — 1x / 21 jours
+    if (
+      unlockedSections.matrice &&
+      (!unlockedSections.elan || elanFresh(elanDataAnalysis))
+    ) {
+      refresh(
+        "matrice",
+        matriceDataAnalysis,
+        matriceFresh,
+        "eval_matrice",
+        {
+          fragments: cards,
+          lien: lienData,
+          affect: affectData,
+          elan: elanDataAnalysis,
+          question_elan: elanDataAnalysis?.question,
+          prismes: cards.map((c) => c.prisme).filter(Boolean),
+          songes: sphereSonges,
+          structure_invisible: lienData?.relief,
+        },
+        setMatriceDataAnalysis,
+        "collegue_matrice_eval",
+        (data) => {
+          // Lueur du mois — logique inchangée : déclenchée si aucune lueur
+          // n'existe encore pour le mois en cours.
           const now = new Date();
           const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
           const existingLueurs = JSON.parse(
@@ -610,7 +712,6 @@ export default function Carnet() {
             const d = new Date(l.date);
             return `${d.getFullYear()}-${d.getMonth()}` === currentMonth;
           });
-
           if (!hasCurrentMonthLueur) {
             runAnalysis("eval_lueur", {
               matrice: data,
@@ -644,69 +745,105 @@ export default function Carnet() {
               }
             });
           }
-        }
-      });
-    }
-    if (cards.length >= 5 && !networkData) {
-      runAnalysis("eval_network", { cards }).then((data) => {
-        if (data) {
-          setNetworkData(data);
-          localStorage.setItem("collegue_network", JSON.stringify(data));
-        }
-      });
+        },
+      );
     }
 
-    const hasAnySonge = cards.some(c => c.user_note && c.user_note.trim().length > 10);
-    if (cards.length >= 3 && hasAnySonge && !enrichFragments) {
-      runAnalysis("enrich_fragments", { 
-         cards,
-         couples_fragment_songe: cards.filter(c => c.user_note).map(c => ({ id: c.id, fragment: c.fragment, songe: c.user_note }))
-      }).then((data) => {
-        if (data) {
-          setEnrichFragments(data);
-          localStorage.setItem(
-            "collegue_enrich_fragments",
-            JSON.stringify(data),
-          );
-        }
-      });
+    // --- Analyses secondaires ---
+
+    // Réseau — par fragment
+    if (cards.length >= 5) {
+      refresh(
+        "network",
+        networkData,
+        freshByCount,
+        "eval_network",
+        { cards },
+        setNetworkData,
+        "collegue_network",
+      );
     }
-    if (unlockedSections.lien && lienData && !enrichLien) {
-      runAnalysis("enrich_lien", { cards, lienData }).then((data) => {
-        if (data) {
-          setEnrichLien(data);
-          localStorage.setItem("collegue_enrich_lien", JSON.stringify(data));
-        }
-      });
+
+    // Enrichissement des fragments — par fragment
+    const hasAnySonge = cards.some(
+      (c) => c.user_note && c.user_note.trim().length > 10,
+    );
+    if (cards.length >= 3 && hasAnySonge) {
+      refresh(
+        "enrich_fragments",
+        enrichFragments,
+        freshByCount,
+        "enrich_fragments",
+        {
+          cards,
+          couples_fragment_songe: cards
+            .filter((c) => c.user_note)
+            .map((c) => ({
+              id: c.id,
+              fragment: c.fragment,
+              songe: c.user_note,
+            })),
+        },
+        setEnrichFragments,
+        "collegue_enrich_fragments",
+      );
     }
-    if (unlockedSections.affect && affectData && !enrichAffect) {
-      runAnalysis("enrich_affect", { cards }).then((data) => {
-        if (data) {
-          setEnrichAffect(data);
-          localStorage.setItem("collegue_enrich_affect", JSON.stringify(data));
-        }
-      });
+
+    // Enrichissements — chacun attend que son analyse parente soit à jour,
+    // et suit son rythme (par fragment pour lien/affect, par temps pour
+    // elan/matrice).
+    if (unlockedSections.lien && freshByCount(lienData)) {
+      refresh(
+        "enrich_lien",
+        enrichLien,
+        freshByCount,
+        "enrich_lien",
+        { cards, lienData },
+        setEnrichLien,
+        "collegue_enrich_lien",
+      );
     }
-    if (unlockedSections.elan && elanDataAnalysis && !enrichElan) {
-      runAnalysis("enrich_elan", { cards }).then((data) => {
-        if (data) {
-          setEnrichElan(data);
-          localStorage.setItem("collegue_enrich_elan", JSON.stringify(data));
-        }
-      });
+    if (unlockedSections.affect && freshByCount(affectData)) {
+      refresh(
+        "enrich_affect",
+        enrichAffect,
+        freshByCount,
+        "enrich_affect",
+        { cards },
+        setEnrichAffect,
+        "collegue_enrich_affect",
+      );
     }
-    if (unlockedSections.matrice && matriceDataAnalysis && !enrichMatrice) {
-      runAnalysis("enrich_matrice", {
-        cards,
-        matrice: matriceDataAnalysis,
-      }).then((data) => {
-        if (data) {
-          setEnrichMatrice(data);
-          localStorage.setItem("collegue_enrich_matrice", JSON.stringify(data));
-        }
-      });
+    if (unlockedSections.elan && elanFresh(elanDataAnalysis)) {
+      refresh(
+        "enrich_elan",
+        enrichElan,
+        elanFresh,
+        "enrich_elan",
+        { cards },
+        setEnrichElan,
+        "collegue_enrich_elan",
+      );
     }
-  }, [cards, unlockedSections]);
+    if (unlockedSections.matrice && matriceFresh(matriceDataAnalysis)) {
+      refresh(
+        "enrich_matrice",
+        enrichMatrice,
+        matriceFresh,
+        "enrich_matrice",
+        { cards, matrice: matriceDataAnalysis },
+        setEnrichMatrice,
+        "collegue_enrich_matrice",
+      );
+    }
+  }, [
+    cards,
+    unlockedSections,
+    lienData,
+    affectData,
+    elanDataAnalysis,
+    matriceDataAnalysis,
+  ]);
 
   const radarData = useMemo(() => {
     const spheres = ["Familiale", "Sociale", "Amoureuse", "Professionnelle"];
@@ -1899,7 +2036,7 @@ export default function Carnet() {
                         const data = lienData[s] || lienData[s.toLowerCase()];
                         return {
                           subject: s,
-                          A: data ? data.intensite : 0,
+                          A: typeof data?.intensite === "number" ? data.intensite : 0,
                           fullMark: 100,
                         };
                       })}
@@ -2473,7 +2610,7 @@ export default function Carnet() {
                         )}
                         {unlockedBlocks.affect_luminescence ? (
                           <>
-                            <div className="flex-1 min-h-[150px] w-full relative">
+                            <div className="h-[180px] w-full relative">
                               {(() => {
                                 const moteurs = ['joie', 'colere', 'anticipation', 'confiance'];
                                 const inhibiteurs = ['tristesse', 'peur', 'degout', 'honte', 'melancolie'];
@@ -2493,7 +2630,7 @@ export default function Carnet() {
                                    
                                    if(!weeks[w]) weeks[w] = { name: w, moteurs:0, inhibiteurs:0, emergents:0 };
                                    
-                                   const p = c.prisme;
+                                   const p = prismeKey(c.prisme);
                                    if(p) {
                                      if(moteurs.includes(p)) weeks[w].moteurs++;
                                      else if(inhibiteurs.includes(p)) weeks[w].inhibiteurs++;
@@ -2557,7 +2694,7 @@ export default function Carnet() {
             {!unlockedSections.elan ? (
               <LockedSection
                 title="Élan"
-                requirements="3 jours + 3 fragments"
+                requirements="7 jours + 3 fragments"
                 icon={Orbit}
               />
             ) : elanDataAnalysis ? (
@@ -2783,10 +2920,10 @@ export default function Carnet() {
                           cx="50%"
                           cy="50%"
                           outerRadius="65%"
-                          data={matriceDataAnalysis.angoisses?.map(
+                          data={(matriceDataAnalysis.angoisses || []).map(
                             (a: any) => ({
                               subject: a.label,
-                              A: a.intensite,
+                              A: typeof a.intensite === "number" ? a.intensite : 0,
                               fullMark: 100,
                             }),
                           )}
@@ -3145,7 +3282,7 @@ export default function Carnet() {
 
               <div className="grid grid-cols-5 gap-3 mb-8">
                 {Object.entries(EMOTIONS).map(([key, em]) => {
-                  const foundCount = cards.filter((c) => c.prisme === key).length;
+                  const foundCount = cards.filter((c) => prismeKey(c.prisme) === key).length;
                   const isFound = foundCount > 0;
                   return (
                     <div
@@ -3181,7 +3318,7 @@ export default function Carnet() {
                 })}
               </div>
 
-              {cards.length >= 15 && Object.keys(EMOTIONS).some(key => cards.filter((c) => c.prisme === key).length === 0) && (
+              {cards.length >= 15 && Object.keys(EMOTIONS).some(key => cards.filter((c) => prismeKey(c.prisme) === key).length === 0) && (
                 <div className="text-center mb-8">
                    <p className="font-mono text-[7px] italic text-white/20">
                      Certains signaux n'ont pas encore émergé. Ils peuvent être absents — ou chercher leur forme.
