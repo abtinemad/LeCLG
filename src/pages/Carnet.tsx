@@ -400,8 +400,8 @@ export default function Carnet() {
     return {
       fragments: true,
       lien: true,
-      elan: true,
-      affect: diffDays >= 3 && cards.length >= 2,
+      elan: diffDays >= 3 && cards.length >= 3,
+      affect: true,
       matrice: diffDays >= 21 && cards.length >= 5 && prismesCount >= 2,
     };
   }, [cards, prismesCount]);
@@ -2066,51 +2066,61 @@ export default function Carnet() {
 
                 <div className="mt-12 bg-white/[0.02] border border-[#FCFBF4]/40 shadow-[0_0_15px_rgba(252,251,244,0.15)] p-6 md:p-8 rounded-lg space-y-12">
                   <div className="flex flex-col md:flex-row gap-12">
-                    <div className="flex-1 space-y-8">
-                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2">
-                         <Network className="w-3 h-3" />
-                         Texture & Dissociation
-                       </div>
-                       
-                       {/* DISSOCIATION DETECTION */}
-                       {unlockedBlocks.lien_texture ? (
-                         (() => {
-                            const spherePrismes = { familiale:0, sociale:0, amoureuse:0, professionnelle:0 };
-                            const sphereSongesCount = { familiale:0, sociale:0, amoureuse:0, professionnelle:0 };
-                            
-                            cards.forEach(c => {
-                               if (c.prisme && c.sphere) {
-                                  const s = c.sphere.toLowerCase() as keyof typeof spherePrismes;
-                                  if (spherePrismes[s] !== undefined) spherePrismes[s]++;
-                               }
-                            });
-                            
-                            Object.keys(sphereSonges).forEach(k => {
-                               const s = k.toLowerCase() as keyof typeof sphereSongesCount;
-                               if (sphereSongesCount[s] !== undefined && sphereSonges[k] && sphereSonges[k].trim().length > 10) {
-                                  sphereSongesCount[s] += sphereSonges[k].length;
-                               }
-                            });
-                            
-                            const maxPrismeSphere = Object.keys(spherePrismes).reduce((a,b) => spherePrismes[a as keyof typeof spherePrismes] > spherePrismes[b as keyof typeof spherePrismes] ? a : b) as keyof typeof spherePrismes;
-                            const maxSongeSphere = Object.keys(sphereSongesCount).reduce((a,b) => sphereSongesCount[a as keyof typeof sphereSongesCount] > sphereSongesCount[b as keyof typeof sphereSongesCount] ? a : b) as keyof typeof sphereSongesCount;
-                            
-                            if (spherePrismes[maxPrismeSphere] > 3 && 
-                                sphereSongesCount[maxSongeSphere] > 50 && 
-                                maxPrismeSphere !== maxSongeSphere && 
-                                sphereSongesCount[maxPrismeSphere] < 20) {
-                                return (
-                                   <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-sm">
-                                      <div className="font-serif italic text-[14px] text-beige-faint">
-                                        Observation : Déplacement de l'attention. Sédimentation affective focalisée sur la sphère <span className="text-white/80">{maxPrismeSphere}</span>, mais élaboration de fond orientée vers la sphère <span className="text-white/80">{maxSongeSphere}</span>.
-                                      </div>
-                                   </div>
-                                );
-                            }
-                            return <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas de dissociation majeure détectée</div>;
-                         })()
-                       ) : isNextLocked('lien_texture', 'lien') && (
-                         <LockedBlock title="Texture & Dissociation" requirements="3 fragments + 2 jours" />
+                     {(unlockedBlocks.lien_texture || unlockedBlocks.lien_correlation || isNextLocked('lien_texture', 'lien') || isNextLocked('lien_correlation', 'lien')) && (
+                        <div className="flex-1 space-y-8">
+                           {/* DISSOCIATION DETECTION */}
+                           {unlockedBlocks.lien_texture && (
+
+                         <>
+                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2 mb-8">
+                             <Network className="w-3 h-3" />
+                             Texture & Dissociation
+                           </div>
+                           {(() => {
+                              const spherePrismes = { familiale:0, sociale:0, amoureuse:0, professionnelle:0 };
+                              const sphereSongesCount = { familiale:0, sociale:0, amoureuse:0, professionnelle:0 };
+                              
+                              cards.forEach(c => {
+                                 if (c.prisme && c.sphere) {
+                                    const s = c.sphere.toLowerCase() as keyof typeof spherePrismes;
+                                    if (spherePrismes[s] !== undefined) spherePrismes[s]++;
+                                 }
+                              });
+                              
+                              Object.keys(sphereSonges).forEach(k => {
+                                 const s = k.toLowerCase() as keyof typeof sphereSongesCount;
+                                 if (sphereSongesCount[s] !== undefined && sphereSonges[k] && sphereSonges[k].trim().length > 10) {
+                                    sphereSongesCount[s] += sphereSonges[k].length;
+                                 }
+                              });
+                              
+                              const maxPrismeSphere = Object.keys(spherePrismes).reduce((a,b) => spherePrismes[a as keyof typeof spherePrismes] > spherePrismes[b as keyof typeof spherePrismes] ? a : b) as keyof typeof spherePrismes;
+                              const maxSongeSphere = Object.keys(sphereSongesCount).reduce((a,b) => sphereSongesCount[a as keyof typeof sphereSongesCount] > sphereSongesCount[b as keyof typeof sphereSongesCount] ? a : b) as keyof typeof sphereSongesCount;
+                              
+                              if (spherePrismes[maxPrismeSphere] > 3 && 
+                                  sphereSongesCount[maxSongeSphere] > 50 && 
+                                  maxPrismeSphere !== maxSongeSphere && 
+                                  sphereSongesCount[maxPrismeSphere] < 20) {
+                                  return (
+                                     <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-sm">
+                                        <div className="font-serif italic text-[14px] text-beige-faint">
+                                          Observation : Déplacement de l'attention. Sédimentation affective focalisée sur la sphère <span className="text-white/80">{maxPrismeSphere}</span>, mais élaboration de fond orientée vers la sphère <span className="text-white/80">{maxSongeSphere}</span>.
+                                        </div>
+                                     </div>
+                                  );
+                              }
+                              return <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas de dissociation majeure détectée</div>;
+                           })()}
+                         </>
+                       )}
+                       {!unlockedBlocks.lien_texture && isNextLocked('lien_texture', 'lien') && (
+                         <div className="mb-8">
+                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2 mb-8">
+                             <Network className="w-3 h-3" />
+                             Texture & Dissociation
+                           </div>
+                           <LockedBlock title="Texture & Dissociation" requirements="3 fragments + 2 jours" />
+                         </div>
                        )}
 
                        {/* CORRELATION TEXTURE / SPHERE & MOTS / PRISMES */}
@@ -2159,108 +2169,121 @@ export default function Carnet() {
                          <div className="mt-4"><LockedBlock title="Corrélation Texture / Prismes" requirements="3 fragments + 2 jours + 2 prismes" /></div>
                        )}
                     </div>
+                    )}
                     
-                    <div className="flex-1 space-y-8 md:border-l border-white/5 md:pl-12">
+                    {(unlockedBlocks.lien_constellation || isNextLocked('lien_constellation', 'lien')) && (
+                    <div className={`flex-1 space-y-8 ${(unlockedBlocks.lien_texture || unlockedBlocks.lien_correlation || isNextLocked('lien_texture', 'lien') || isNextLocked('lien_correlation', 'lien')) ? "md:border-l border-white/5 md:pl-12" : ""}`}>
                        {/* CONSTELLATION DES PRISMES - SVG */}
-                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2">
-                         <Orbit className="w-3 h-3" />
-                         Constellation des Prismes
-                       </div>
-                       {unlockedBlocks.lien_constellation ? (
-                         (() => {
-                            const validCards = cards.filter(c => c.prisme && c.sphere);
-                            if (validCards.length < 5) return <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas assez de données sédimentées</div>;
+                       {unlockedBlocks.lien_constellation && (
 
-                            const SPHERES = [
-                            { id: 'familiale', label: 'Familiale', color: '#F59E0B', angle: 225 },
-                            { id: 'sociale', label: 'Sociale', color: '#8B5CF6', angle: 315 },
-                            { id: 'amoureuse', label: 'Amoureuse', color: '#F472B6', angle: 45 },
-                            { id: 'professionnelle', label: 'Professionnelle', color: '#94A3B8', angle: 135 }
-                          ];
+                         <>
+                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2 mb-8">
+                             <Orbit className="w-3 h-3" />
+                             Constellation des Prismes
+                           </div>
+                           {(() => {
+                              const validCards = cards.filter(c => c.prisme && c.sphere);
+                              if (validCards.length < 5) return <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas assez de données sédimentées</div>;
 
-                          const EMOTION_LAYOUT: Record<string, {rOffset: number, aOffset: number}> = {
-                            joie: { rOffset: -20, aOffset: -30 }, tristesse: { rOffset: 10, aOffset: -25 }, colere: { rOffset: -5, aOffset: -15 },
-                            peur: { rOffset: 25, aOffset: -5 }, degout: { rOffset: -30, aOffset: 5 }, surprise: { rOffset: 15, aOffset: 15 },
-                            confiance: { rOffset: -10, aOffset: 25 }, anticipation: { rOffset: 20, aOffset: 35 }, honte: { rOffset: 0, aOffset: -40 },
-                            melancolie: { rOffset: 0, aOffset: 40 }, envie: { rOffset: -15, aOffset: 45 }, soulagement: { rOffset: -25, aOffset: 20 },
-                            gratitude: { rOffset: 5, aOffset: 50 }, jalousie: { rOffset: 10, aOffset: -35 }, amour: { rOffset: 30, aOffset: -20 },
-                            culpabilite: { rOffset: 20, aOffset: -50 }
-                          };
+                              const SPHERES = [
+                              { id: 'familiale', label: 'Familiale', color: '#F59E0B', angle: 225 },
+                              { id: 'sociale', label: 'Sociale', color: '#8B5CF6', angle: 315 },
+                              { id: 'amoureuse', label: 'Amoureuse', color: '#F472B6', angle: 45 },
+                              { id: 'professionnelle', label: 'Professionnelle', color: '#94A3B8', angle: 135 }
+                            ];
 
-                          const EMOTION_COLORS: Record<string, string> = {
-                            joie:'#FACC15', tristesse:'#60A5FA', colere:'#F87171', peur:'#A78BFA', degout:'#A3E635', surprise:'#FB923C',
-                            confiance:'#34D399', anticipation:'#FDBA74', honte:'#C084FC', melancolie:'#93C5FD', envie:'#86EFAC',
-                            soulagement:'#6EE7B7', gratitude:'#FDE047', jalousie:'#BEF264', amour:'#F9A8D4', culpabilite:'#D8B4FE'
-                          };
+                            const EMOTION_LAYOUT: Record<string, {rOffset: number, aOffset: number}> = {
+                              joie: { rOffset: -20, aOffset: -30 }, tristesse: { rOffset: 10, aOffset: -25 }, colere: { rOffset: -5, aOffset: -15 },
+                              peur: { rOffset: 25, aOffset: -5 }, degout: { rOffset: -30, aOffset: 5 }, surprise: { rOffset: 15, aOffset: 15 },
+                              confiance: { rOffset: -10, aOffset: 25 }, anticipation: { rOffset: 20, aOffset: 35 }, honte: { rOffset: 0, aOffset: -40 },
+                              melancolie: { rOffset: 0, aOffset: 40 }, envie: { rOffset: -15, aOffset: 45 }, soulagement: { rOffset: -25, aOffset: 20 },
+                              gratitude: { rOffset: 5, aOffset: 50 }, jalousie: { rOffset: 10, aOffset: -35 }, amour: { rOffset: 30, aOffset: -20 },
+                              culpabilite: { rOffset: 20, aOffset: -50 }
+                            };
 
-                          const grouped = validCards.reduce((acc, card) => {
-                             const key = `${card.sphere}-${card.prisme}`;
-                             if (!acc[key]) acc[key] = { sphere: card.sphere, prisme: card.prisme, count: 0 };
-                             acc[key].count++;
-                             return acc;
-                          }, {} as Record<string, any>);
+                            const EMOTION_COLORS: Record<string, string> = {
+                              joie:'#FACC15', tristesse:'#60A5FA', colere:'#F87171', peur:'#A78BFA', degout:'#A3E635', surprise:'#FB923C',
+                              confiance:'#34D399', anticipation:'#FDBA74', honte:'#C084FC', melancolie:'#93C5FD', envie:'#86EFAC',
+                              soulagement:'#6EE7B7', gratitude:'#FDE047', jalousie:'#BEF264', amour:'#F9A8D4', culpabilite:'#D8B4FE'
+                            };
 
-                          const cx = 150, cy = 150, baseRadius = 80;
-                          const points: any[] = [];
-                          const lines: any[] = [];
-                          
-                          Object.values(grouped).forEach((g: any) => {
-                             const sp = SPHERES.find(s => s.id === g.sphere?.toLowerCase());
-                             if (!sp) return;
-                             const el = EMOTION_LAYOUT[g.prisme?.toLowerCase()] || { rOffset: (Math.random()-0.5)*40, aOffset: (Math.random()-0.5)*40 };
-                             
-                             const r = baseRadius + el.rOffset;
-                             const a = (sp.angle + el.aOffset) * (Math.PI / 180);
-                             
-                             const px = cx + r * Math.cos(a);
-                             const py = cy + r * Math.sin(a);
-                             const size = Math.max(3, Math.min(10, g.count * 1.5));
-                             const eCol = EMOTION_COLORS[g.prisme?.toLowerCase()] || '#ffffff';
-                             
-                             points.push({ x: px, y: py, size, color: eCol, label: g.prisme, count: g.count });
-                             lines.push({ x1: cx, y1: cy, x2: px, y2: py, color: sp.color });
-                          });
+                            const grouped = validCards.reduce((acc, card) => {
+                               const key = `${card.sphere}-${card.prisme}`;
+                               if (!acc[key]) acc[key] = { sphere: card.sphere, prisme: card.prisme, count: 0 };
+                               acc[key].count++;
+                               return acc;
+                            }, {} as Record<string, any>);
 
-                          return (
-                            <div className="w-full flex justify-center">
-                              <svg width="300" height="300" viewBox="0 0 300 300" className="overflow-visible">
-                                 <circle cx={cx} cy={cy} r="2" fill="#fff" opacity="0.5" />
-                                 <circle cx={cx} cy={cy} r={baseRadius} fill="none" stroke="#ffffff10" strokeDasharray="2 4" />
-                                 <circle cx={cx} cy={cy} r={baseRadius+40} fill="none" stroke="#ffffff05" strokeDasharray="1 6" />
-                                 
-                                 {SPHERES.map(s => {
-                                    const tx = cx + (baseRadius + 60) * Math.cos(s.angle * Math.PI/180);
-                                    const ty = cy + (baseRadius + 60) * Math.sin(s.angle * Math.PI/180);
-                                    return (
-                                      <text key={s.id} x={tx} y={ty} fill={s.color} className="font-mono text-[7px] uppercase" textAnchor="middle" alignmentBaseline="middle" opacity="0.8">
-                                        {s.label}
-                                      </text>
-                                    )
-                                 })}
+                            const cx = 150, cy = 150, baseRadius = 80;
+                            const points: any[] = [];
+                            const lines: any[] = [];
+                            
+                            Object.values(grouped).forEach((g: any) => {
+                               const sp = SPHERES.find(s => s.id === g.sphere?.toLowerCase());
+                               if (!sp) return;
+                               const el = EMOTION_LAYOUT[g.prisme?.toLowerCase()] || { rOffset: (Math.random()-0.5)*40, aOffset: (Math.random()-0.5)*40 };
+                               
+                               const r = baseRadius + el.rOffset;
+                               const a = (sp.angle + el.aOffset) * (Math.PI / 180);
+                               
+                               const px = cx + r * Math.cos(a);
+                               const py = cy + r * Math.sin(a);
+                               const size = Math.max(3, Math.min(10, g.count * 1.5));
+                               const eCol = EMOTION_COLORS[g.prisme?.toLowerCase()] || '#ffffff';
+                               
+                               points.push({ x: px, y: py, size, color: eCol, label: g.prisme, count: g.count });
+                               lines.push({ x1: cx, y1: cy, x2: px, y2: py, color: sp.color });
+                            });
 
-                                 {lines.map((l, idx) => (
-                                    <motion.line key={`l-${idx}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth="1" strokeOpacity="0.15" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, delay: 0.5 }} />
-                                 ))}
+                            return (
+                              <div className="w-full flex justify-center">
+                                <svg width="300" height="300" viewBox="0 0 300 300" className="overflow-visible">
+                                   <circle cx={cx} cy={cy} r="2" fill="#fff" opacity="0.5" />
+                                   <circle cx={cx} cy={cy} r={baseRadius} fill="none" stroke="#ffffff10" strokeDasharray="2 4" />
+                                   <circle cx={cx} cy={cy} r={baseRadius+40} fill="none" stroke="#ffffff05" strokeDasharray="1 6" />
+                                   
+                                   {SPHERES.map(s => {
+                                      const tx = cx + (baseRadius + 60) * Math.cos(s.angle * Math.PI/180);
+                                      const ty = cy + (baseRadius + 60) * Math.sin(s.angle * Math.PI/180);
+                                      return (
+                                        <text key={s.id} x={tx} y={ty} fill={s.color} className="font-mono text-[7px] uppercase" textAnchor="middle" alignmentBaseline="middle" opacity="0.8">
+                                          {s.label}
+                                        </text>
+                                      )
+                                   })}
 
-                                 {points.map((p, idx) => (
-                                    <motion.g key={`p-${idx}`} className="group cursor-default" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", delay: 0.2 + idx * 0.05 }}>
-                                       <circle cx={p.x} cy={p.y} r={p.size} fill={p.color} />
-                                       <circle cx={p.x} cy={p.y} r={p.size * 2} fill="transparent" />
-                                       <g className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                          <text x={p.x + 8} y={p.y - 8} fill={p.color} className="font-mono text-[8px] uppercase" style={{ textShadow: "0px 1px 3px rgba(0,0,0,1)" }}>
-                                            {p.label} <tspan fill="#fff">×{p.count}</tspan>
-                                          </text>
-                                       </g>
-                                    </motion.g>
-                                 ))}
-                              </svg>
-                            </div>
-                          );
-                       })()
-                      ) : isNextLocked('lien_constellation', 'lien') && (
-                         <div className="mt-4"><LockedBlock title="Constellation des Prismes" requirements="3 fragments + 2 jours + 3 prismes" /></div>
-                      )}
+                                   {lines.map((l, idx) => (
+                                      <motion.line key={`l-${idx}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth="1" strokeOpacity="0.15" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, delay: 0.5 }} />
+                                   ))}
+
+                                   {points.map((p, idx) => (
+                                      <motion.g key={`p-${idx}`} className="group cursor-default" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", delay: 0.2 + idx * 0.05 }}>
+                                         <circle cx={p.x} cy={p.y} r={p.size} fill={p.color} />
+                                         <circle cx={p.x} cy={p.y} r={p.size * 2} fill="transparent" />
+                                         <g className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                            <text x={p.x + 8} y={p.y - 8} fill={p.color} className="font-mono text-[8px] uppercase" style={{ textShadow: "0px 1px 3px rgba(0,0,0,1)" }}>
+                                              {p.label} <tspan fill="#fff">×{p.count}</tspan>
+                                            </text>
+                                         </g>
+                                      </motion.g>
+                                   ))}
+                                </svg>
+                              </div>
+                            );
+                         })()}
+                         </>
+                       )}
+                       {!unlockedBlocks.lien_constellation && isNextLocked('lien_constellation', 'lien') && (
+                         <div className="mt-4">
+                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2 mb-8">
+                             <Orbit className="w-3 h-3" />
+                             Constellation des Prismes
+                           </div>
+                           <LockedBlock title="Constellation des Prismes" requirements="3 fragments + 2 jours + 3 prismes" />
+                         </div>
+                       )}
                     </div>
+                    )}
                   </div>
                   
                   {unlockedBlocks.lien_fragilite ? (
@@ -2307,7 +2330,7 @@ export default function Carnet() {
             {!unlockedSections.affect ? (
               <LockedSection
                 title="Affect"
-                requirements="3 jours + 2 fragments"
+                requirements="Toujours visible"
                 icon={Waves}
               />
             ) : affectData ? (
@@ -2382,9 +2405,9 @@ export default function Carnet() {
                 </div>
 
                 <div className="mt-12 bg-white/[0.02] border border-[#FCFBF4]/40 shadow-[0_0_15px_rgba(252,251,244,0.15)] p-6 md:p-8 rounded-lg space-y-12">
-                  <div className="grid md:grid-cols-2 gap-12">
+                  <div className="flex flex-col md:flex-row gap-12">
                      {/* HEATMAP TEMPORELLE & RYTHME */}
-                     <div className="space-y-6">
+                     <div className="flex-1 space-y-6">
                         <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] inline-flex items-center gap-2">
                            <Zap className="w-3 h-3" />
                            Rythme de sédimentation
@@ -2440,11 +2463,14 @@ export default function Carnet() {
                      </div>
 
                      {/* EVOLUTION DES AFFECTS */}
-                     <div className="space-y-6 flex flex-col">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] inline-flex items-center gap-2">
-                           <Waves className="w-3 h-3" />
-                           Luminescence Émotionnelle (Évolution)
-                        </div>
+                     {(unlockedBlocks.affect_luminescence || isNextLocked('affect_luminescence', 'affect')) && (
+                     <div className="flex-1 space-y-6 flex flex-col md:border-l border-white/5 md:pl-12">
+                        {unlockedBlocks.affect_luminescence && (
+                          <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] inline-flex items-center gap-2 mb-4">
+                             <Waves className="w-3 h-3" />
+                             Luminescence Émotionnelle (Évolution)
+                          </div>
+                        )}
                         {unlockedBlocks.affect_luminescence ? (
                           <>
                             <div className="flex-1 min-h-[150px] w-full relative">
@@ -2516,6 +2542,7 @@ export default function Carnet() {
                           </div>
                         )}
                      </div>
+                     )}
                   </div>
                 </div>
               </>
@@ -2530,15 +2557,17 @@ export default function Carnet() {
             {!unlockedSections.elan ? (
               <LockedSection
                 title="Élan"
-                requirements="Toujours visible"
+                requirements="3 jours + 3 fragments"
                 icon={Orbit}
               />
             ) : elanDataAnalysis ? (
               <div className="space-y-12">
                 <div className="space-y-4 text-center">
-                  <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/20">
-                    Mouvement
-                  </div>
+                  {unlockedBlocks.elan_mouvement && (
+                    <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/20 mb-4">
+                      Mouvement
+                    </div>
+                  )}
                   {unlockedBlocks.elan_mouvement ? (
                     <p className="text-2xl md:text-3xl font-serif italic text-beige leading-snug">
                       "{elanDataAnalysis.mouvement}"
@@ -2551,9 +2580,11 @@ export default function Carnet() {
                 <div className="w-12 h-px bg-white/10 mx-auto" />
 
                 <div className="space-y-4 text-center">
-                  <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/20">
-                    Direction
-                  </div>
+                  {unlockedBlocks.elan_direction && (
+                    <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/20 mb-4">
+                      Direction
+                    </div>
+                  )}
                   {unlockedBlocks.elan_direction ? (
                     <p className="text-lg font-serif text-beige-faint leading-relaxed">
                       {elanDataAnalysis.direction}
@@ -2564,9 +2595,11 @@ export default function Carnet() {
                 </div>
 
                 <div className="pt-12 border-t border-white/5 text-center">
-                  <div className="font-mono text-[8px] tracking-[0.4em] uppercase text-green/40 mb-4 italic">
-                    La question qui travaille
-                  </div>
+                  {unlockedBlocks.elan_question && (
+                    <div className="font-mono text-[8px] tracking-[0.4em] uppercase text-green/40 mb-4 italic">
+                      La question qui travaille
+                    </div>
+                  )}
                   {unlockedBlocks.elan_question ? (
                     <p className="text-xl font-serif italic text-white leading-relaxed">
                       "{elanDataAnalysis.question}"
@@ -2577,12 +2610,15 @@ export default function Carnet() {
                 </div>
 
                 <div className="mt-12 bg-white/[0.02] border border-[#FCFBF4]/40 shadow-[0_0_15px_rgba(252,251,244,0.15)] p-6 md:p-8 rounded-lg space-y-12 text-left">
-                   <div className="grid md:grid-cols-2 gap-12">
-                     <div className="space-y-6">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#FAF9F6] inline-flex items-center gap-2">
-                           <Orbit className="w-3 h-3" />
-                           Clusters récurrents & Signaux
-                        </div>
+                   <div className="flex flex-col md:flex-row gap-12">
+                     {(unlockedBlocks.elan_clusters || isNextLocked('elan_clusters', 'elan')) && (
+                     <div className="flex-1 space-y-6">
+                        {unlockedBlocks.elan_clusters && (
+                          <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#FAF9F6] inline-flex items-center gap-2 mb-4">
+                             <Orbit className="w-3 h-3" />
+                             Clusters récurrents & Signaux
+                          </div>
+                        )}
                         {unlockedBlocks.elan_clusters ? (
                           <>
                             {enrichElan && enrichElan.clusters_recurrents ? (
@@ -2655,11 +2691,16 @@ export default function Carnet() {
                           <div className="mt-4"><LockedBlock title="Clusters Récurrents" requirements="7 jours + 3 fragments" /></div>
                         )}
                      </div>
-                     <div className="space-y-6 md:border-l border-white/5 md:pl-12">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#FAF9F6] inline-flex items-center gap-2">
-                           <Network className="w-3 h-3" />
-                           Convergence des directions
-                        </div>
+                     )}
+                     
+                     {(unlockedBlocks.elan_direction || isNextLocked('elan_direction', 'elan')) && (
+                     <div className={`flex-1 space-y-6 ${(unlockedBlocks.elan_clusters || isNextLocked('elan_clusters', 'elan')) ? "md:border-l border-white/5 md:pl-12" : ""}`}>
+                        {unlockedBlocks.elan_direction && (
+                          <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#FAF9F6] inline-flex items-center gap-2 mb-4">
+                             <Network className="w-3 h-3" />
+                             Convergence des directions
+                          </div>
+                        )}
                         {unlockedBlocks.elan_direction ? (
                           (() => {
                               const directions = cards.map(c => (c.direction||'').toLowerCase()).filter(d => d.length > 5);
@@ -2703,6 +2744,7 @@ export default function Carnet() {
                           })()
                         ) : null}
                      </div>
+                     )}
                    </div>
                 </div>
               </div>
