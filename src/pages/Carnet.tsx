@@ -342,7 +342,7 @@ export default function Carnet() {
   const syncCardToCloud = async (card: ReflectionCard) => {
     if (!personalId || !card.id) return;
     try {
-      const existing = await sbGet("cartes", `id=eq.${card.id}`);
+      const existing = await sbGet("cartes", `id=eq.${card.id}&personal_id=eq.${personalId}`);
       if (existing && Array.isArray(existing) && existing.length > 0) {
         await sbUpdate("cartes", card.id, { ...card, personal_id: personalId });
       } else {
@@ -445,103 +445,8 @@ export default function Carnet() {
   }, [cards, prismesCount, sessionsData, enrichFragments]);
 
   const isNextLocked = useCallback((key: keyof typeof unlockedBlocks, viewMode: "fragments" | "lien" | "affect" | "elan" | "matrice") => {
-    const viewKeys: Record<string, (keyof typeof unlockedBlocks)[]> = {
-      fragments: [
-        'fragments_progression',
-        'fragments_relation_prismes',
-        'fragments_resistances',
-        'fragments_echo',
-        'fragments_signaux',
-        'fragments_sillage'
-      ],
-      lien: [
-        'lien_texture',
-        'lien_correlation',
-        'lien_constellation',
-        'lien_structure',
-        'lien_fragilite'
-      ],
-      affect: [
-        'affect_rythme', 
-        'affect_lecture',
-        'affect_luminescence',
-        'affect_gradients'
-      ],
-      elan: [
-        'elan_clusters',
-        'elan_mouvement',
-        'elan_direction',
-        'elan_question'
-      ],
-      matrice: [
-        'matrice_evolution',
-        'matrice_validation_songes'
-      ]
-    };
-
-    const lockedInView = (viewKeys[viewMode] || []).filter(k => !unlockedBlocks[k]);
-    if (lockedInView.length === 0) return false;
-
-    const now = new Date();
-    const firstCardDate = cards.length > 0 ? new Date(cards[cards.length - 1].date) : now;
-    const diffDays = Math.floor((now.getTime() - firstCardDate.getTime()) / (1000 * 3600 * 24));
-    const uniqueDays = new Set(cards.map(c => new Date(c.date).toDateString())).size;
-    const sessionsWithStepsCount = sessionsData.filter(s => s.step_reached !== undefined).length;
-    const songesCount = cards.filter(c => c.user_note && c.user_note.trim().length > 10).length;
-    const hasSonges = songesCount > 0;
-
-    const reqs: Record<string, { c?: number; p?: number; u?: number; d?: number; s?: number; so?: number; e?: number; hs?: number }> = {
-      fragments_progression: { s: 2 },
-      fragments_relation_prismes: { c: 3, p: 2 },
-      fragments_resistances: { c: 4, u: 3 },
-      fragments_echo: { c: 5 },
-      fragments_signaux: { c: 5, e: enrichFragments ? 0 : 1 },
-      fragments_sillage: { so: 2, d: 7 },
-
-      lien_texture: { c: 3, u: 2 },
-      lien_correlation: { c: 3, u: 2, p: 2 },
-      lien_constellation: { c: 3, u: 2, p: 3 },
-      lien_structure: { c: 4, p: 3 },
-      lien_fragilite: { c: 5, p: 3 },
-
-      affect_rythme: { c: 3 },
-      affect_gradients: { c: 5 },
-      affect_luminescence: { c: 3, u: 3 },
-      affect_lecture: { p: 2 },
-
-      elan_clusters: { d: 7, c: 3, p: 1 },
-      elan_mouvement: { d: 7, c: 4, p: 1 },
-      elan_direction: { d: 7, c: 5, p: 1 },
-      elan_question: { d: 7, c: 6, p: 1 },
-
-      matrice_evolution: { hs: 0 },
-      matrice_validation_songes: { hs: hasSonges ? 0 : 1 }
-    };
-
-    let minDist = Infinity;
-    let closestKey = lockedInView[0];
-    for (const k of lockedInView) {
-       const res = reqs[k as string];
-       let dist = 1000; // fallback high distance if not mapped
-       if (res) {
-          dist = 0;
-          if (res.c) dist += Math.max(0, res.c - cards.length);
-          if (res.p) dist += Math.max(0, res.p - prismesCount);
-          if (res.u) dist += Math.max(0, res.u - uniqueDays);
-          if (res.d) dist += Math.max(0, res.d - diffDays);
-          if (res.s) dist += Math.max(0, res.s - sessionsWithStepsCount);
-          if (res.so) dist += Math.max(0, res.so - songesCount);
-          if (res.e) dist += res.e;
-          if (res.hs) dist += res.hs;
-       }
-       if (dist < minDist) {
-          minDist = dist;
-          closestKey = k;
-       }
-    }
-
-    return closestKey === key;
-  }, [unlockedBlocks, cards, prismesCount, sessionsData, enrichFragments]);
+    return false;
+  }, []);
 
   const copyToClipboard = (text: string, section: string) => {
     if (!text) return;
@@ -638,6 +543,7 @@ export default function Carnet() {
   };
 
   useEffect(() => {
+    if (cards.length === 0) return;
     if (unlockedSections.lien && !lienData) {
       runAnalysis("eval_lien", { cards }).then((data) => {
         if (data) {
@@ -1599,7 +1505,7 @@ export default function Carnet() {
                 {unlockedBlocks.fragments_progression ? (
                   <div className="border-b border-white/5 pb-8">
                      <div className="flex flex-col items-center">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-green mb-6 inline-flex items-center gap-2">
                            <Activity className="w-3 h-3" />
                            Progression dans les étapes
                         </div>
@@ -1609,10 +1515,10 @@ export default function Carnet() {
                                  <div key={lvl} className="w-full border-t border-white/5" />
                               ))}
                            </div>
-                           <ResponsiveContainer width="100%" height="100%">
+                           <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10}>
                               <LineChart data={sessionsData.filter(s => s.step_reached !== undefined).map((s, idx) => ({ name: idx, step: s.step_reached }))} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                  <YAxis domain={[1, 5]} hide={true} />
-                                 <Line type="stepAfter" dataKey="step" stroke="#7BA7D7" strokeWidth={1} dot={false} isAnimationActive={false} />
+                                 <Line type="stepAfter" dataKey="step" stroke="#6ba368" strokeWidth={1} dot={false} isAnimationActive={false} />
                               </LineChart>
                            </ResponsiveContainer>
                         </div>
@@ -1661,7 +1567,7 @@ export default function Carnet() {
 
                    return (
                       <div className="border-b border-white/5 pb-8 mb-8 space-y-4 text-center mt-8">
-                         <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                         <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-green mb-6 inline-flex items-center gap-2">
                            <Activity className="w-3 h-3" />
                            Relation Prismes / Étapes
                          </div>
@@ -1772,7 +1678,7 @@ export default function Carnet() {
                   <div className="flex flex-col items-center">
                     {unlockedBlocks.fragments_echo ? (
                       <>
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-green mb-6 inline-flex items-center gap-2">
                            <Feather className="w-3 h-3" />
                            Écho lexical des fragments
                         </div>
@@ -1812,7 +1718,7 @@ export default function Carnet() {
                   <div className="flex flex-col items-center">
                     {unlockedBlocks.fragments_sillage ? (
                       <>
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-green mb-6 inline-flex items-center gap-2">
                            <Waves className="w-3 h-3" />
                            Sillage sémantique des Songes
                         </div>
@@ -1872,7 +1778,7 @@ export default function Carnet() {
 
                 {affectData?.texture_croisee && affectData.texture_croisee.length > 0 && (
                    <div className="border-t border-white/5 pt-8 text-center pb-8">
-                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-green mb-6 inline-flex items-center gap-2">
                        <Waves className="w-3 h-3" />
                        Texture relationnelle croisée
                      </div>
@@ -1887,7 +1793,7 @@ export default function Carnet() {
                 )}
                 <div className="grid md:grid-cols-2 gap-12 border-t border-white/5 pt-8">
                   <div className="flex flex-col items-center text-center">
-                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-green mb-6 inline-flex items-center gap-2">
                        <Waves className="w-3 h-3" />
                        Évolution de la texture
                      </div>
@@ -1924,7 +1830,7 @@ export default function Carnet() {
                   </div>
                   
                   <div className="flex flex-col items-center text-center">
-                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] mb-6 inline-flex items-center gap-2">
+                     <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-green mb-6 inline-flex items-center gap-2">
                        <Orbit className="w-3 h-3" />
                        Amplitude du mouvement
                      </div>
@@ -2572,7 +2478,7 @@ export default function Carnet() {
                                 if (chartData.length === 0) return <div className="text-[11px] text-white/20 italic font-mono uppercase">Pas encore de données</div>;
                                 
                                 return (
-                                   <ResponsiveContainer width="100%" height="100%">
+                                   <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10}>
                                      <LineChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 20 }}>
                                        <XAxis dataKey="name" stroke="#ffffff20" fontSize={10} tickLine={false} axisLine={false} />
                                        <Tooltip contentStyle={{backgroundColor:'#151515', borderColor:'#ffffff10', fontSize:'11px'}} itemStyle={{fontFamily:'monospace', fontSize:'10px'}} />
@@ -2673,7 +2579,7 @@ export default function Carnet() {
                 <div className="mt-12 bg-white/[0.02] border border-[#FCFBF4]/40 shadow-[0_0_15px_rgba(252,251,244,0.15)] p-6 md:p-8 rounded-lg space-y-12 text-left">
                    <div className="grid md:grid-cols-2 gap-12">
                      <div className="space-y-6">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-white/50 inline-flex items-center gap-2">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#FAF9F6] inline-flex items-center gap-2">
                            <Orbit className="w-3 h-3" />
                            Clusters récurrents & Signaux
                         </div>
@@ -2750,7 +2656,7 @@ export default function Carnet() {
                         )}
                      </div>
                      <div className="space-y-6 md:border-l border-white/5 md:pl-12">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-white/50 inline-flex items-center gap-2">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#FAF9F6] inline-flex items-center gap-2">
                            <Network className="w-3 h-3" />
                            Convergence des directions
                         </div>

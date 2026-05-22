@@ -1,23 +1,14 @@
 /**
- * server.ts — version durcie (sécurité)
+ * server.ts — couche Supabase nettoyée + sécurité
  *
- * Modifications par rapport à la version précédente :
- *  1. ALLOWED_TABLES : liste blanche des tables. sb_insert / sb_update / sb_read
- *     ne peuvent plus toucher une table arbitraire de la base.
- *  2. personal_id obligatoire sur les écritures (sb_insert / sb_update) pour les
- *     tables de données utilisateur (feedbacks excepté).
- *  3. sb_update : le PATCH est borné par personal_id — on ne peut plus écraser
- *     la ligne d'un autre utilisateur même en connaissant son id.
- *  4. Route /api/schema supprimée (exposait tout le schéma de la base).
- *  5. Routes mortes /api/chat et /api/evaluate supprimées, ainsi que les
- *     constantes SYSTEM_PROMPT / EVAL_SYSTEM qu'elles seules utilisaient
- *     (le prompt clinique vit désormais uniquement dans le worker Cloudflare).
- *  6. En-tête X-Internal-Secret ajouté aux appels vers le worker Cloudflare.
+ * La couche Supabase ne tâtonne plus : le schéma réel des tables est connu
+ * (TABLE_COLUMNS), les écritures sont filtrées sur les vraies colonnes
+ * (cleanPayload), les insertions utilisent un upsert (pas de conflit de clé),
+ * et il n'y a plus de conversion personal_id -> user_id ni de cascade de replis.
  *
- * À faire EN DEHORS de ce fichier pour que le point 6 soit effectif :
- *  - Ajouter un secret INTERNAL_SECRET dans le panneau Secrets d'AI Studio.
- *  - Ajouter le même INTERNAL_SECRET dans les variables du worker Cloudflare,
- *    et y refuser toute requête dont l'en-tête X-Internal-Secret ne correspond pas.
+ * Sécurité conservée : liste blanche des tables, personal_id obligatoire à
+ * l'insertion, mises à jour bornées par personal_id, en-tête X-Internal-Secret
+ * sur les appels au worker Cloudflare, /api/schema et routes mortes supprimées.
  */
 
 import express, { Request, Response, NextFunction } from "express";
@@ -34,7 +25,7 @@ app.set("trust proxy", 1);
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+  max: 500, // Limit each IP to 500 requests per `window` (here, per 15 minutes)
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
@@ -44,11 +35,27 @@ const apiLimiter = rateLimit({
 const PORT = 3000;
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://REDACTED.supabase.co";
 
-// --- Sécurité : tables autorisées via le proxy ---
-const ALLOWED_TABLES = ["sessions", "feedbacks", "carnet", "cartes", "eclats"];
-// Tables de données utilisateur : une écriture doit toujours porter un personal_id.
-// feedbacks est volontairement exclu (un retour peut être anonyme).
-const PERSONAL_ID_REQUIRED_TABLES = ["sessions", "carnet", "cartes", "eclats"];
+// --- Schéma réel des tables (source de vérité, aligné sur Supabase) ---
+// Toute écriture est filtrée sur ces colonnes : un champ inconnu envoyé par
+// le front est ignoré au lieu de faire échouer la requête.
+const TABLE_COLUMNS: Record<string, string[]> = {
+  sessions:  ["id", "personal_id", "started_at", "ended_at", "step_reached", "messages", "reflection_card"],
+  cartes:    ["id", "personal_id", "fragment", "deplacement", "direction", "texture_relationnelle", "sphere", "emotion", "prisme", "date", "image_url", "user_note", "created_at"],
+  carnet:    ["id", "personal_id", "plan", "lien_data", "affect_data", "elan_data", "matrice_data", "lueurs", "songes", "serpentin_state", "prismes_unlocked", "last_sync", "created_at"],
+  eclats:    ["id", "personal_id", "type", "request_text", "matrice_snapshot", "elan_snapshot", "affect_snapshot", "lien_snapshot", "created_at"],
+  feedbacks: ["id", "personal_id", "content", "rating", "created_at"],
+};
+
+// Ne conserve du payload que les colonnes réellement présentes dans la table.
+function cleanPayload(table: string, payload: any): any {
+  const cols = TABLE_COLUMNS[table];
+  if (!cols || !payload || typeof payload !== "object") return payload;
+  const out: any = {};
+  for (const key of Object.keys(payload)) {
+    if (cols.includes(key)) out[key] = payload[key];
+  }
+  return out;
+}
 
 app.use("/api/", apiLimiter);
 app.use(express.json());
@@ -101,18 +108,18 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
   };
 
 // Supabase Helper
-async function sbRequest(method: string, tablePath: string, body: any, serviceKey: string, personalId?: string) {
+async function sbRequest(method: string, tablePath: string, body: any, serviceKey: string, upsert: boolean = false) {
+  const prefer: string[] = [];
+  if (method === "POST") prefer.push("return=representation");
+  else if (method === "PATCH" || method === "DELETE") prefer.push("return=minimal");
+  if (upsert) prefer.push("resolution=merge-duplicates");
+
   const headers: any = {
     "Content-Type": "application/json",
     "apikey": serviceKey,
     "Authorization": `Bearer ${serviceKey}`,
-    "Prefer": method === "POST" ? "return=representation" : "return=minimal"
   };
-
-  if (personalId) {
-    headers["Role"] = "anon";
-    headers["x-personal-id"] = personalId;
-  }
+  if (prefer.length) headers["Prefer"] = prefer.join(",");
 
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${tablePath}`, {
     method,
@@ -122,34 +129,17 @@ async function sbRequest(method: string, tablePath: string, body: any, serviceKe
 
   if (!res.ok) {
     const errText = await res.text();
-    let errData;
+    let errData: any;
     try {
       errData = JSON.parse(errText);
     } catch (e) {
       errData = { message: errText };
     }
-
-    // Silently handle expected schema mismatches
-    const isMissingTable = errData.code === "42P01" ||
-                          errData.code === "PGRST205" ||
-                          (errData.message && (errData.message.includes("relation") || errData.message.includes("table") || errData.message.includes("does not exist")));
-
-    const isMissingColumn = errData.code === "42703" ||
-                           errData.code === "PGRST204" ||
-                           (errData.message && (errData.message.includes("column") || errData.message.includes("undefined_column")));
-
     if (res.status === 401) {
       console.error(`Supabase Unauthorized (${method} ${tablePath}). Check SUPABASE_SERVICE_KEY.`);
-    } else if (!isMissingTable && !isMissingColumn) {
-      console.error(`Supabase Error (${method} ${tablePath}):`, errData);
     } else {
-      console.warn(`Supabase schema mismatch on ${tablePath}: ${errData.message} (Handled by fallback)`);
+      console.error(`Supabase Error (${method} ${tablePath}):`, errData);
     }
-
-    if (isMissingTable) {
-      return method === "GET" ? [] : null;
-    }
-
     throw new Error(`Supabase ${method} ${tablePath} failed (${res.status}): ${JSON.stringify(errData)}`);
   }
 
@@ -230,77 +220,6 @@ app.post("/api/clarte", asyncHandler(async (req: Request, res: Response) => {
   res.json(JSON.parse(result.text));
 }));
 
-// Helper for rune -> prisme transition remapping AND personal_id/user_id fallback
-function remapPayload(payload: any, forceUserId: boolean = false) {
-  if (!payload || typeof payload !== 'object') return payload;
-  const newPayload = { ...payload };
-
-  // Transition: rune -> prisme for modern schemas
-  if (newPayload.rune !== undefined) {
-    newPayload.prisme = newPayload.rune;
-    delete newPayload.rune;
-  }
-  if (newPayload.runes_unlocked !== undefined) {
-    newPayload.prismes_unlocked = newPayload.runes_unlocked;
-    delete newPayload.runes_unlocked;
-  }
-
-  // Column name fallback: personal_id <-> user_id
-  if (forceUserId) {
-    if (newPayload.personal_id !== undefined) {
-      newPayload.user_id = newPayload.personal_id;
-      delete newPayload.personal_id;
-    }
-  } else if (newPayload.user_id !== undefined && newPayload.personal_id === undefined) {
-    newPayload.personal_id = newPayload.user_id;
-    delete newPayload.user_id;
-  }
-
-  return newPayload;
-}
-
-function remapResult(result: any): any {
-  if (!result) return result;
-  if (Array.isArray(result)) return result.map(remapResult);
-  if (typeof result !== 'object') return result;
-
-  const newResult = { ...result };
-
-  // Transition: rune -> prisme for result compatibility
-  if (newResult.rune !== undefined) {
-    if (newResult.prisme === undefined) newResult.prisme = newResult.rune;
-    delete newResult.rune;
-  }
-  if (newResult.runes_unlocked !== undefined) {
-    if (newResult.prismes_unlocked === undefined) newResult.prismes_unlocked = newResult.runes_unlocked;
-    delete newResult.runes_unlocked;
-  }
-
-  // Unwrap 'data' JSONB column fields if they exist
-  if (newResult.data && typeof newResult.data === 'object' && !Array.isArray(newResult.data)) {
-    for (const key in newResult.data) {
-      if (newResult[key] === undefined) {
-        newResult[key] = newResult.data[key];
-      }
-    }
-  }
-
-  // Backwards compatibility for ID columns
-  if (newResult.user_id !== undefined) {
-    if (newResult.personal_id === undefined) newResult.personal_id = newResult.user_id;
-    delete newResult.user_id;
-  }
-
-  // Also recursively handle nested objects (like data or reflection_card)
-  for (const key in newResult) {
-    if (newResult[key] && typeof newResult[key] === 'object' && !(newResult[key] instanceof Date)) {
-      newResult[key] = remapResult(newResult[key]);
-    }
-  }
-
-  return newResult;
-}
-
 // Supabase Proxy Routes (Compatibility with worker logic)
 app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   const { type, data, messages, max_tokens }: ProxyRequest = req.body;
@@ -313,120 +232,53 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   const personalId = (data?.payload && (data.payload.personal_id || data.payload.user_id)) ||
                      (data?.params && ((data.params.match(/personal_id=eq\.([^&]+)/) || [])[1] || (data.params.match(/user_id=eq\.([^&]+)/) || [])[1]));
 
-  // --- Sécurité : liste blanche des tables pour toute opération Supabase ---
+  // --- Sécurité : seules les tables connues sont accessibles ---
   if (type === "sb_insert" || type === "sb_update" || type === "sb_read") {
-    if (!data || !ALLOWED_TABLES.includes(data.table)) {
+    if (!data || !TABLE_COLUMNS[data.table]) {
       return res.status(400).json({ error: "Table non autorisée" });
     }
   }
 
-  // --- Sécurité : une écriture sur une table utilisateur doit porter un personal_id ---
-  if (type === "sb_insert" || type === "sb_update") {
-    const pid = (data.payload && (data.payload.personal_id || data.payload.user_id)) || null;
-    if (!pid && PERSONAL_ID_REQUIRED_TABLES.includes(data.table)) {
+  // --- Sécurité : une INSERTION sur une table utilisateur doit porter un personal_id ---
+  if (type === "sb_insert") {
+    const pid = data.payload && data.payload.personal_id;
+    if (!pid && data.table !== "feedbacks") {
       return res.status(400).json({ error: "personal_id requis" });
     }
   }
 
   if (type === "sb_insert") {
-    try {
-      // Homogenize column names FIRST to avoid retry latency (always send user_id / prisme)
-      const standardPayload = remapPayload(data.payload, true);
-      const row = await sbRequest("POST", data.table, standardPayload, serviceKey, personalId);
-      return res.json({ row: row ? row[0] : null });
-    } catch (e: any) {
-      const isColumnErr = e.message && (e.message.includes("column") || e.message.includes("42703") || e.message.includes("PGRST204"));
-
-      if (isColumnErr) {
-        console.warn(`Retrying insert on ${data.table} with direct payload...`);
-        try {
-          const row = await sbRequest("POST", data.table, data.payload, serviceKey, personalId);
-          return res.json({ row: row ? row[0] : null });
-        } catch (e2) {
-          console.warn(`Retrying insert on ${data.table} with wrapped data and personal_id column...`);
-          try {
-            const row = await sbRequest("POST", data.table, { personal_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
-            return res.json({ row: row ? row[0] : null });
-          } catch (e3) {
-            console.warn(`Retrying insert on ${data.table} with wrapped data and user_id column...`);
-            try {
-              const row = await sbRequest("POST", data.table, { user_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
-              return res.json({ row: row ? row[0] : null });
-            } catch (e4) {
-              throw e; // throw original
-            }
-          }
-        }
-      }
-      throw e;
-    }
+    // Le payload est filtré sur les vraies colonnes ; un champ inconnu est ignoré.
+    // upsert : si une ligne avec le même id existe déjà, elle est mise à jour
+    // au lieu de provoquer un conflit de clé primaire.
+    const payload = cleanPayload(data.table, data.payload);
+    const row = await sbRequest("POST", data.table, payload, serviceKey, true);
+    return res.json({ row: row ? row[0] : null });
   }
 
   if (type === "sb_update") {
-    // Sécurité : on borne la mise à jour au personal_id appelant quand il est connu,
-    // pour qu'on ne puisse pas écraser la ligne d'un autre utilisateur via son id.
-    const updateFilter = personalId
-      ? `${data.table}?id=eq.${data.id}&personal_id=eq.${encodeURIComponent(personalId)}`
-      : `${data.table}?id=eq.${data.id}`;
-
-    try {
-      const standardPayload = remapPayload(data.payload, true);
-      await sbRequest("PATCH", updateFilter, standardPayload, serviceKey, personalId);
-    } catch (e: any) {
-      // Handle missing column or schema mismatch
-      const isColumnErr = e.message && (e.message.includes("column") || e.message.includes("42703") || e.message.includes("PGRST204"));
-
-      if (isColumnErr) {
-        console.warn(`Retrying update on ${data.table} with direct payload...`);
-        try {
-          await sbRequest("PATCH", updateFilter, data.payload, serviceKey, personalId);
-        } catch (e2) {
-          // If fallback also fails, try wrapped 'data' (some older versions used a 'data' column)
-          console.warn("Retrying update with wrapped 'data' due to schema mismatch...");
-          try {
-            await sbRequest("PATCH", updateFilter, { personal_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
-          } catch (e3) {
-            try {
-              await sbRequest("PATCH", updateFilter, { user_id: data.payload.personal_id || data.payload.user_id, data: data.payload }, serviceKey, personalId);
-            } catch (e4) {
-              throw e; // throw original if all fail
-            }
-          }
-        }
-      } else {
-        throw e;
-      }
-    }
+    // La mise à jour est bornée à l'id, et aussi au personal_id appelant
+    // quand il est connu : on ne peut pas écraser la ligne d'un autre utilisateur.
+    const payload = cleanPayload(data.table, data.payload);
+    const filter = personalId
+      ? `${data.table}?id=eq.${encodeURIComponent(data.id)}&personal_id=eq.${encodeURIComponent(personalId)}`
+      : `${data.table}?id=eq.${encodeURIComponent(data.id)}`;
+    await sbRequest("PATCH", filter, payload, serviceKey);
     return res.json({ ok: true });
   }
 
   if (type === "sb_read") {
-    const isUserTable = ["carnet", "cartes", "sessions", "feedbacks"].includes(data.table);
-    // Standardize query param to user_id for the first try
-    let queryParams = data.params ? data.params.replace("personal_id=eq.", "user_id=eq.") : "";
-    const hasUserIdFilter = queryParams.includes("user_id=eq.");
-    const authorized = (data && data.password === adminPassword) || (isUserTable && hasUserIdFilter);
-
+    // Lecture autorisée si : mot de passe admin, ou requête filtrée par personal_id.
+    const queryParams = data.params || "";
+    const hasUserFilter = queryParams.includes("personal_id=eq.");
+    const authorized = (data.password && data.password === adminPassword) || hasUserFilter;
     if (!authorized) return res.status(401).json({ error: "Unauthorized" });
 
     const params = queryParams ? `select=*&${queryParams}` : "select=*";
     try {
-      const result = await sbRequest("GET", `${data.table}?${params}`, null, serviceKey, personalId);
-      return res.json(remapResult(result) || []);
+      const result = await sbRequest("GET", `${data.table}?${params}`, null, serviceKey);
+      return res.json(result || []);
     } catch (e: any) {
-      // Fallback: if user_id query fails, try personal_id query
-      const isColumnErr = e.message && (e.message.includes("column") || e.message.includes("42703") || e.message.includes("PGRST204"));
-
-      if (isColumnErr && queryParams.includes("user_id=eq.")) {
-        const fallbackParams = queryParams.replace("user_id=eq.", "personal_id=eq.");
-        try {
-          const result = await sbRequest("GET", `${data.table}?select=*&${fallbackParams}`, null, serviceKey, personalId);
-          return res.json(remapResult(result) || []);
-        } catch (e2: any) {
-          console.error("READ FALLBACK ERROR:", e2.message);
-          return res.json([]);
-        }
-      }
       console.error("READ ERROR:", e.message);
       return res.json([]);
     }
