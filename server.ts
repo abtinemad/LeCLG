@@ -652,11 +652,55 @@ Style : Minimaliste, organique, artistique, évocateur. Pas d'objets figuratifs,
 Inspiration : ${currentPrisme} (émotion/prisme), ${sphere} (sphère de vie), ${texture || 'abstrait'} (texture).
 Couleurs : Nuances douces, terreuses, pastels délavés, charbon ou papier ancien.
 Composition : Vue de dessus ou gros plan extrême sur une matière (tissu, sable, eau, écorce, fumée).
-Ambiance : ${currentPrisme === 'Tristesse' ? 'Mélancolique et fluide' : currentPrisme === 'Colère' ? 'Énergique et rugueux' : 'Calme et structuré'}.
+Ambiance : ${currentPrisme === 'tristesse' ? 'Mélancolique et fluide' : currentPrisme === 'colere' ? 'Énergique et rugueux' : 'Calme et structuré'}.
 L'image doit représenter le "trajet" parcouru vers l'équilibre.`;
 
+  // Image de repli, déterministe : si la génération ou l'envoi échoue, l'app
+  // ne casse jamais — elle retombe simplement sur cette illustration.
   const fallbackUrl = `https://picsum.photos/seed/${encodeURIComponent((currentPrisme || "") + (sphere || "") + (texture || ""))}/512/512?grayscale`;
-  res.json({ imageUrl: fallbackUrl });
+
+  try {
+    // 1. Génération de l'image via Gemini (Nano Banana).
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash-image",
+      contents: prompt,
+      config: { responseModalities: ["TEXT", "IMAGE"] },
+    });
+    const parts = result?.candidates?.[0]?.content?.parts || [];
+    const imgPart = parts.find((p: any) => p?.inlineData?.data);
+    if (!imgPart) {
+      console.warn("generate-texture: aucune image renvoyée par le modèle");
+      return res.json({ imageUrl: fallbackUrl });
+    }
+    const mime = imgPart.inlineData.mimeType || "image/png";
+    const ext = mime.includes("jpeg") || mime.includes("jpg") ? "jpg" : "png";
+    const bytes = Buffer.from(imgPart.inlineData.data, "base64");
+
+    // 2. Envoi dans Supabase Storage (bucket public `textures`).
+    const fileName = `texture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const serviceKey = process.env.SUPABASE_SERVICE_KEY || "";
+    const up = await fetch(`${SUPABASE_URL}/storage/v1/object/textures/${fileName}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": mime,
+        "x-upsert": "true",
+      },
+      body: bytes,
+    });
+    if (!up.ok) {
+      console.error("generate-texture: échec de l'envoi Storage", up.status, await up.text());
+      return res.json({ imageUrl: fallbackUrl });
+    }
+
+    // 3. URL publique de l'image stockée.
+    return res.json({
+      imageUrl: `${SUPABASE_URL}/storage/v1/object/public/textures/${fileName}`,
+    });
+  } catch (e: any) {
+    console.error("generate-texture: échec", e?.message);
+    return res.json({ imageUrl: fallbackUrl });
+  }
 }));
 
 // Global Error Handler

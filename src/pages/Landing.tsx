@@ -228,7 +228,6 @@ export default function Landing() {
           <div className="mb-12">
             <p className="text-[17px] leading-[1.85] text-beige-dim mb-4">Le collègue vous aide à décomposer ce que vous portez — pas pour trouver la bonne réponse, mais pour mettre des mots sur ce que vous traversez et cheminer vers un équilibre différent.</p>
             <p className="text-[17px] leading-[1.85] text-beige-dim">Il n'y a pas de chemin idéal — l'ordre s'ajuste à ce que vous portez et à ce que vous êtes.</p>
-            <p className="italic text-[15px] text-beige-faint mt-4">L'IA comme vecteur. L'expérience humaine comme boussole.</p>
           </div>
 
           <div className="flex flex-col">
@@ -250,7 +249,7 @@ export default function Landing() {
               index={2}
               number="03"
               title="La diffraction"
-              desc="Le regard des autres — collègues, proches, personnes impliquées. Voir la situation depuis d'autres angles, ou reconnaître qu'on est seul avec elle et ce que ça implique."
+              desc="Le regard des autres — famille, amis, collègues, personnes impliquées. Voir la situation depuis d'autres angles, ou reconnaître qu'on est seul avec elle et ce que ça implique."
               note="Les autres regards"
             />
             <Step 
@@ -267,9 +266,6 @@ export default function Landing() {
               desc="Une direction qui émerge — pas forcément une décision tranchée, parfois un relâchement, une clarté partielle, une piste. Quelque chose de construit, pas subi. Vous le formulez vous-même."
               note="Ce qui se dégage"
             />
-          </div>
-          <div className="mt-12">
-            <p className="italic text-[17px] text-beige-faint leading-relaxed">Accorder l'intérieur et l'extérieur pour chercher un équilibre</p>
           </div>
         </section>
 
@@ -293,10 +289,10 @@ export default function Landing() {
             {/* Fragments */}
             <div className="gap-6 md:gap-8 items-start">
               <div>
-                 <div className="flex items-center gap-2 mb-3">
-                   <History className="w-4 h-4 text-white" />
-                   <h3 className="font-mono text-[11px] uppercase tracking-widest text-white">Fragments</h3>
-                 </div>
+               <div className="flex items-center gap-2 mb-3">
+                 <History className="w-4 h-4 text-green" />
+                 <h3 className="font-mono text-[11px] uppercase tracking-widest text-green">Fragments</h3>
+               </div>
                  <p className="text-[14px] leading-relaxed text-beige-faint italic">L'empreinte brute de chaque session. Ce qui a été dit, le regard perçu et la direction prise.</p>
               </div>
             </div>
@@ -342,17 +338,6 @@ export default function Landing() {
                    <h3 className="font-mono text-[11px] uppercase tracking-widest text-[#8B5CF6]">Matrice</h3>
                  </div>
                  <p className="text-[14px] leading-relaxed text-beige-faint italic">Le code source. Les angoisses de fond, le système de défense et l'exigence centrale qui vous anime.</p>
-              </div>
-            </div>
-            
-            {/* Lueurs */}
-            <div className="gap-6 md:gap-8 items-start">
-              <div>
-                 <div className="flex items-center gap-2 mb-3">
-                   <Sparkles className="w-4 h-4 text-[#FACC15]" />
-                   <h3 className="font-mono text-[11px] uppercase tracking-widest text-[#FACC15]">Lueurs</h3>
-                 </div>
-                 <p className="text-[14px] leading-relaxed text-beige-faint italic">L'aboutissement mensuel. Une condensation visuelle et poétique de tout ce qui a été documenté.</p>
               </div>
             </div>
           </div>
@@ -502,10 +487,6 @@ export default function Landing() {
                 </p>
               </div>
               <div className="space-y-5">
-                <div className="flex items-center gap-3">
-                  <Zap size={20} className="text-white/40" strokeWidth={1.5} />
-                  <h4 className="font-serif text-lg italic text-beige">Lecture collaborative</h4>
-                </div>
                 <p className="text-[16px] text-beige-dim leading-relaxed">
                   Une lecture approfondie qui nécessite de mener une réflexion sur la demande formulée par la personne. Accompagné par une analyse humaine visant à apporter un regard extérieur visionnaire sur votre situation. Don libre à faire (ou pas) après avoir reçu sa lueur.
                 </p>
@@ -532,10 +513,6 @@ export default function Landing() {
                 <div className="font-mono text-[9px] text-green/60 uppercase tracking-widest pt-2">50€ · Une fois</div>
               </div>
               <div className="space-y-5">
-                <div className="flex items-center gap-3">
-                  <Gem size={20} className="text-green/40" strokeWidth={1.5} />
-                  <h4 className="font-serif text-lg italic text-beige">Évolution Permanent</h4>
-                </div>
                 <p className="text-[16px] text-beige-dim leading-relaxed">
                   Accès définitif à toutes les fonctionnalités actuelles et futures (incluant les Analyses Évolutives). Soutien majeur au développement indépendant du Collègue.
                 </p>
@@ -558,13 +535,8 @@ export default function Landing() {
                 <p className="text-[15px] text-beige-faint antialiased leading-relaxed italic">
                   Un projet indépendant, une seule personne derrière. Votre don va directement ici.
                 </p>
-                <div className="font-mono text-[9px] text-beige-faint/40 uppercase tracking-widest pt-2">À tout moment</div>
               </div>
               <div className="space-y-5">
-                <div className="flex items-center gap-3">
-                  <Heart size={20} className="text-red-400/40" strokeWidth={1.5} />
-                  <h4 className="font-serif text-lg italic text-beige">Soutien</h4>
-                </div>
                 <p className="text-[16px] text-beige-dim leading-relaxed">
                   Le collègue est un projet indépendant, conçu et maintenu par une seule personne. Si cet outil vous a apporté quelque chose, un don libre contribue directement à la poursuite de son développement.
                 </p>

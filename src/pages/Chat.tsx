@@ -1877,17 +1877,16 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
         card.emotion = canon(card.emotion);
         card.prisme = canon(card.prisme);
 
-        setReflectionCard(card);
-
-        // IA Générative d'images de "Texture" (Piste 6)
-        generateTexture(card);
-
-        // Sauvegarde locale systématique
+        // Identité et date de la carte
         const existingLocal = JSON.parse(
           localStorage.getItem("collegue_cards") || "[]",
         );
         const cardId = crypto.randomUUID();
         const newCard = { ...card, id: cardId, date: new Date().toISOString() };
+
+        setReflectionCard(newCard);
+
+        // Sauvegarde locale systématique
         localStorage.setItem(
           "collegue_cards",
           JSON.stringify([newCard, ...existingLocal]),
@@ -1906,7 +1905,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
         if (storageMode === "cloud" && currentSessionId.current) {
           try {
             await sbUpdate("sessions", currentSessionId.current, {
-              reflection_card: { ...card, date: newCard.date },
+              reflection_card: newCard,
               personal_id: personalId,
               step_reached: validatedSteps.size,
               ended_at: new Date().toISOString(),
@@ -1915,13 +1914,23 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
             console.error("session save failed", e);
           }
         }
+
+        // IA générative d'images de "Texture" (Piste 6) — en arrière-plan.
+        // La génération prend plusieurs secondes : on ne bloque pas la
+        // création de la carte. L'image arrive ensuite et est enregistrée
+        // dans `cartes`, puis affichée.
+        generateTexture(newCard, cardId, personalId);
       }
     } catch (e) {
       console.error("carte failed", e);
     }
   };
 
-  const generateTexture = async (card: ReflectionCard) => {
+  const generateTexture = async (
+    card: ReflectionCard,
+    cardId: string,
+    personalId: string | null,
+  ) => {
     try {
       const res = await fetch(`${API_BASE}/generate-texture`, {
         method: "POST",
@@ -1933,29 +1942,33 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
         }),
       });
       const data = await res.json();
-      if (data.imageUrl) {
-        setReflectionCard((prev) => {
-          if (!prev) return null;
-          const updated = { ...prev, image_url: data.imageUrl };
+      if (!data.imageUrl) return;
 
-          // Mettre à jour en base aussi
-          if (storageMode === "cloud" && currentSessionId.current) {
-            sbUpdate("sessions", currentSessionId.current, {
-              reflection_card: updated,
-            });
-          }
+      // Persiste l'image dans la table `cartes` (ligne déjà insérée plus haut).
+      if (personalId) {
+        try {
+          await sbUpdate("cartes", cardId, {
+            image_url: data.imageUrl,
+            personal_id: personalId,
+          });
+        } catch (e) {
+          console.error("cartes image update failed", e);
+        }
+      }
 
-          // Mettre à jour en local
-          const local = JSON.parse(
-            localStorage.getItem("collegue_cards") || "[]",
-          );
-          if (local.length > 0) {
-            local[0] = { ...local[0], image_url: data.imageUrl };
-            localStorage.setItem("collegue_cards", JSON.stringify(local));
-          }
+      // Fait apparaître l'image sur la carte affichée, si c'est encore elle.
+      setReflectionCard((prev) =>
+        prev && prev.id === cardId
+          ? { ...prev, image_url: data.imageUrl }
+          : prev,
+      );
 
-          return updated;
-        });
+      // Met à jour le stockage local.
+      const local = JSON.parse(localStorage.getItem("collegue_cards") || "[]");
+      const idx = local.findIndex((c: any) => c.id === cardId);
+      if (idx !== -1) {
+        local[idx] = { ...local[idx], image_url: data.imageUrl };
+        localStorage.setItem("collegue_cards", JSON.stringify(local));
       }
     } catch (e) {
       console.error("Texture generation failed", e);
