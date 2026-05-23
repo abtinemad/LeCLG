@@ -347,12 +347,10 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
   const [currentStep, setCurrentStep] = useState(0);
 
   const [isPermanentUnlock, setIsPermanentUnlock] = useState(false);
-  const [showGlossary, setShowGlossary] = useState(false);
 
-  // Changer de page : retour à l'intro, glossaire replié.
+  // Changer de page : retour à la première fiche (l'intro).
   useEffect(() => {
     setCurrentStep(0);
-    setShowGlossary(false);
   }, [section]);
 
   // On lit seulement le "plan" du carnet : en mode Reconnaissance, la boîte
@@ -412,7 +410,7 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
 
       {/* Rangée : flèche gauche · contenu · flèche droite (flèches centrées verticalement) */}
       <div className="relative z-10 w-full flex items-center gap-1">
-        {showGlossary && steps.length > 1 && (
+        {steps.length > 1 && (
           <button
             onClick={() => setCurrentStep((s) => Math.max(0, s - 1))}
             disabled={currentStep === 0}
@@ -435,6 +433,11 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
                 {step.icon}
               </div>
               <h4 className="font-mono text-[9px] tracking-widest uppercase" style={{ color: `${sectionColor}CC` }}>{step.title}</h4>
+              {steps.length > 1 && !isPermanentUnlock && (
+                <span className="font-mono text-[8px] tracking-widest uppercase ml-auto" style={{ color: `${sectionColor}66` }}>
+                  {currentStep + 1} / {steps.length}
+                </span>
+              )}
             </div>
           </div>
 
@@ -471,26 +474,9 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
             </AnimatePresence>
           </div>
 
-          {steps.length > 1 && !showGlossary && (
-            <button
-              onClick={() => { setShowGlossary(true); setCurrentStep(1); }}
-              aria-label="Découvrir les mots de cette page"
-              className="self-start pt-3 flex items-center gap-1.5 font-mono text-[9px] tracking-widest uppercase opacity-70 transition-opacity hover:opacity-100"
-              style={{ color: `${sectionColor}AA` }}
-            >
-              les mots de cette page · {steps.length - 1}
-              <ChevronRight size={12} />
-            </button>
-          )}
-
-          {steps.length > 1 && showGlossary && (
-            <div className="self-center pt-2.5 font-mono text-[8px] tracking-widest uppercase" style={{ color: `${sectionColor}66` }}>
-              {currentStep + 1} / {steps.length}
-            </div>
-          )}
         </div>
 
-        {showGlossary && steps.length > 1 && (
+        {steps.length > 1 && (
           <button
             onClick={() => setCurrentStep((s) => Math.min(steps.length - 1, s + 1))}
             disabled={currentStep === steps.length - 1}
