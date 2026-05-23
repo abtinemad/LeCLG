@@ -46,6 +46,11 @@ const TABLE_COLUMNS: Record<string, string[]> = {
   feedbacks: ["id", "personal_id", "content", "rating", "created_at"],
 };
 
+// --- Plafond : nombre maximum de conversations réellement engagées par jour
+// et par personal_id. Une session ouverte puis abandonnée aussitôt (ended_at
+// vide) ne compte pas. C'est un garde-fou de coût, vérifié côté serveur.
+const MAX_CONVERSATIONS_PER_DAY = 3;
+
 // Ne conserve du payload que les colonnes réellement présentes dans la table.
 function cleanPayload(table: string, payload: any): any {
   const cols = TABLE_COLUMNS[table];
@@ -112,9 +117,9 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
 // encore invalide, une erreur claire est levée — jamais un JSON.parse opaque.
 async function geminiJSON(args: any): Promise<any> {
   args.config = {
+    maxOutputTokens: 1024,                 // défaut prudent ; un caller peut le surcharger via config
     ...(args.config || {}),
-    responseMimeType: "application/json",
-    maxOutputTokens: 8192,
+    responseMimeType: "application/json",   // toujours imposé
   };
   let lastErr: any;
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -182,7 +187,8 @@ app.post("/api/summarize", asyncHandler(async (req: Request, res: Response) => {
 
   const response = await ai.models.generateContent({
     model: "gemini-3.5-flash",
-    contents: prompt
+    contents: prompt,
+    config: { maxOutputTokens: 1024 }
   });
   res.json({ text: response.text });
 }));
@@ -193,55 +199,12 @@ app.post("/api/reflection", asyncHandler(async (req: Request, res: Response) => 
   const response = await ai.models.generateContent({
     model: "gemini-3.5-flash",
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    config: { responseMimeType: "application/json" }
+    config: { responseMimeType: "application/json", maxOutputTokens: 1024 }
   });
 
   res.json({ text: response.text });
 }));
 
-const CLARTE_SYSTEM = `Tu es l'instance de "Clarté" de l'application "Le Collègue". Ton rôle est d'expliquer la philosophie de l'application et ses fonctionnalités à l'utilisateur.
-
-## Philosophie : "Mise en lien du vécu"
-L'application n'est pas un outil de productivité, mais un espace de dégrisement. Elle aide à transformer le vécu brut en trace réfléchie.
-
-## Concepts clés :
-- Serpentin : C'est ta forme physique. Tu es un guide fluide qui accompagne la pensée sans la brusquer. Tu ressens les émotions de l'utilisateur à travers ses mots.
-- Sphères : Familiale, Sociale, Amoureuse, Professionnelle. Elles permettent de situer l'origine des affects.
-- Prismes : Les 10 émotions primitives.
-- Carnet : Lieu de sédimentation.
-
-## Ton ton :
-Sobre, poétique, profond, apaisant. Tu parles à la première personne en tant que Serpentin de Clarté.
-
-## Analyse Émotionnelle :
-Tu dois aussi analyser l'émotion de l'utilisateur parmi ces catégories : 
-- "calm" (équilibre, paix)
-- "agitated" (anxiété, urgence, colère)
-- "heavy" (tristesse, mélancolie, fatigue)
-- "bright" (joie, curiosité, enthousiasme)
-- "mysterious" (confusion, doute profond)
-
-Réponds au format JSON :
-{
-  "text": "Ta réponse poétique (1-2 phrases)",
-  "emotion": "la catégorie d'émotion détectée",
-  "intensity": 0.0 à 1.0 (force de l'émotion)
-}`;
-
-app.post("/api/clarte", asyncHandler(async (req: Request, res: Response) => {
-  const { text, section }: { text: string; section: string } = req.body;
-
-  const parsed = await geminiJSON({
-    model: "gemini-3.5-flash",
-    contents: [{ role: 'user', parts: [{ text: `L'utilisateur est dans la section "${section}". Il demande : ${text}` }] }],
-    config: {
-      systemInstruction: CLARTE_SYSTEM,
-      responseMimeType: "application/json"
-    }
-  });
-
-  res.json(parsed);
-}));
 
 // Supabase Proxy Routes (Compatibility with worker logic)
 app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
@@ -271,6 +234,38 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (type === "sb_insert") {
+    // --- Plafond : limite de conversations par jour (table sessions) ---
+    // On compte les sessions du jour réellement engagées (ended_at renseigné,
+    // ce qui exclut les sessions ouvertes puis abandonnées aussitôt).
+    if (data.table === "sessions") {
+      const pid = data.payload && data.payload.personal_id;
+      if (pid) {
+        try {
+          const dayStart = new Date();
+          dayStart.setUTCHours(0, 0, 0, 0);
+          const todays = await sbRequest(
+            "GET",
+            `sessions?personal_id=eq.${encodeURIComponent(pid)}` +
+              `&started_at=gte.${dayStart.toISOString()}` +
+              `&ended_at=not.is.null&select=id`,
+            null,
+            serviceKey,
+          );
+          const count = Array.isArray(todays) ? todays.length : 0;
+          if (count >= MAX_CONVERSATIONS_PER_DAY) {
+            return res.status(429).json({
+              error: "daily_limit",
+              count,
+              limit: MAX_CONVERSATIONS_PER_DAY,
+            });
+          }
+        } catch (e: any) {
+          // Fail-open : si le comptage échoue, on ne bloque pas la personne.
+          console.error("daily limit check failed:", e?.message);
+        }
+      }
+    }
+
     // Le payload est filtré sur les vraies colonnes ; un champ inconnu est ignoré.
     // upsert : si une ligne avec le même id existe déjà, elle est mise à jour
     // au lieu de provoquer un conflit de clé primaire.
@@ -447,7 +442,7 @@ Retourne un JSON pur :
     const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data.cards) }] }],
-      config: { systemInstruction: EVAL_LIEN_PROMPT, responseMimeType: "application/json" }
+      config: { systemInstruction: EVAL_LIEN_PROMPT, responseMimeType: "application/json", maxOutputTokens: 2048 }
     });
     return res.json(parsed);
   }
@@ -456,7 +451,7 @@ Retourne un JSON pur :
     const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
-      config: { systemInstruction: EVAL_AFFECT_PROMPT, responseMimeType: "application/json" }
+      config: { systemInstruction: EVAL_AFFECT_PROMPT, responseMimeType: "application/json", maxOutputTokens: 2048 }
     });
     return res.json(parsed);
   }
@@ -474,7 +469,7 @@ Retourne un JSON pur :
     const parsed = await geminiJSON({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
-      config: { systemInstruction: METACOGNITION_SYSTEM, responseMimeType: "application/json" }
+      config: { systemInstruction: METACOGNITION_SYSTEM, responseMimeType: "application/json", maxOutputTokens: 2048 }
     });
     return res.json(parsed);
   }
@@ -517,7 +512,7 @@ Retourne un JSON pur :
     const result = await ai.models.generateContent({
       model: "gemini-3.5-flash",
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
-      config: { systemInstruction: ECLAT_PROMPT }
+      config: { systemInstruction: ECLAT_PROMPT, maxOutputTokens: 4096 }
     });
     return res.json({ text: result.text });
   }
@@ -600,6 +595,7 @@ Analyse ce matériau holistique et produis la structure métacognitive demandée
     model: "gemini-3.5-flash",
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: {
+      maxOutputTokens: 2048,
       systemInstruction: METACOGNITION_SYSTEM,
       responseMimeType: "application/json"
     }
@@ -642,65 +638,20 @@ app.get("/api/climate", asyncHandler(async (req: Request, res: Response) => {
   res.json(stats);
 }));
 
-// Route for generative texture generation
+// Route de texture : image déterministe accordée au fragment
 app.post("/api/generate-texture", asyncHandler(async (req: Request, res: Response) => {
   const { prisme, emotion, sphere, texture }: any = req.body;
   const currentPrisme = prisme || emotion;
 
-  const prompt = `Génère une image abstraite de type "texture relationnelle". 
-Style : Minimaliste, organique, artistique, évocateur. Pas d'objets figuratifs, pas de visages.
-Inspiration : ${currentPrisme} (émotion/prisme), ${sphere} (sphère de vie), ${texture || 'abstrait'} (texture).
-Couleurs : Nuances douces, terreuses, pastels délavés, charbon ou papier ancien.
-Composition : Vue de dessus ou gros plan extrême sur une matière (tissu, sable, eau, écorce, fumée).
-Ambiance : ${currentPrisme === 'tristesse' ? 'Mélancolique et fluide' : currentPrisme === 'colere' ? 'Énergique et rugueux' : 'Calme et structuré'}.
-L'image doit représenter le "trajet" parcouru vers l'équilibre.`;
+  // Image déterministe (picsum, sans appel d'API). Le même fragment
+  // retombe toujours sur la même illustration — d'où l'impression
+  // d'une image « accordée » à ce fragment précis.
+  const seed = encodeURIComponent(
+    (currentPrisme || "") + (sphere || "") + (texture || ""),
+  );
+  const imageUrl = `https://picsum.photos/seed/${seed}/512/512?grayscale`;
 
-  // Image de repli, déterministe : si la génération ou l'envoi échoue, l'app
-  // ne casse jamais — elle retombe simplement sur cette illustration.
-  const fallbackUrl = `https://picsum.photos/seed/${encodeURIComponent((currentPrisme || "") + (sphere || "") + (texture || ""))}/512/512?grayscale`;
-
-  try {
-    // 1. Génération de l'image via Gemini (Nano Banana).
-    const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
-      contents: prompt,
-      config: { responseModalities: ["TEXT", "IMAGE"] },
-    });
-    const parts = result?.candidates?.[0]?.content?.parts || [];
-    const imgPart = parts.find((p: any) => p?.inlineData?.data);
-    if (!imgPart) {
-      console.warn("generate-texture: aucune image renvoyée par le modèle");
-      return res.json({ imageUrl: fallbackUrl });
-    }
-    const mime = imgPart.inlineData.mimeType || "image/png";
-    const ext = mime.includes("jpeg") || mime.includes("jpg") ? "jpg" : "png";
-    const bytes = Buffer.from(imgPart.inlineData.data, "base64");
-
-    // 2. Envoi dans Supabase Storage (bucket public `textures`).
-    const fileName = `texture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const serviceKey = process.env.SUPABASE_SERVICE_KEY || "";
-    const up = await fetch(`${SUPABASE_URL}/storage/v1/object/textures/${fileName}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        "Content-Type": mime,
-        "x-upsert": "true",
-      },
-      body: bytes,
-    });
-    if (!up.ok) {
-      console.error("generate-texture: échec de l'envoi Storage", up.status, await up.text());
-      return res.json({ imageUrl: fallbackUrl });
-    }
-
-    // 3. URL publique de l'image stockée.
-    return res.json({
-      imageUrl: `${SUPABASE_URL}/storage/v1/object/public/textures/${fileName}`,
-    });
-  } catch (e: any) {
-    console.error("generate-texture: échec", e?.message);
-    return res.json({ imageUrl: fallbackUrl });
-  }
+  return res.json({ imageUrl });
 }));
 
 // Global Error Handler

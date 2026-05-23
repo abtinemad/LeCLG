@@ -141,6 +141,9 @@ export default function Carnet() {
   const [personalId, setPersonalId] = useState(
     localStorage.getItem("collegue_personal_id") || "",
   );
+  // Affichage de la Clé-LCLG depuis le header (toujours consultable).
+  const [showKey, setShowKey] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
   const [view, setView] = useState<
     "fragments" | "lien" | "affect" | "elan" | "matrice"
   >("fragments");
@@ -1324,6 +1327,47 @@ export default function Carnet() {
                 <VolumeX size={13} strokeWidth={1.5} />
               )}
             </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowKey((v) => !v)}
+                className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-beige-faint hover:text-beige"
+                title="Votre clé d'accès"
+              >
+                <Fingerprint size={13} strokeWidth={1.5} />
+              </button>
+              {showKey && (
+                <div className="absolute right-0 top-full mt-2 w-[270px] bg-[#0e0d08] border border-border rounded-md p-4 shadow-lg shadow-black/40">
+                  <div className="font-mono text-[8px] uppercase tracking-[0.18em] text-beige-faint mb-2">
+                    Votre Clé-LCLG
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 font-mono text-[12px] text-beige bg-[#161512] border border-border rounded px-2.5 py-1.5 select-all break-all">
+                      {personalId || "—"}
+                    </code>
+                    <button
+                      onClick={() => {
+                        if (!personalId) return;
+                        try {
+                          navigator.clipboard.writeText(personalId);
+                        } catch (e) {
+                          console.warn("copy failed", e);
+                        }
+                        setKeyCopied(true);
+                        setTimeout(() => setKeyCopied(false), 2000);
+                      }}
+                      className="shrink-0 text-beige-faint hover:text-beige transition-colors p-1.5"
+                      title="Copier"
+                    >
+                      {keyCopied ? <Check size={13} /> : <Copy size={13} />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-beige-faint italic leading-relaxed mt-2.5">
+                    Gardez-la : c'est elle qui vous permet de retrouver cet
+                    espace, ici ou sur un autre appareil.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>

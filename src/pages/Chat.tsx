@@ -45,6 +45,17 @@ const Lips = ({ className }: { className?: string }) => (
 const API_BASE = "/api";
 const WORKER_URL = "/api/worker";
 
+// Plafond de conversations réellement engagées par jour (le serveur fait foi).
+const MAX_CONVERSATIONS_PER_DAY = 3;
+// Plafond dur invisible : une conversation ne peut pas s'étendre sans fin.
+const MAX_CONVERSATION_MESSAGES = 60;
+
+// Nudge doux : au bout de NUDGE_THRESHOLD échanges sans progression (aucune
+// étape validée), le collègue propose en douceur d'ouvrir un autre angle.
+const NUDGE_THRESHOLD = 8;
+const NUDGE_NOTE =
+  "[Note interne : l'échange creuse le même point depuis un moment. Si cela semble juste, propose à la personne, avec beaucoup de douceur, d'ouvrir un autre angle — sans le nommer, sans la presser. Si tu sens qu'elle a encore besoin de rester là, n'insiste pas et continue de l'accompagner.]";
+
 const toWorkerMessages = (msgs: any[]) => {
   const formatted = msgs.map((m) => ({
     role: m.role,
@@ -285,7 +296,20 @@ export default function Chat() {
   const [pendingStep, setPendingStep] = useState<number | null>(null);
   const [sessionActive, setSessionActive] = useState(false);
   const [showEnded, setShowEnded] = useState(false);
+  // Phase de clôture : "none" tant que les 5 étapes ne sont pas validées,
+  // "awaiting-reply" entre le message de validation et le miroir,
+  // "closed" une fois le miroir envoyé.
+  const [closingPhase, setClosingPhase] = useState<
+    "none" | "awaiting-reply" | "closed"
+  >("none");
   const [showConfirmReset, setShowConfirmReset] = useState(false);
+  // Vrai quand la personne a atteint son plafond de conversations du jour.
+  const [dailyLimitReached, setDailyLimitReached] = useState(false);
+  // Échanges écoulés depuis la dernière étape validée (pour le nudge doux).
+  const [exchangesSinceProgress, setExchangesSinceProgress] = useState(0);
+  // Révélation de la Clé-LCLG sur l'écran de fin (à la première conversation).
+  const [keyJustRevealed, setKeyJustRevealed] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
   const [crisisDetected, setCrisisDetected] = useState(false);
   const [diffractionSansPartage, setDiffractionSansPartage] = useState(false);
   const [motsCles, setMotsCles] = useState<string[]>([]);
@@ -429,6 +453,7 @@ export default function Chat() {
       pendingStep,
       sessionActive,
       showEnded,
+      closingPhase,
       crisisDetected,
       diffractionSansPartage,
       motsCles,
@@ -443,6 +468,7 @@ export default function Chat() {
     pendingStep,
     sessionActive,
     showEnded,
+    closingPhase,
     crisisDetected,
     diffractionSansPartage,
     motsCles,
@@ -464,7 +490,7 @@ export default function Chat() {
       if (storedId) {
         confirmStart("cloud", storedId);
       } else {
-        setShowIdentityModal(true);
+        confirmStart("cloud", generateNewKey());
       }
     } else {
       const saved = localStorage.getItem("collegue_chat_state");
@@ -476,6 +502,7 @@ export default function Chat() {
           setPendingStep(state.pendingStep ?? null);
           setSessionActive(state.sessionActive ?? false);
           setShowEnded(state.showEnded ?? false);
+          setClosingPhase(state.closingPhase ?? "none");
           setCrisisDetected(state.crisisDetected ?? false);
           setDiffractionSansPartage(state.diffractionSansPartage ?? false);
           setMotsCles(state.motsCles || []);
@@ -1089,7 +1116,7 @@ export default function Chat() {
     if (hasStoredKey && personalId) {
       confirmStart("cloud", personalId);
     } else {
-      setShowIdentityModal(true);
+      confirmStart("cloud", generateNewKey());
     }
   };
 
@@ -1107,12 +1134,38 @@ export default function Chat() {
     if (hasStoredKey && personalId) {
       confirmStart("cloud", personalId);
     } else {
-      setShowIdentityModal(true);
+      confirmStart("cloud", generateNewKey());
     }
   };
 
   const confirmStart = async (mode: "local" | "cloud", providedId?: string) => {
     const finalId = providedId || personalId;
+
+    // Plafond : pré-vérification du nombre de conversations du jour. Le serveur
+    // reste le garde-fou dur ; ceci sert à afficher un message clair plutôt que
+    // de laisser échouer l'insertion silencieusement.
+    if (mode === "cloud" && finalId) {
+      try {
+        const dayStart = new Date();
+        dayStart.setUTCHours(0, 0, 0, 0);
+        const todays = await sbGet(
+          "sessions",
+          `personal_id=eq.${finalId}&started_at=gte.${dayStart.toISOString()}&ended_at=not.is.null`,
+        );
+        if (
+          Array.isArray(todays) &&
+          todays.length >= MAX_CONVERSATIONS_PER_DAY
+        ) {
+          setShowIdentityModal(false);
+          setDailyLimitReached(true);
+          return;
+        }
+      } catch (e) {
+        // Contrôle indisponible : on laisse démarrer, le serveur tranchera.
+        console.warn("daily limit pre-check failed", e);
+      }
+    }
+
     setStorageMode(mode);
     setShowIdentityModal(false);
     setLoading(true);
@@ -1121,33 +1174,8 @@ export default function Chat() {
     setLastActivity(Date.now());
 
     if (mode === "cloud" && finalId) {
-      const wasAlreadyStored = hasStoredKey;
       localStorage.setItem("collegue_personal_id", finalId);
       setHasStoredKey(true);
-
-      // Auto-copy and download only if it's a new or newly entered key
-      if (!wasAlreadyStored) {
-        try {
-          navigator.clipboard.writeText(finalId);
-
-          const blob = new Blob(
-            [
-              `IDENTIFIANT COLLÈGUE\n\nVotre clé : ${finalId}\n\nCette clé vous permet de retrouver vos sessions de réflexion sur tous vos appareils.\nElle est strictement personnelle.`,
-            ],
-            { type: "text/plain" },
-          );
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `cle-lclg-${finalId}.txt`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        } catch (e) {
-          console.warn("Clip/Download failed", e);
-        }
-      }
 
       try {
         const result = await sbInsert("sessions", {
@@ -1558,6 +1586,21 @@ export default function Chat() {
     setHasDictatedCurrentMessage(false);
     const updatedMessages = [...messages, newMsg];
     setMessages(updatedMessages);
+
+    // Phase de clôture : la réponse de la personne déclenche le miroir,
+    // puis la conversation se referme.
+    if (closingPhase === "awaiting-reply") {
+      await triggerMirror(updatedMessages);
+      return;
+    }
+
+    // Plafond dur invisible : au-delà de MAX_CONVERSATION_MESSAGES, la
+    // conversation se referme par le miroir plutôt que de s'étendre sans fin.
+    if (updatedMessages.length >= MAX_CONVERSATION_MESSAGES) {
+      await triggerMirror(updatedMessages);
+      return;
+    }
+
     setLoading(true);
     setFlowIntensity("loading");
 
@@ -1569,6 +1612,19 @@ export default function Chat() {
     }));
     if (payload.length > MAX_CONTEXT + 1) {
       payload = [payload[0], ...payload.slice(-MAX_CONTEXT)];
+    }
+
+    // Nudge doux : un échange de plus sans progression. Au seuil exact, on
+    // glisse une note interne pour que le collègue propose d'avancer — une
+    // seule fois, le compteur ne se réarmant qu'à la prochaine étape validée.
+    const exchangesNow = exchangesSinceProgress + 1;
+    setExchangesSinceProgress(exchangesNow);
+    if (exchangesNow === NUDGE_THRESHOLD && payload.length > 0) {
+      const lastIdx = payload.length - 1;
+      payload[lastIdx] = {
+        ...payload[lastIdx],
+        content: payload[lastIdx].content + "\n\n" + NUDGE_NOTE,
+      };
     }
 
     // Bulle de streaming
@@ -1624,6 +1680,7 @@ export default function Chat() {
     next.add(index);
     setValidatedSteps(next);
     setPendingStep(null);
+    setExchangesSinceProgress(0);
     setFlowIntensity("validate");
 
     // Confetti effect
@@ -1635,6 +1692,7 @@ export default function Chat() {
     });
 
     if (next.size === 5) {
+      setClosingPhase("awaiting-reply");
       setTimeout(() => setFlowIntensity("rainbow"), 800);
       confetti({
         particleCount: 150,
@@ -1730,7 +1788,13 @@ export default function Chat() {
         ? `\n\nNote : la personne a utilisé ces images fortes : ${motsCles.join(", ")}. Inclus l'une d'entre elles dans ta synthèse comme un écho naturel.`
         : "";
 
-    const prompt = `Voici la conversation jusqu'ici :
+    const isFinal = validated.size === 5;
+    const prompt = isFinal
+      ? `Voici la conversation jusqu'ici :
+${summary}
+
+Toutes les dimensions de la réflexion ont été traversées. Valide ce moment en un seul temps : une image juste, tirée directement de ce qui a été dit — deux ou trois phrases — qui reconnaît le chemin parcouru. Ne rouvre pas l'exploration et n'annonce pas d'étape suivante. Mais termine en tendant la main : invite simplement la personne à dire un dernier mot avant que l'échange se referme.${echoInstruction}`
+      : `Voici la conversation jusqu'ici :
 ${summary}
 
 Étapes validées : ${validatedNames.join(", ") || "aucune"}. Prochaine étape pressentie : ${nextStep}.
@@ -1778,11 +1842,94 @@ Fais un point en deux temps. Premier temps : une image tirée directement de ce 
     }
   };
 
-  // ── Terminer session ──────────────────────────────────────
-  const endSession = async () => {
+  // ── Clôture effective — verrouillage + fragment ───────────
+  const finalizeClose = () => {
     setShowEnded(true);
     saveSession();
     generateReflectionCard();
+    // Révélation de la clé : une seule fois, à la première conversation close.
+    const firstTime = !localStorage.getItem("collegue_key_revealed");
+    setKeyJustRevealed(firstTime);
+    if (firstTime) localStorage.setItem("collegue_key_revealed", "1");
+  };
+
+  // ── Miroir réfléchissant — dernier message de la conversation ──
+  const triggerMirror = async (convo: Message[]) => {
+    setLoading(true);
+    setFlowIntensity("loading");
+
+    const summary = convo
+      .filter(
+        (m) => m.content !== "Bonjour, j'ai une situation à vous soumettre.",
+      )
+      .map(
+        (m) => `${m.role === "user" ? "Personne" : "Collègue"} : ${m.content}`,
+      )
+      .join("\n");
+
+    const echoInstruction =
+      motsCles.length > 0
+        ? `\n\nNote : la personne a utilisé ces images fortes : ${motsCles.join(", ")}. Fais résonner l'une d'elles dans le reflet.`
+        : "";
+
+    const prompt = `Voici la conversation complète, jusqu'à la dernière parole de la personne :
+${summary}
+
+C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de toute la traversée. Ne résume pas — fais surgir une image qui attrape la lumière de ce qui s'est dit, ce qui a vraiment compté. Accueille la dernière parole de la personne et replie-la dans ce reflet. Termine sur une ouverture : une phrase qui reste, qui continue de travailler en elle après la fermeture. Ne pose aucune question, ne propose aucune suite. Trois à cinq phrases.${echoInstruction}`;
+
+    try {
+      let accumulated = "";
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "", ts: new Date().toISOString() },
+      ]);
+      const fullText = await streamChat(
+        [{ role: "user", content: prompt }],
+        400,
+        (chunk) => {
+          accumulated += chunk;
+          setMessages((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last.role === "assistant")
+              next[next.length - 1] = { ...last, content: accumulated };
+            return next;
+          });
+          scrollToBottom();
+        },
+        true, // noInjection
+      );
+      if (fullText) {
+        const finalMessages: Message[] = [
+          ...convo,
+          {
+            role: "assistant",
+            content: fullText,
+            ts: new Date().toISOString(),
+          },
+        ];
+        setMessages(finalMessages);
+      }
+    } catch (e) {
+      console.error("miroir failed", e);
+    } finally {
+      setClosingPhase("closed");
+      setLoading(false);
+      flowRef.current.isLoading = false;
+      finalizeClose();
+    }
+  };
+
+  // ── Terminer session ──────────────────────────────────────
+  const endSession = async () => {
+    if (loading) return;
+    // Ceinture de sécurité : si la personne termine sans avoir répondu
+    // au message de validation, on joue quand même le miroir avant de clore.
+    if (closingPhase === "awaiting-reply") {
+      await triggerMirror(messages);
+      return;
+    }
+    finalizeClose();
   };
 
   // ── Carte de réflexion via Worker ─────────────────────────
@@ -2144,35 +2291,44 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                   className="w-full h-full object-cover"
                 />
               </div>
-              <h2 className="text-beige text-xl md:text-2xl font-medium mb-4 max-w-sm">
-                Quelque chose à démêler ?
-              </h2>
-              <p className="italic text-sm text-beige-faint mb-10 max-w-xs leading-relaxed">
-                On en parle. Pas pour trouver la bonne réponse — pour mettre des
-                mots sur ce que vous traversez.
-              </p>
-              {resumeCardToOffer ? (
-                <div className="flex flex-col gap-4 w-full max-w-xs">
-                  <button
-                    onClick={() => handleResumeChoice("reprendre")}
-                    className="bg-beige text-bg font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity"
-                  >
-                    Reprendre
-                  </button>
-                  <button
-                    onClick={() => handleResumeChoice("nouvelle")}
-                    className="bg-transparent text-beige border border-beige/20 font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:bg-beige/5 transition-colors"
-                  >
-                    Nouvelle situation
-                  </button>
-                </div>
+              {dailyLimitReached ? (
+                <p className="italic text-sm text-beige leading-relaxed max-w-xs mb-2">
+                  Laissez ce qui a émergé travailler en vous, et revenez
+                  demain. Votre carnet reste ouvert.
+                </p>
               ) : (
-                <button
-                  onClick={startSessionFlow}
-                  className="bg-beige text-bg font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity"
-                >
-                  Commencer
-                </button>
+                <>
+                  <h2 className="text-beige text-xl md:text-2xl font-medium mb-4 max-w-sm">
+                    Quelque chose à démêler ?
+                  </h2>
+                  <p className="italic text-sm text-beige-faint mb-10 max-w-xs leading-relaxed">
+                    On en parle. Pas pour trouver la bonne réponse — pour
+                    mettre des mots sur ce que vous traversez.
+                  </p>
+                  {resumeCardToOffer ? (
+                    <div className="flex flex-col gap-4 w-full max-w-xs">
+                      <button
+                        onClick={() => handleResumeChoice("reprendre")}
+                        className="bg-beige text-bg font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity"
+                      >
+                        Reprendre
+                      </button>
+                      <button
+                        onClick={() => handleResumeChoice("nouvelle")}
+                        className="bg-transparent text-beige border border-beige/20 font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:bg-beige/5 transition-colors"
+                      >
+                        Nouvelle situation
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={startSessionFlow}
+                      className="bg-beige text-bg font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity"
+                    >
+                      Commencer
+                    </button>
+                  )}
+                </>
               )}
               <p className="mt-12 text-[13px] text-beige-faint italic">
                 Le contenu des conversations n'est pas enregistré.
@@ -2290,6 +2446,37 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               ) : (
                 <div className="font-mono text-[9px] tracking-widest uppercase text-[#3a3420] animate-pulse">
                   Génération de la carte…
+                </div>
+              )}
+
+              {keyJustRevealed && personalId && (
+                <div className="w-full max-w-[560px] border border-[#4a4028] bg-[#0e0d08] rounded-lg p-7 text-left space-y-4">
+                  <div className="font-serif text-lg text-beige">
+                    Cet espace est désormais le vôtre.
+                  </div>
+                  <p className="text-[13px] leading-relaxed text-beige-faint">
+                    Voici votre Clé-LCLG — enregistrez-la : c'est le seul moyen
+                    de retrouver votre carnet, ici ou sur un autre appareil.
+                  </p>
+                  <div className="flex items-center gap-3 pt-1">
+                    <code className="flex-1 font-mono text-[15px] tracking-wide text-beige bg-[#161512] border border-[#3a3420] rounded px-4 py-3 select-all break-all">
+                      {personalId}
+                    </code>
+                    <button
+                      onClick={() => {
+                        try {
+                          navigator.clipboard.writeText(personalId);
+                        } catch (e) {
+                          console.warn("copy failed", e);
+                        }
+                        setKeyCopied(true);
+                        setTimeout(() => setKeyCopied(false), 2000);
+                      }}
+                      className="font-mono text-[9px] tracking-widest uppercase text-beige-faint border border-[#3a3420] px-4 py-3 rounded hover:text-beige hover:border-beige-faint transition-colors shrink-0"
+                    >
+                      {keyCopied ? "Copié" : "Copier"}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -2659,110 +2846,6 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
         )}
       </AnimatePresence>
 
-      {/* Modal identité */}
-      <AnimatePresence>
-        {showIdentityModal && (
-          <div className="fixed inset-0 z-[250] flex items-center justify-center px-6">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-bg/90 backdrop-blur-md"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-bg-alt border border-border rounded-lg p-10 max-w-md w-full relative z-10"
-            >
-              <h2 className="font-serif text-xl text-beige mb-2 text-center">
-                Comment voulez-vous commencer ?
-              </h2>
-              <p className="text-[13px] text-beige-faint italic text-center mb-8">
-                Votre clé mémorise votre progression.
-              </p>
-
-              <div className="space-y-4">
-                <button
-                  onClick={() => confirmStart("local")}
-                  className="w-full text-left p-5 border border-border rounded-md hover:bg-[#161512] transition-colors group"
-                >
-                  <div className="font-mono text-[9px] tracking-widest uppercase text-beige-faint group-hover:text-beige mb-2">
-                    Mode éphémère
-                  </div>
-                  <div className="text-[13px] text-beige-faint leading-relaxed">
-                    Session locale, rien n'est conservé.
-                  </div>
-                </button>
-
-                <div className="p-5 border border-border rounded-md bg-[#0d0c0a]">
-                  <div className="font-mono text-[9px] tracking-widest uppercase text-beige mb-2">
-                    Mode évolution
-                  </div>
-                  <div className="text-[13px] text-beige-faint leading-relaxed mb-4">
-                    Une clé mémorable pour retrouver vos sessions.
-                  </div>
-                  <div className="flex gap-2 mb-3">
-                    <input
-                      type="text"
-                      placeholder="ex: calme-horizon-402"
-                      value={personalId}
-                      onChange={(e) => {
-                        setPersonalId(e.target.value);
-                        setKeySaved(false);
-                      }}
-                      className="flex-1 bg-[#161512] border border-[#2a2820] rounded px-3 py-2.5 text-[16px] text-beige-dim outline-none focus:border-beige-faint"
-                    />
-                    {!personalId && (
-                      <button
-                        onClick={generateNewKey}
-                        className="px-4 bg-[#1a1918] border border-[#2a2820] text-beige-faint rounded text-[9px] uppercase tracking-widest hover:bg-[#252320]"
-                      >
-                        Générer
-                      </button>
-                    )}
-                  </div>
-
-                  {personalId && (
-                    <div className="flex items-start gap-3 mb-4 p-3 bg-[#161512] rounded border border-[#2a2820]">
-                      <input
-                        type="checkbox"
-                        id="key-saved-cb"
-                        checked={keySaved}
-                        onChange={(e) => setKeySaved(e.target.checked)}
-                        className="mt-0.5 accent-beige w-4 h-4"
-                      />
-                      <label
-                        htmlFor="key-saved-cb"
-                        className="text-[10px] text-beige-faint leading-relaxed cursor-pointer select-none"
-                      >
-                        J'ai sauvegardé cette clé de manière sécurisée en dehors
-                        de ce navigateur. En cas de perte, l'accès à ma
-                        sédimentation (Carnet) sera irrémédiablement perdu.
-                      </label>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => confirmStart("cloud")}
-                    disabled={!personalId.trim() || !keySaved}
-                    className="w-full bg-beige text-bg py-2.5 rounded-sm font-mono text-[9px] tracking-widest uppercase disabled:opacity-30 hover:opacity-90 transition-opacity"
-                  >
-                    Commencer avec cette clé
-                  </button>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowIdentityModal(false)}
-                className="mt-8 w-full font-mono text-[8px] tracking-widest uppercase text-beige-faint hover:text-beige transition-colors"
-              >
-                Annuler
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

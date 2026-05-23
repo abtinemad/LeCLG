@@ -1,7 +1,9 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Brain, BookOpen, Gem, Heart, HelpCircle, X, Mic, Loader2, Waves, Orbit, Fingerprint } from 'lucide-react';
-import { sbGet, sbUpdate } from '../lib/worker';
+import { Sparkles, Brain, BookOpen, Gem, Heart, HelpCircle, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight } from 'lucide-react';
+import { sbGet } from '../lib/worker';
+import { SECTION_GUIDE, CONCEPTS } from '../data/clarte-socle';
+import { SerpentinCanvas } from './SerpentinCanvas';
 
 interface GuideStep {
   id: string;
@@ -10,64 +12,43 @@ interface GuideStep {
   icon: React.ReactNode;
 }
 
-const CLARITES: Record<string, GuideStep[]> = {
-  landing: [
-    {
-      id: 'welcome',
-      title: 'Le Sens de l\'Espace',
-      content: "Le Collègue n'est pas un outil de productivité, mais un espace de dégrisement. Ici, on cherche la clarté dans le tumulte du vécu.",
-      icon: <Sparkles size={14} className="text-beige" />
-    }
-  ],
-  chat: [
-    {
-      id: 'chat_intro',
-      title: 'L\'Intention du Dialogue',
-      content: "Démêler n'est pas résoudre. Cette conversation sert à déplier les plis de votre pensée pour que vous puissiez voir ce qui s'y cache.",
-      icon: <Brain size={14} className="text-beige" />
-    }
-  ],
-  'carnet-fragments': [
-    {
-      id: 'gallery_intro',
-      title: 'Les Fragments',
-      content: "Chaque session laisse un éclat. Ici reposent les fragments de votre vécu, ordonnés par le temps. Observez ce qui revient.",
-      icon: <BookOpen size={14} className="text-beige" />
-    }
-  ],
-  'carnet-lien': [
-    {
-      id: 'rhythm_intro',
-      title: 'Le Lien',
-      content: "Comment s'organise votre existence ? Le lien montre la sédimentation de vos émotions dans les différentes sphères de votre vie.",
-      icon: <Heart size={14} className="text-beige" />
-    }
-  ],
-  'carnet-affect': [
-    {
-      id: 'affect_intro',
-      title: 'Le Climat des Affects',
-      content: "Qu'est-ce qui vous pousse, qu'est-ce qui vous freine ? Ici on lit les courants invisibles qui traversent votre semaine.",
-      icon: <Waves size={14} className="text-beige" />
-    }
-  ],
-  'carnet-elan': [
-    {
-      id: 'elan_intro',
-      title: 'La Trajectoire',
-      content: "Vers quoi tendez-vous ? L'Élan identifie le mouvement global de votre pensée et la question qui travaille votre équilibre actuel.",
-      icon: <Orbit size={14} className="text-beige" />
-    }
-  ],
-  'carnet-matrice': [
-    {
-      id: 'matrice_intro',
-      title: 'La Structure du Fond',
-      content: "La Matrice est ce dont on vient. Elle révèle les patterns profonds, les angoisses et les valeurs qui génèrent tout le reste.",
-      icon: <Fingerprint size={14} className="text-beige" />
-    }
-  ]
+
+/**
+ * Le guide de Clarté est dérivé du socle (clarte-socle.ts) : source de vérité
+ * unique, contenu 100 % statique, aucun appel d'API.
+ * Chaque page expose une carte d'intro puis une carte par concept pertinent —
+ * le carrousel (les points en bas du composant) les fait défiler.
+ */
+const SECTION_ICONS: Record<string, React.ReactNode> = {
+  landing: <Sparkles size={14} className="text-beige" />,
+  chat: <Brain size={14} className="text-beige" />,
+  'carnet-fragments': <BookOpen size={14} className="text-beige" />,
+  'carnet-lien': <Heart size={14} className="text-beige" />,
+  'carnet-affect': <Waves size={14} className="text-beige" />,
+  'carnet-elan': <Orbit size={14} className="text-beige" />,
+  'carnet-matrice': <Fingerprint size={14} className="text-beige" />,
 };
+
+const CLARITES: Record<string, GuideStep[]> = Object.fromEntries(
+  Object.entries(SECTION_GUIDE).map(([section, guide]): [string, GuideStep[]] => {
+    const intro: GuideStep = {
+      id: `${section}-intro`,
+      title: guide.titre,
+      content: guide.intro,
+      icon: SECTION_ICONS[section] ?? <Sparkles size={14} className="text-beige" />,
+    };
+    const glossaire: GuideStep[] = guide.concepts
+      .map((key) => CONCEPTS[key])
+      .filter(Boolean)
+      .map((c) => ({
+        id: `${section}-${c.terme}`,
+        title: c.terme,
+        content: c.definition,
+        icon: <Gem size={14} className="text-beige" />,
+      }));
+    return [section, [intro, ...glossaire]];
+  })
+);
 
 const SECTION_COLORS: Record<string, string> = {
   landing: '#E8D5B0',
@@ -352,10 +333,11 @@ const CometAnimation = ({
   );
 };
 
+
 export const ClarteSection = ({ section, forceClose }: { section: string, forceClose?: boolean }) => {
   const steps = CLARITES[section] || [];
   const [isOpen, setIsOpen] = useState(true);
-  
+
   useEffect(() => {
     if (forceClose) {
       setIsOpen(false);
@@ -363,109 +345,35 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
   }, [forceClose]);
 
   const [currentStep, setCurrentStep] = useState(0);
-  
-  const [isRecording, setIsRecording] = useState(false);
-  const [isThinking, setIsThinking] = useState(false);
-  const [aiResponse, setAiResponse] = useState<string | null>(null);
-  
-  const [emotion, setEmotion] = useState<SerpentinEmotion>('calm');
-  const [intensity, setIntensity] = useState(0.2);
+
   const [isPermanentUnlock, setIsPermanentUnlock] = useState(false);
+  const [showGlossary, setShowGlossary] = useState(false);
 
-  const recognition = useRef<any>(null);
-
+  // Changer de page : retour à l'intro, glossaire replié.
   useEffect(() => {
-    const loadState = async () => {
+    setCurrentStep(0);
+    setShowGlossary(false);
+  }, [section]);
+
+  // On lit seulement le "plan" du carnet : en mode Reconnaissance, la boîte
+  // de Clarté affiche un message particulier et un serpentin plus ample.
+  useEffect(() => {
+    const loadPlan = async () => {
       const personalId = localStorage.getItem('collegue_personal_id');
       if (!personalId) return;
       try {
         const res = await sbGet("carnet", `personal_id=eq.${personalId}`);
         if (res && res.length > 0) {
-          const state = res[0].serpentin_state;
-          if (state && state.emotion) setEmotion(state.emotion);
-          if (state && state.intensity !== undefined) setIntensity(state.intensity);
-          
           if (res[0].plan === 'reconnaissance' || res[0].plan === 'gratuit_permanent') {
             setIsPermanentUnlock(true);
-            setEmotion('permanent_unlock');
           }
         }
       } catch (e) {
-        console.error("Failed to load serpentin state", e);
+        console.error("Failed to load carnet plan", e);
       }
     };
-    loadState();
+    loadPlan();
   }, []);
-
-  const saveState = async (newEmotion: SerpentinEmotion, newIntensity: number) => {
-    const personalId = localStorage.getItem('collegue_personal_id');
-    if (!personalId) return;
-    try {
-      const res = await sbGet("carnet", `personal_id=eq.${personalId}`);
-      if (res && res.length > 0) {
-        await sbUpdate("carnet", res[0].id, {
-          serpentin_state: { emotion: newEmotion, intensity: newIntensity }
-        });
-      }
-    } catch (e) {
-      console.error("Failed to save serpentin state", e);
-    }
-  };
-
-  useEffect(() => {
-    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      recognition.current = new SpeechRecognition();
-      recognition.current.continuous = false;
-      recognition.current.lang = 'fr-FR';
-
-      recognition.current.onresult = (event: any) => {
-        const text = event.results[0][0].transcript;
-        handleQuestion(text);
-      };
-
-      recognition.current.onend = () => {
-        setIsRecording(false);
-      };
-
-      recognition.current.onerror = () => {
-        setIsRecording(false);
-      };
-    }
-  }, [section]);
-
-  const toggleRecording = () => {
-    if (isRecording) {
-      recognition.current?.stop();
-    } else {
-      setAiResponse(null);
-      setIsRecording(true);
-      recognition.current?.start();
-    }
-  };
-
-  const handleQuestion = async (text: string) => {
-    setIsThinking(true);
-    try {
-      const res = await fetch('/api/clarte', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, section })
-      });
-      const data = await res.json();
-      setAiResponse(data.text);
-      const newEmotion = data.emotion || 'calm';
-      const newIntensity = data.intensity || 0.5;
-      setEmotion(newEmotion);
-      setIntensity(newIntensity);
-      saveState(newEmotion, newIntensity);
-    } catch (e) {
-      setAiResponse("Je n'ai pas pu capter votre question. Réessayez.");
-      setEmotion('mysterious');
-    } finally {
-      setIsThinking(false);
-    }
-  };
 
   if (!isOpen) {
     return (
@@ -478,7 +386,7 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
     );
   }
 
-  const step = steps[currentStep];
+  const step = steps[currentStep] ?? steps[0];
 
   if (!step) return null;
 
@@ -489,144 +397,109 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
       exit={{ opacity: 0, height: 0 }}
-      className="relative mb-4 p-5 md:p-6 rounded-lg border border-white/5 bg-white/[0.015] overflow-hidden group shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] min-h-[100px] flex flex-col justify-center"
+      className="relative mb-4 px-3 py-3 rounded-lg border border-white/5 bg-white/[0.015] overflow-hidden group shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] min-h-[80px] flex flex-col justify-center"
     >
-      <CometAnimation section={section} emotion={emotion} intensity={intensity} />
+      <SerpentinCanvas color={sectionColor} level={isPermanentUnlock ? 3 : 1} className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-11" />
 
-      {/* Absolute Header Controls */}
-      <div className="absolute top-3 right-3 z-20">
-        <button 
-          onClick={() => setIsOpen(false)}
-          className="p-1.5 sm:p-2 text-red-500/30 hover:text-red-500 transition-colors rounded-full hover:bg-red-500/10"
-        >
-          <X size={16} />
-        </button>
-      </div>
+      {/* Fermer */}
+      <button
+        onClick={() => setIsOpen(false)}
+        aria-label="Fermer"
+        className="absolute top-2.5 right-2.5 z-20 p-1.5 text-red-500/30 hover:text-red-500 transition-colors rounded-full hover:bg-red-500/10"
+      >
+        <X size={15} />
+      </button>
 
-      {/* Absolute Bottom Controls */}
-      <div className="absolute bottom-4 right-4 md:bottom-5 md:right-5 z-20">
-        <button 
-          onClick={toggleRecording}
-          className={`p-2.5 sm:p-3 rounded-full border transition-all relative shadow-sm ${
-            isRecording 
-              ? 'bg-red-500/10 border-red-500/40 text-red-500' 
-              : 'bg-white/5 border-white/10 hover:border-white/20'
-          }`}
-          style={{
-            color: isRecording ? undefined : `${sectionColor}66`,
-            borderColor: isRecording ? undefined : `${sectionColor}22`,
-            backgroundColor: isRecording ? undefined : `${sectionColor}05`
-          }}
-        >
-          <Mic className="w-[14px] h-[14px] sm:w-[18px] sm:h-[18px]" />
-          {isRecording && (
-            <motion.div 
-              className="absolute inset-0 rounded-full border border-red-500"
-              initial={{ scale: 1, opacity: 1 }}
-              animate={{ scale: 1.5, opacity: 0 }}
-              transition={{ duration: 1, repeat: Infinity }}
-            />
-          )}
-        </button>
-      </div>
+      {/* Rangée : flèche gauche · contenu · flèche droite (flèches centrées verticalement) */}
+      <div className="relative z-10 w-full flex items-center gap-1">
+        {showGlossary && steps.length > 1 && (
+          <button
+            onClick={() => setCurrentStep((s) => Math.max(0, s - 1))}
+            disabled={currentStep === 0}
+            aria-label="Fiche précédente"
+            className="shrink-0 p-2 rounded-full transition-all disabled:opacity-20 hover:bg-white/5"
+            style={{ color: `${sectionColor}AA` }}
+          >
+            <ChevronLeft size={18} />
+          </button>
+        )}
 
-      <div className="relative z-10 w-full flex flex-col min-h-full">
-        <div className="w-full pr-8 mb-3">
-          <div className="flex flex-col gap-1">
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="pr-7 mb-2">
             <div className="flex items-center gap-2">
               <div className="font-mono text-[8px] tracking-[0.2em] uppercase" style={{ color: `${sectionColor}80` }}>Clarté</div>
               <div className="h-px w-4" style={{ backgroundColor: `${sectionColor}20` }} />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mt-1">
               <div className="p-0.5" style={{ color: sectionColor }}>
                 {step.icon}
               </div>
               <h4 className="font-mono text-[9px] tracking-widest uppercase" style={{ color: `${sectionColor}CC` }}>{step.title}</h4>
             </div>
           </div>
-        </div>
 
-        <div className="w-full relative flex-1">
-          <AnimatePresence mode="wait">
-            {isPermanentUnlock ? (
-              <motion.div
-                key="permanent-unlock"
-                initial={{ opacity: 0, x: -5 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="w-full"
-              >
-                <div className="text-[15px] leading-relaxed font-serif italic text-pretty" style={{ color: sectionColor }}>
-                  « Vous avez traversé suffisamment pour être, à votre tour, le collègue de quelqu'un. Le collègue vous appartient maintenant, sans abonnement, pour toujours. <strong style={{ color: sectionColor }}>Mode Reconnaissance activé.</strong> »
-                  <span className="inline-block w-14 h-8 float-right invisible"></span>
-                </div>
-                <div className="font-mono text-[7px] tracking-[0.3em] uppercase mt-3" style={{ color: `${sectionColor}CC` }}>
-                  L'Union des Fées Comètes
-                </div>
-              </motion.div>
-            ) : aiResponse ? (
-              <motion.div
-                key="ai-res"
-                initial={{ opacity: 0, x: -5 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 5 }}
-                className="w-full"
-              >
-                <div className="text-[15px] leading-relaxed font-serif italic text-pretty" style={{ color: sectionColor }}>
-                  « {aiResponse} »
-                  <span className="inline-block w-14 h-8 float-right invisible"></span>
-                </div>
-                <button 
-                  onClick={() => setAiResponse(null)}
-                  className="font-mono text-[7px] tracking-widest uppercase transition-colors mt-3"
-                  style={{ color: `${sectionColor}66` }}
+          <div className="relative">
+            <AnimatePresence mode="wait">
+              {isPermanentUnlock ? (
+                <motion.div
+                  key="permanent-unlock"
+                  initial={{ opacity: 0, x: -5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="w-full"
                 >
-                  Revenir au guide
-                </button>
-              </motion.div>
-            ) : isThinking ? (
-              <motion.div 
-                key="thinking"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex items-center gap-3 w-full"
-                style={{ color: `${sectionColor}66` }}
-              >
-                <Loader2 size={14} className="animate-spin" />
-                <span className="font-mono text-[9px] tracking-widest uppercase">Écoute du Serpentin...</span>
-              </motion.div>
-            ) : (
-              <motion.div 
-                key={step.id}
-                initial={{ opacity: 0, x: -5 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 5 }}
-                className="w-full"
-                style={{ color: `${sectionColor}EE` }}
-              >
-                <div className="text-[15px] leading-relaxed font-serif italic text-pretty">
-                  « {step.content} »
-                  <span className="inline-block w-10 h-8 sm:w-14 float-right invisible"></span>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  <div className="text-[15px] leading-relaxed font-serif italic text-pretty" style={{ color: sectionColor }}>
+                    « Vous avez traversé suffisamment pour être, à votre tour, le collègue de quelqu'un. Le collègue vous appartient maintenant, sans abonnement, pour toujours. <strong style={{ color: sectionColor }}>Mode Reconnaissance activé.</strong> »
+                  </div>
+                  <div className="font-mono text-[7px] tracking-[0.3em] uppercase mt-2" style={{ color: `${sectionColor}CC` }}>
+                    L'Union des Fées Comètes
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div 
+                  key={step.id}
+                  initial={{ opacity: 0, x: -5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 5 }}
+                  className="w-full"
+                  style={{ color: `${sectionColor}EE` }}
+                >
+                  <div className="text-[15px] leading-relaxed font-serif italic text-pretty">
+                    « {step.content} »
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {steps.length > 1 && !showGlossary && (
+            <button
+              onClick={() => { setShowGlossary(true); setCurrentStep(1); }}
+              aria-label="Découvrir les mots de cette page"
+              className="self-start pt-3 flex items-center gap-1.5 font-mono text-[9px] tracking-widest uppercase opacity-70 transition-opacity hover:opacity-100"
+              style={{ color: `${sectionColor}AA` }}
+            >
+              les mots de cette page · {steps.length - 1}
+              <ChevronRight size={12} />
+            </button>
+          )}
+
+          {steps.length > 1 && showGlossary && (
+            <div className="self-center pt-2.5 font-mono text-[8px] tracking-widest uppercase" style={{ color: `${sectionColor}66` }}>
+              {currentStep + 1} / {steps.length}
+            </div>
+          )}
         </div>
 
-        {!aiResponse && !isThinking && steps.length > 1 && (
-          <div className="flex gap-1.5 pt-4 w-full">
-            {steps.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setCurrentStep(idx)}
-                className="w-1 h-1 rounded-full transition-all"
-                style={{ 
-                  width: idx === currentStep ? '12px' : '4px',
-                  backgroundColor: idx === currentStep ? `${sectionColor}99` : `${sectionColor}22`
-                }}
-              />
-            ))}
-          </div>
+        {showGlossary && steps.length > 1 && (
+          <button
+            onClick={() => setCurrentStep((s) => Math.min(steps.length - 1, s + 1))}
+            disabled={currentStep === steps.length - 1}
+            aria-label="Fiche suivante"
+            className="shrink-0 p-2 rounded-full transition-all disabled:opacity-20 hover:bg-white/5"
+            style={{ color: `${sectionColor}AA` }}
+          >
+            <ChevronRight size={18} />
+          </button>
         )}
       </div>
     </motion.div>
