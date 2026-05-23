@@ -579,14 +579,16 @@ Produis une lecture dense, visionnaire et poétique. C'est une vision de structu
 Retourne un texte libre, profond.`;
 
 app.post("/api/metacognition", asyncHandler(async (req: Request, res: Response) => {
-  const { sessions, lien, affect, elan, annotations, structure_invisible }: any = req.body;
+  const { sessions, lien, affect, elan, songes, annotations, structure_invisible }: any = req.body;
+  // Le front envoie "songes" ; "annotations" est l'ancien nom, gardé en repli.
+  const songesData = songes ?? annotations;
 
   const prompt = `Voici le matériau à analyser :
 - Fragments : ${JSON.stringify(sessions.map((s: any) => ({ date: s.date, text: s.fragment, deplacement: s.deplacement, direction: s.direction, prisme: s.prisme || s.rune })))}
 - Lien (Sphères) : ${JSON.stringify(lien)}
 - Affect : ${JSON.stringify(affect)}
 - Élan : ${JSON.stringify(elan)}
-- Songes : ${JSON.stringify(annotations)}
+- Songes : ${JSON.stringify(songesData)}
 - Structure Invisible (Relief) : ${structure_invisible}
 
 Analyse ce matériau holistique et produis la structure métacognitive demandée.`;

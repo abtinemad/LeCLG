@@ -291,7 +291,6 @@ export default function Chat() {
   const [closingPhase, setClosingPhase] = useState<
     "none" | "awaiting-reply" | "closed"
   >("none");
-  const [showConfirmReset, setShowConfirmReset] = useState(false);
   // Vrai quand la personne a atteint son plafond de conversations du jour.
   const [dailyLimitReached, setDailyLimitReached] = useState(false);
   // Échanges écoulés depuis la dernière étape validée (pour le nudge doux).
@@ -2823,56 +2822,6 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               </div>
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Modals ── */}
-
-      {/* Confirmer reset */}
-      <AnimatePresence>
-        {showConfirmReset && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center px-6">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-bg/80 backdrop-blur-sm"
-              onClick={() => setShowConfirmReset(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="bg-bg-alt border border-border rounded-lg p-8 max-w-sm w-full relative z-10 text-center"
-            >
-              <p className="italic text-sm text-beige-faint mb-8 leading-loose">
-                Voulez-vous recommencer une nouvelle session ? La conversation
-                actuelle sera effacée.
-              </p>
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={clearChatState}
-                  className="w-full py-2.5 font-mono text-[9px] tracking-widest uppercase text-red border border-red-dim/40 rounded-sm hover:bg-red-dim/10"
-                >
-                  Nouvelle session (Effacer)
-                </button>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowConfirmReset(false)}
-                    className="flex-1 py-2.5 font-mono text-[9px] tracking-widest uppercase text-beige-faint border border-border rounded-sm hover:text-beige-dim"
-                  >
-                    Annuler
-                  </button>
-                  <Link
-                    to="/"
-                    className="flex-1 py-2.5 font-mono text-[9px] tracking-widest uppercase text-beige-dim border border-border rounded-sm hover:bg-beige-faint/5 flex items-center justify-center"
-                  >
-                    Quitter sans effacer
-                  </Link>
-                </div>
-              </div>
-            </motion.div>
-          </div>
         )}
       </AnimatePresence>
 
