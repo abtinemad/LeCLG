@@ -9,13 +9,9 @@ import {
   Brain,
   BookOpen,
   X,
-  Mic,
-  Loader2,
   Volume2,
   VolumeX,
-  Network,
   Gem,
-  Feather,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { sbInsert, sbUpdate, sbGet } from "../lib/worker";
@@ -1184,8 +1180,9 @@ export default function Chat() {
           messages: [],
           personal_id: finalId,
         });
-        if (result && (result as any).id)
-          currentSessionId.current = (result as any).id;
+        // Le serveur renvoie { row: {...} } pour sb_insert — l'id est dans row.
+        const insertedId = (result as any)?.row?.id;
+        if (insertedId) currentSessionId.current = insertedId;
 
         // Fetch past reflections to seed context (Piste 4)
         const past = await sbGet(
@@ -1218,7 +1215,7 @@ export default function Chat() {
               ts: new Date().toISOString(),
             },
           ],
-          400,
+          700,
           (chunk) => {
             accumulated += chunk;
             setMessages((prev) => {
@@ -1328,7 +1325,7 @@ export default function Chat() {
         body: JSON.stringify({
           type: "chat",
           messages: toWorkerMessages(finalMessages),
-          max_tokens: 1000,
+          max_tokens: maxTokens,
         }),
       });
 
@@ -1733,7 +1730,7 @@ export default function Chat() {
       let accumulated = "";
       const fullText = await streamChat(
         payload,
-        400,
+        700,
         (chunk) => {
           accumulated += chunk;
           setMessages((prev) => {
@@ -1809,7 +1806,7 @@ Fais un point en deux temps. Premier temps : une image tirée directement de ce 
       ]);
       const fullText = await streamChat(
         [{ role: "user", content: prompt }],
-        300,
+        500,
         (chunk) => {
           accumulated += chunk;
           setMessages((prev) => {
@@ -1885,7 +1882,7 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
       ]);
       const fullText = await streamChat(
         [{ role: "user", content: prompt }],
-        400,
+        700,
         (chunk) => {
           accumulated += chunk;
           setMessages((prev) => {

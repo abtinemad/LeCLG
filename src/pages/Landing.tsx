@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { motion, useInView } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Brain, Users, Cloud, Sun, Wind, Umbrella, Heart, Trees, Fingerprint, History, Calendar, Sparkles, Zap, Gem, Waves, Orbit, Network, Diamond, Grid3X3, Feather, ArrowRight } from 'lucide-react';
+import { BookOpen, Brain, Users, Cloud, Sun, Wind, Umbrella, Heart, Trees, Fingerprint, History, Calendar, Sparkles, Zap, Gem, Waves, Orbit, Feather, ArrowRight } from 'lucide-react';
 import { ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis } from 'recharts';
 import { ClarteSection } from '../components/SerpentinGuide';
 import { PaymentWrapper } from '../components/PaymentModal';
@@ -182,7 +182,7 @@ const KeyEntry = () => {
   };
 
   return (
-    <div className="absolute top-[60px] right-4 md:top-[72px] md:right-6 z-20">
+    <div className="absolute top-5 right-5 md:top-7 md:right-8 z-20">
       {open ? (
         <div className="flex items-center gap-1 bg-bg/80 backdrop-blur-sm border border-border rounded-sm pl-3 pr-1 py-1">
           <input
@@ -447,8 +447,38 @@ export default function Landing() {
 
         {/* Le Système / Structure */}
         <section className="py-20 border-t border-border">
+          <div className="font-mono text-[8px] tracking-[0.18em] uppercase text-green mb-16 text-center">La Structure</div>
           
           <div className="space-y-32">
+            {/* Gratuit */}
+            <div className="flex flex-col items-center gap-16">
+              <div className="text-center space-y-4 max-w-md">
+                <h3 className="font-mono text-[11px] tracking-widest uppercase text-beige">Gratuit — Le Socle</h3>
+                <p className="text-[15px] text-beige-faint antialiased leading-relaxed italic">
+                  Conversation, carte de réflexion, Prismes, Lien, Affect, Élan, Matrice. Tout ce qui aide à se connaître, dans un espace anonyme et confidentiel sans engagement.
+                </p>
+                <div className="font-mono text-[9px] text-green/60 uppercase tracking-widest pt-2">Accès Libre</div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-20 gap-x-16 md:gap-x-24 place-items-center w-full">
+                {[
+                  { icon: <History size={80} strokeWidth={1} />, label: "Fragments", color: "text-beige-faint", sub: "Analyse des fragments" },
+                  { icon: <Gem size={80} strokeWidth={1} />, label: "Prismes", color: "text-[#FACC15]", sub: "Décryptage du signal émotionnel" },
+                  { icon: <Heart size={80} strokeWidth={1} />, label: "Liens", color: "text-[#EA580C]", sub: "Sédimentation sociale" },
+                  { icon: <Waves size={80} strokeWidth={1} />, label: "Affects", color: "text-[#7BA7D7]", sub: "Climat affectif" },
+                  { icon: <Orbit size={80} strokeWidth={1} />, label: "Élan", color: "text-white", sub: "Vecteur de mouvement" },
+                  { icon: <Fingerprint size={80} strokeWidth={1} />, label: "Matrice", color: "text-[#8B5CF6]", sub: "Structure du fond" }
+                ].map((item, i) => (
+                  <div key={i} className="flex flex-col items-center gap-6 group">
+                    <div className={`${item.color} ${item.label === 'Matrice' ? 'opacity-100 drop-shadow-[0_0_8px_rgba(255,255,255,0.05)]' : 'opacity-80 group-hover:opacity-100'} transition-all duration-500 scale-100 group-hover:scale-110`}>{item.icon}</div>
+                    <div className="flex flex-col items-center gap-2">
+                      <div className={`font-mono text-[11px] uppercase tracking-[0.4em] ${item.color} ${item.label === 'Matrice' ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'} transition-all text-center font-medium`}>{item.label}</div>
+                      <div className={`font-serif text-[9px] italic ${item.color} ${item.label === 'Matrice' ? 'opacity-80' : 'opacity-50'} group-hover:opacity-70 transition-opacity tracking-wider text-center`}>{item.sub}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Évolution */}
             <div className="grid md:grid-cols-[1fr_2fr] gap-12 md:gap-20 border-t border-border/30 pt-16">
               <div className="space-y-4">

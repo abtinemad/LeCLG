@@ -3,7 +3,6 @@ import { motion } from "motion/react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
-  Calendar,
   History,
   Brain,
   Heart,
