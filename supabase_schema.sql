@@ -1,22 +1,25 @@
--- SQL to initialize the Supabase database for 'Le collègue'
+-- Schéma Supabase pour « Le collègue »
+-- Régénéré à partir de la base de production réelle (information_schema).
+-- Source de vérité : ce fichier doit refléter exactement les tables Supabase.
 
--- Table for carnet metadata and analysis
+-- ── carnet : métadonnées et analyses du Carnet, une ligne par personne ──
 CREATE TABLE IF NOT EXISTS public.carnet (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     personal_id TEXT NOT NULL UNIQUE,
+    plan TEXT,
     lien_data JSONB,
     affect_data JSONB,
     elan_data JSONB,
     matrice_data JSONB,
     lueurs JSONB,
-    annotations JSONB,
+    songes JSONB,
     serpentin_state JSONB,
     prismes_unlocked TEXT[],
     last_sync TIMESTAMPTZ DEFAULT now(),
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Table for individual reflection cards (Fragments)
+-- ── cartes : les fragments, une carte par conversation ──
 CREATE TABLE IF NOT EXISTS public.cartes (
     id TEXT PRIMARY KEY,
     personal_id TEXT NOT NULL,
@@ -25,17 +28,19 @@ CREATE TABLE IF NOT EXISTS public.cartes (
     direction TEXT,
     texture_relationnelle TEXT,
     sphere TEXT,
+    emotion TEXT,
     prisme TEXT,
     date TIMESTAMPTZ,
-    user_note TEXT,
     image_url TEXT,
+    user_note TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Table for Eclats requests
+-- ── eclats : requêtes d'Éclat, avec instantanés des couches du Carnet ──
 CREATE TABLE IF NOT EXISTS public.eclats (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     personal_id TEXT,
+    type TEXT,
     request_text TEXT,
     matrice_snapshot JSONB,
     elan_snapshot JSONB,
@@ -44,20 +49,18 @@ CREATE TABLE IF NOT EXISTS public.eclats (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Table for user sessions/chat records (Optional but used in some parts of the app)
+-- ── sessions : enregistrements de conversation ──
 CREATE TABLE IF NOT EXISTS public.sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     personal_id TEXT,
-    fragment TEXT,
-    deplacement TEXT,
-    direction TEXT,
-    prisme TEXT,
-    date TIMESTAMPTZ DEFAULT now(),
-    reflection_card JSONB,
-    data JSONB
+    started_at TIMESTAMPTZ DEFAULT now(),
+    ended_at TIMESTAMPTZ,
+    step_reached INTEGER,
+    messages JSONB,
+    reflection_card JSONB
 );
 
--- Table for feedback
+-- ── feedbacks : retours des personnes ──
 CREATE TABLE IF NOT EXISTS public.feedbacks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     personal_id TEXT,
@@ -66,22 +69,12 @@ CREATE TABLE IF NOT EXISTS public.feedbacks (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Enable RLS (Row Level Security) - though the proxy uses a Service Key, 
--- it's good practice to have policies or keep it simple for now as requested.
--- For this app's architecture, we assume the server proxy handles security.
+-- ── Row Level Security ──
+-- Le proxy serveur utilise la Service Key, mais la RLS est activée sur les
+-- 5 tables par défense en profondeur. L'isolation se fait par personal_id.
 
-ALTER TABLE public.cartes ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS cartes_isolation_policy ON public.cartes;
-CREATE POLICY cartes_isolation_policy ON public.cartes
-    FOR ALL
-    TO anon, authenticated
-    USING (personal_id = COALESCE(nullif(current_setting('app.personal_id', true), ''), current_setting('request.headers', true)::json->>'x-personal-id'))
-    WITH CHECK (personal_id = COALESCE(nullif(current_setting('app.personal_id', true), ''), current_setting('request.headers', true)::json->>'x-personal-id'));
-
-ALTER TABLE public.carnet ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS carnet_isolation_policy ON public.carnet;
-CREATE POLICY carnet_isolation_policy ON public.carnet
-    FOR ALL
-    TO anon, authenticated
-    USING (personal_id = COALESCE(nullif(current_setting('app.personal_id', true), ''), current_setting('request.headers', true)::json->>'x-personal-id'))
-    WITH CHECK (personal_id = COALESCE(nullif(current_setting('app.personal_id', true), ''), current_setting('request.headers', true)::json->>'x-personal-id'));
+ALTER TABLE public.carnet    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cartes    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.eclats    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sessions  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feedbacks ENABLE ROW LEVEL SECURITY;

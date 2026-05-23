@@ -75,13 +75,6 @@ const toWorkerMessages = (msgs: any[]) => {
   return merged;
 };
 
-const STEP_IDS = [
-  "situation",
-  "ressenti",
-  "demande",
-  "diffraction",
-  "equilibre",
-] as const;
 const STEP_NAMES_FR = [
   "Situation",
   "Ressenti",
