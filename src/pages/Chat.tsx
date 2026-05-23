@@ -1913,10 +1913,12 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
     } catch (e) {
       console.error("miroir failed", e);
     } finally {
+      // On NE ferme PAS automatiquement : le miroir reste affiché, la saisie
+      // se verrouille, et c'est la personne qui clôt via « Terminer » quand
+      // elle a eu le temps de lire. finalizeClose() est appelé par endSession.
       setClosingPhase("closed");
       setLoading(false);
       flowRef.current.isLoading = false;
-      finalizeClose();
     }
   };
 
@@ -2661,7 +2663,25 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
         )}
 
         {/* Zone de saisie */}
-        {sessionActive && !showEnded && (
+        {sessionActive && !showEnded && closingPhase === "closed" && (
+          <div className="p-4 md:p-6">
+            <div className="max-w-[620px] mx-auto flex flex-col items-center gap-4 text-center">
+              <p className="font-serif italic text-[15px] text-beige-faint leading-relaxed text-pretty">
+                La conversation se referme ici. Prenez le temps de lire ce
+                dernier reflet — il continuera de travailler en vous.
+              </p>
+              <button
+                onClick={endSession}
+                className="px-6 py-3 rounded-lg bg-beige text-bg font-mono text-xs tracking-widest uppercase transition-all hover:opacity-90"
+              >
+                Terminer
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Zone de saisie */}
+        {sessionActive && !showEnded && closingPhase !== "closed" && (
           <div className="p-4 md:p-6">
             <div className="max-w-[620px] mx-auto flex gap-3 items-stretch">
               {/* Input */}
