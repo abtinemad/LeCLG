@@ -1855,6 +1855,19 @@ Fais un point en deux temps. Premier temps : une image tirée directement de ce 
     setLoading(true);
     setFlowIntensity("loading");
 
+    // Garde-fou : si le miroir n'aboutit pas (flux qui traîne, réseau,
+    // worker qui ne ferme pas le SSE), on bascule quand même en "closed"
+    // pour que l'utilisateur ne reste jamais prisonnier de la fin.
+    let closed = false;
+    const forceClose = () => {
+      if (closed) return;
+      closed = true;
+      setClosingPhase("closed");
+      setLoading(false);
+      flowRef.current.isLoading = false;
+    };
+    const safetyTimer = setTimeout(forceClose, 35000);
+
     const summary = convo
       .filter(
         (m) => m.content !== "Bonjour, j'ai une situation à vous soumettre.",
@@ -1910,20 +1923,24 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
     } catch (e) {
       console.error("miroir failed", e);
     } finally {
-      // On NE ferme PAS automatiquement : le miroir reste affiché, la saisie
-      // se verrouille, et c'est la personne qui clôt via « Terminer » quand
-      // elle a eu le temps de lire. finalizeClose() est appelé par endSession.
-      setClosingPhase("closed");
-      setLoading(false);
-      flowRef.current.isLoading = false;
+      // On NE ferme PAS l'écran automatiquement : le miroir reste affiché,
+      // la saisie se verrouille, et c'est la personne qui clôt via
+      // « Terminer ». forceClose() est idempotent : si le garde-fou a déjà
+      // tiré, ceci ne fait rien.
+      clearTimeout(safetyTimer);
+      forceClose();
     }
   };
 
   // ── Terminer session ──────────────────────────────────────
   const endSession = async () => {
-    if (loading) return;
-    // Ceinture de sécurité : si la personne termine sans avoir répondu
-    // au message de validation, on joue quand même le miroir avant de clore.
+    // On bloque le double-clic en cours de conversation — mais PAS en phase
+    // de clôture : si "loading" est resté coincé (miroir qui traîne), le
+    // bouton « Terminer » doit malgré tout fonctionner, jamais piéger.
+    if (loading && closingPhase === "none") return;
+
+    // Si la personne termine sans avoir répondu au message de validation,
+    // on joue quand même le miroir avant de clore.
     if (closingPhase === "awaiting-reply") {
       await triggerMirror(messages);
       return;
@@ -1939,7 +1956,10 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
       if (m.role === "assistant" && i <= 1) return false;
       return true;
     });
-    if (realMessages.filter((m) => m.role === "user").length < 2) return;
+    // Une vraie conversation, même courte, mérite son fragment.
+    // Un seul message de la personne suffit ; en deçà, c'est une
+    // conversation ouverte puis refermée sans rien déposer.
+    if (realMessages.filter((m) => m.role === "user").length < 1) return;
 
     const summary = realMessages
       .slice(-30)
