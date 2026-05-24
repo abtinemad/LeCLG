@@ -44,7 +44,17 @@ const WORKER_URL = "/api/worker";
 // Plafond de conversations réellement engagées par jour (le serveur fait foi).
 const MAX_CONVERSATIONS_PER_DAY = 3;
 // Plafond dur invisible : une conversation ne peut pas s'étendre sans fin.
-const MAX_CONVERSATION_MESSAGES = 60;
+// Plafond souple en deux temps. Le problème n'est pas la longueur en soi —
+// c'est la conversation qui tourne en boucle et vire à la rumination.
+// LANDING_THRESHOLD : à partir d'ici, si l'équilibre (étape 4) n'est pas
+// validé, on injecte une note pour que le collègue oriente vers un point
+// de pose — faire émerger une direction depuis l'intérieur de la personne.
+// HARD_MESSAGE_LIMIT : limite finale. Le miroir se déclenche, équilibre
+// validé ou non — une conversation se referme toujours par le miroir.
+const LANDING_THRESHOLD = 50;
+const HARD_MESSAGE_LIMIT = 75;
+const LANDING_NOTE =
+  "[Note interne (ne pas citer) : la conversation s'étire et risque de tourner en boucle. Sans la clore brutalement ni l'annoncer, oriente-la vers un point de pose — aide la personne à faire émerger une direction, une clarté, quelque chose depuis l'intérieur d'elle-même. N'ouvre pas de nouveaux territoires. Si ça tourne sans avancer, nomme-le doucement.]";
 
 // Nudge doux : au bout de NUDGE_THRESHOLD échanges sans progression (aucune
 // étape validée), le collègue propose en douceur d'ouvrir un autre angle.
@@ -1583,9 +1593,9 @@ export default function Chat() {
       return;
     }
 
-    // Plafond dur invisible : au-delà de MAX_CONVERSATION_MESSAGES, la
-    // conversation se referme par le miroir plutôt que de s'étendre sans fin.
-    if (updatedMessages.length >= MAX_CONVERSATION_MESSAGES) {
+    // Seuil dur : la conversation se referme par le miroir, que l'équilibre
+    // soit validé ou non. Une conversation se termine TOUJOURS par le miroir.
+    if (updatedMessages.length >= HARD_MESSAGE_LIMIT) {
       await triggerMirror(updatedMessages);
       return;
     }
@@ -1601,6 +1611,21 @@ export default function Chat() {
     }));
     if (payload.length > MAX_CONTEXT + 1) {
       payload = [payload[0], ...payload.slice(-MAX_CONTEXT)];
+    }
+
+    // Phase d'atterrissage : au-delà de LANDING_THRESHOLD, si l'équilibre
+    // (étape 4) n'est pas validé, on oriente le collègue vers un point de
+    // pose. La crise prime — si une crise est en cours, pas d'atterrissage.
+    const inLanding =
+      updatedMessages.length >= LANDING_THRESHOLD &&
+      !validatedSteps.has(4) &&
+      !crisisDetected;
+    if (inLanding && payload.length > 0) {
+      const lastIdx = payload.length - 1;
+      payload[lastIdx] = {
+        ...payload[lastIdx],
+        content: payload[lastIdx].content + "\n\n" + LANDING_NOTE,
+      };
     }
 
     // Nudge doux : un échange de plus sans progression. Au seuil exact, on
