@@ -255,7 +255,7 @@ export default function Carnet() {
   );
   const [isEclatModalOpen, setIsEclatModalOpen] = useState(false);
   const [eclatRequest, setEclatRequest] = useState("");
-  const [eclatStatus, setEclatStatus] = useState<"idle" | "sending" | "sent">(
+  const [eclatStatus, setEclatStatus] = useState<"idle" | "sending" | "sent" | "error">(
     "idle",
   );
   const [carnatCreatedAt, setCarnetCreatedAt] = useState<string | null>(null);
@@ -374,7 +374,7 @@ export default function Carnet() {
         affect_snapshot: affectData,
         lien_snapshot: lienData,
         created_at: new Date().toISOString(),
-        personal_id: localStorage.getItem("collegue_personal_id") || "anonyme",
+        personal_id: personalId,
       };
 
       // We use sbInsert to save it to a table named 'eclats'
@@ -383,8 +383,10 @@ export default function Carnet() {
       setEclatRequest("");
     } catch (e) {
       console.error("Failed to send eclat:", e);
-      // Fallback for demo: even if table missing, we want to show 'sent' state to the user
-      setEclatStatus("sent");
+      // En cas d'échec, on le dit à la personne : l'Éclat est un geste
+      // investi, lui afficher « envoyé » à tort lui ferait perdre sa demande
+      // sans le savoir. Statut d'erreur -> elle peut réessayer.
+      setEclatStatus("error");
     }
   };
 
@@ -1361,8 +1363,8 @@ export default function Carnet() {
                     </button>
                   </div>
                   <p className="text-[10px] text-beige-faint italic leading-relaxed mt-2.5">
-                    Gardez-la : c'est elle qui vous permet de retrouver cet
-                    espace, ici ou sur un autre appareil.
+                    Gardez-la : c'est elle qui vous permet de retrouver ce
+                    carnet, ici ou sur un autre appareil.
                   </p>
                 </div>
               )}
@@ -3631,6 +3633,27 @@ export default function Carnet() {
                     className="mt-8 px-6 py-2 border border-white/10 hover:border-white/20 text-white/40 hover:text-white/60 font-mono text-[8px] uppercase tracking-widest rounded-full transition-all"
                   >
                     Fermer
+                  </button>
+                </motion.div>
+              ) : eclatStatus === "error" ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-400/5 border border-red-400/20 p-8 rounded-lg text-center"
+                >
+                  <p className="text-sm text-beige font-serif italic mb-4">
+                    Votre demande n'a pas pu être transmise.
+                  </p>
+                  <p className="text-[11px] text-beige-faint/40 font-mono uppercase tracking-widest italic leading-relaxed">
+                    Rien n'a été perdu de ce que vous avez écrit.
+                    <br />
+                    Vous pouvez réessayer.
+                  </p>
+                  <button
+                    onClick={() => setEclatStatus("idle")}
+                    className="mt-8 px-6 py-2 border border-white/10 hover:border-white/20 text-white/40 hover:text-white/60 font-mono text-[8px] uppercase tracking-widest rounded-full transition-all"
+                  >
+                    Réessayer
                   </button>
                 </motion.div>
               ) : (

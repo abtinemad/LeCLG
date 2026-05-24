@@ -167,9 +167,9 @@ const Step = ({ number, title, desc, note, index }: { number: string; title: str
   );
 };
 
-// Encart de restauration : discret, en haut à droite, replié par défaut.
+// Encart de restauration : discret, sous les CTA, replié par défaut.
 // Au clic, il déploie un champ compact pour ressaisir la Clé-LCLG.
-const KeyEntry = () => {
+const KeyEntry = ({ className = "" }: { className?: string }) => {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState('');
   const navigate = useNavigate();
@@ -178,11 +178,11 @@ const KeyEntry = () => {
     const k = key.trim();
     if (!k) return;
     localStorage.setItem('collegue_personal_id', k);
-    navigate('/chat');
+    navigate('/carnet');
   };
 
   return (
-    <div className="absolute top-5 right-5 md:top-7 md:right-8 z-20">
+    <div className={className}>
       {open ? (
         <div className="flex items-center gap-1 bg-bg/80 backdrop-blur-sm border border-border rounded-sm pl-3 pr-1 py-1">
           <input
@@ -199,7 +199,7 @@ const KeyEntry = () => {
           />
           <button
             onClick={restore}
-            aria-label="Retrouver mon espace"
+            aria-label="Retrouver mon carnet"
             className="text-beige-faint hover:text-beige transition-colors p-1.5"
           >
             <ArrowRight size={14} />
@@ -211,7 +211,7 @@ const KeyEntry = () => {
           className="flex items-center gap-1.5 text-beige-faint hover:text-beige font-mono text-[9px] tracking-widest uppercase transition-colors"
         >
           <Fingerprint size={11} />
-          Retrouver mon espace
+          Retrouver mon carnet
         </button>
       )}
     </div>
@@ -223,8 +223,6 @@ export default function Landing() {
     <div className="relative min-h-screen">
       {/* Grain Overlay */}
       <div className="fixed inset-0 pointer-events-none z-[9999] opacity-60 mix-blend-soft-light" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")` }}></div>
-
-      <KeyEntry />
 
       <main className="max-w-[720px] mx-auto px-6 md:px-8">
         {/* Hero */}
@@ -253,6 +251,14 @@ export default function Landing() {
           >
             <Link to="/chat" className="font-mono text-[11px] tracking-widest uppercase text-bg bg-beige px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity">Penser maintenant</Link>
             <span className="font-mono text-[8px] tracking-widest text-beige-faint italic">Anonyme et confidentiel</span>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.7 }}
+          >
+            <KeyEntry className="flex mt-8" />
           </motion.div>
         </section>
 
@@ -634,6 +640,8 @@ export default function Landing() {
           <h2 className="font-serif italic text-[clamp(28px,5vw,38px)] font-medium text-beige leading-tight mb-5 max-w-[500px] mx-auto">Quelque chose à démêler ?</h2>
           <p className="italic text-[16px] text-beige-faint mb-12">Anonyme et confidentiel, sans enregistrement.</p>
           <Link to="/chat" className="font-mono text-[13px] tracking-widest uppercase text-bg bg-beige px-12 py-4 rounded-sm hover:opacity-90 transition-all hover:scale-[1.02] active:scale-[0.98] inline-block shadow-lg shadow-black/10">Penser maintenant</Link>
+
+          <KeyEntry className="flex justify-center mt-10" />
         </section>
 
         <footer className="border-t border-border/30 pt-16 pb-12 mt-8">

@@ -327,9 +327,6 @@ export default function Chat() {
   );
 
   // Identité
-  const [storageMode, setStorageMode] = useState<"local" | "cloud" | null>(
-    null,
-  );
   const [personalId, setPersonalId] = useState<string>(
     () => localStorage.getItem("collegue_personal_id") || "",
   );
@@ -486,9 +483,9 @@ export default function Chat() {
       localStorage.removeItem("collegue_chat_state");
       const storedId = localStorage.getItem("collegue_personal_id");
       if (storedId) {
-        confirmStart("cloud", storedId);
+        confirmStart(storedId);
       } else {
-        confirmStart("cloud", generateNewKey());
+        confirmStart(generateNewKey());
       }
     } else {
       const saved = localStorage.getItem("collegue_chat_state");
@@ -1112,9 +1109,9 @@ export default function Chat() {
     }
     
     if (hasStoredKey && personalId) {
-      confirmStart("cloud", personalId);
+      confirmStart(personalId);
     } else {
-      confirmStart("cloud", generateNewKey());
+      confirmStart(generateNewKey());
     }
   };
 
@@ -1130,19 +1127,19 @@ export default function Chat() {
     setResumeCardToOffer(null);
     
     if (hasStoredKey && personalId) {
-      confirmStart("cloud", personalId);
+      confirmStart(personalId);
     } else {
-      confirmStart("cloud", generateNewKey());
+      confirmStart(generateNewKey());
     }
   };
 
-  const confirmStart = async (mode: "local" | "cloud", providedId?: string) => {
+  const confirmStart = async (providedId?: string) => {
     const finalId = providedId || personalId;
 
     // Plafond : pré-vérification du nombre de conversations du jour. Le serveur
     // reste le garde-fou dur ; ceci sert à afficher un message clair plutôt que
     // de laisser échouer l'insertion silencieusement.
-    if (mode === "cloud" && finalId) {
+    if (finalId) {
       try {
         const dayStart = new Date();
         dayStart.setUTCHours(0, 0, 0, 0);
@@ -1164,14 +1161,13 @@ export default function Chat() {
       }
     }
 
-    setStorageMode(mode);
     setShowIdentityModal(false);
     setLoading(true);
     setSessionActive(true);
     setMessages([]);
     setLastActivity(Date.now());
 
-    if (mode === "cloud" && finalId) {
+    if (finalId) {
       localStorage.setItem("collegue_personal_id", finalId);
       setHasStoredKey(true);
 
@@ -1273,7 +1269,7 @@ export default function Chat() {
 
   // ── Sauvegarde session ────────────────────────────────────
   const saveSession = useCallback(async () => {
-    if (!currentSessionId.current || storageMode !== "cloud") return;
+    if (!currentSessionId.current || !personalId) return;
     try {
       await sbUpdate("sessions", currentSessionId.current, {
         step_reached: validatedSteps.size,
@@ -1282,7 +1278,7 @@ export default function Chat() {
     } catch (e) {
       console.error("saveSession failed", e);
     }
-  }, [validatedSteps.size, storageMode]);
+  }, [validatedSteps.size, personalId]);
 
   // ── Streaming chat via Worker ─────────────────────────────
   const streamChat = useCallback(
@@ -1383,9 +1379,9 @@ export default function Chat() {
 
       evalInProgress.current = true;
       try {
-        // Insights multi-sessions — si mode cloud, récupérer les sessions passées
+        // Insights multi-sessions — si une clé existe, récupérer les sessions passées
         let multiSessionNote = "";
-        if (storageMode === "cloud" && personalId) {
+        if (personalId) {
           if (pastReflections.length > 0) {
             const pastSummary = pastReflections
               .map((r) => r.fragment)
@@ -2085,7 +2081,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
         }
 
         // Sauvegarder dans sessions pour compatibilité admin
-        if (storageMode === "cloud" && currentSessionId.current) {
+        if (personalId && currentSessionId.current) {
           try {
             await sbUpdate("sessions", currentSessionId.current, {
               reflection_card: newCard,
@@ -2488,7 +2484,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               {keyJustRevealed && personalId && (
                 <div className="w-full max-w-[560px] border border-[#4a4028] bg-[#0e0d08] rounded-lg p-7 text-left space-y-4">
                   <div className="font-serif text-lg text-beige">
-                    Cet espace est désormais le vôtre.
+                    Ce carnet est désormais le vôtre.
                   </div>
                   <p className="text-[13px] leading-relaxed text-beige-faint">
                     Voici votre Clé-LCLG — enregistrez-la : c'est le seul moyen
@@ -2513,6 +2509,21 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                       {keyCopied ? "Copié" : "Copier"}
                     </button>
                   </div>
+
+                  <div className="h-px bg-[#3a3420]" />
+
+                  <p className="text-[13px] leading-relaxed text-beige-faint">
+                    Votre carnet garde la trace de vos cheminements — leur
+                    continuité, leur cohérence d'une session à l'autre. Cette
+                    clé en est la porte.
+                  </p>
+                  <Link
+                    to="/carnet"
+                    className="inline-flex items-center gap-2 font-mono text-[10px] tracking-widest uppercase text-bg bg-beige px-5 py-2.5 rounded hover:opacity-90 transition-opacity"
+                  >
+                    <BookOpen size={12} strokeWidth={1.5} />
+                    Aller au carnet
+                  </Link>
                 </div>
               )}
 

@@ -72,10 +72,6 @@ app.use((req, res, next) => {
 });
 
 // Type Definitions
-interface SummarizeRequest {
-  prompt: string;
-}
-
 interface ReflectionRequest {
   prompt: string;
 }
@@ -181,17 +177,6 @@ async function sbRequest(method: string, tablePath: string, body: any, serviceKe
   }
   return null;
 }
-
-app.post("/api/summarize", asyncHandler(async (req: Request, res: Response) => {
-  const { prompt }: SummarizeRequest = req.body;
-
-  const response = await ai.models.generateContent({
-    model: "gemini-3.5-flash",
-    contents: prompt,
-    config: { maxOutputTokens: 1024 }
-  });
-  res.json({ text: response.text });
-}));
 
 app.post("/api/reflection", asyncHandler(async (req: Request, res: Response) => {
   const { prompt }: ReflectionRequest = req.body;
