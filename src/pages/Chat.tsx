@@ -478,7 +478,7 @@ export default function Chat() {
     if (resumeFragment && !sessionActive) {
       const { fragment, deplacement, direction } = resumeFragment;
       setActiveResumeContext(
-        `Note de contexte — session en reprise : La personne revient sur une situation. Fragment : ${fragment}, Déplacement : ${deplacement}, Direction : ${direction}. Ne reformule pas ce contexte explicitement. Pars de là avec douceur.`,
+        `Note de contexte — session en reprise : La personne revient et choisit de reprendre une réflexion restée ouverte — Fragment : ${fragment}, Déplacement : ${deplacement}, Direction : ${direction}. Ouvre en accueillant son retour, et propose-lui ce fil comme point de départ : touche-le légèrement — une image, un mot — juste assez pour qu'elle s'y retrouve et ait par où entrer. Laisse l'ouverture : elle peut repartir de là, ou d'ailleurs si autre chose l'occupe.`,
       );
       localStorage.removeItem("collegue_chat_state");
       const storedId = localStorage.getItem("collegue_personal_id");
@@ -1119,7 +1119,7 @@ export default function Chat() {
     if (choice === "reprendre" && resumeCardToOffer) {
       const { fragment, deplacement, direction } = resumeCardToOffer;
       setActiveResumeContext(
-        `Note de contexte — session en reprise : La personne revient sur une situation non résolue. Son dernier fragment était — Fragment : ${fragment}, Déplacement : ${deplacement}, Direction : ${direction}. Ne reformule pas ce contexte explicitement. Pars de là avec douceur. Si la personne préfère partir sur autre chose, suis-la sans retenir le fil précédent.`,
+        `Note de contexte — session en reprise : La personne revient. Sa dernière réflexion est restée ouverte — Fragment : ${fragment}, Déplacement : ${deplacement}, Direction : ${direction}. Ouvre en accueillant son retour, et propose-lui ce fil comme point de départ : touche-le légèrement — une image, un mot — juste assez pour qu'elle s'y retrouve et ait par où entrer. Laisse l'ouverture : elle peut repartir de là, ou d'ailleurs si autre chose l'occupe.`,
       );
     } else {
       setActiveResumeContext(null);
@@ -2331,27 +2331,37 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               ) : (
                 <>
                   <h2 className="text-beige text-xl md:text-2xl font-medium mb-4 max-w-sm">
-                    Quelque chose à démêler ?
+                    Prenez le temps.
                   </h2>
                   <p className="italic text-sm text-beige-faint mb-10 max-w-xs leading-relaxed">
                     On en parle. Pas pour trouver la bonne réponse — pour
                     mettre des mots sur ce que vous traversez.
                   </p>
                   {resumeCardToOffer ? (
-                    <div className="flex flex-col gap-4 w-full max-w-xs">
-                      <button
-                        onClick={() => handleResumeChoice("reprendre")}
-                        className="bg-beige text-bg font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity"
-                      >
-                        Reprendre
-                      </button>
-                      <button
-                        onClick={() => handleResumeChoice("nouvelle")}
-                        className="bg-transparent text-beige border border-beige/20 font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:bg-beige/5 transition-colors"
-                      >
-                        Nouvelle situation
-                      </button>
-                    </div>
+                    <>
+                      <div className="w-full max-w-xs mb-8 border border-beige-faint/15 rounded-md p-4 text-left">
+                        <div className="font-mono text-[8px] tracking-[0.18em] uppercase text-beige-faint mb-2">
+                          Là où vous en étiez
+                        </div>
+                        <p className="text-[13px] italic text-beige-dim leading-relaxed">
+                          {resumeCardToOffer.fragment}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-4 w-full max-w-xs">
+                        <button
+                          onClick={() => handleResumeChoice("reprendre")}
+                          className="bg-beige text-bg font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity"
+                        >
+                          Reprendre
+                        </button>
+                        <button
+                          onClick={() => handleResumeChoice("nouvelle")}
+                          className="bg-transparent text-beige border border-beige/20 font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:bg-beige/5 transition-colors"
+                        >
+                          Nouvelle situation
+                        </button>
+                      </div>
+                    </>
                   ) : (
                     <button
                       onClick={startSessionFlow}
@@ -2373,6 +2383,11 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               animate={{ opacity: 1 }}
               className="flex flex-col items-center py-12 gap-8"
             >
+              {/* Clairière — chapeau du fragment */}
+              <div className="font-serif italic text-lg text-green text-center max-w-[560px]">
+                Il y a eu une clairière ici.
+              </div>
+
               {/* Carte de réflexion */}
               {reflectionCard ? (
                 (() => {
@@ -2527,53 +2542,11 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                 </div>
               )}
 
-              {/* Bloc clairière */}
-              <div className="w-full max-w-[560px] border border-green-dim/30 bg-[#0d110d] rounded-lg p-8 text-left space-y-4 text-xs leading-relaxed text-[#7a7268]">
-                <div className="font-serif italic text-green">
-                  Il y a eu une clairière ici.
-                </div>
-                <p>
-                  Le collègue est un outil de réflexion personnelle. Derrière
-                  lui, une philosophie et une expérience clinique qui
-                  s'enrichissent chaque jour. Pas un protocole figé.
-                </p>
-                <p className="italic">
-                  L'IA comme vecteur. L'expérience humaine comme boussole.
-                </p>
-                <div className="h-px bg-green-dim/20 my-2" />
-                <p className="font-mono text-[8px] uppercase tracking-widest text-[#2a3a2a]">
-                  Ce que cet outil n'est pas
-                </p>
-                <p className="italic text-[13px] text-[#5a6858]">
-                  Le collègue n'est pas un outil de soin, un thérapeute, ni un
-                  service d'urgence. Si vous traversez une crise, le{" "}
-                  <strong className="font-normal text-beige/70">3114</strong>{" "}
-                  est disponible 24h/24.
-                </p>
-                <div className="h-px bg-green-dim/20 my-2" />
-                <p className="font-mono text-[8px] uppercase tracking-widest text-[#2a3a2a]">
-                  Données et confidentialité
-                </p>
-                <p className="italic text-[13px] text-[#5a6858]">
-                  Le contenu de votre conversation n'est jamais enregistré.
-                  Seules des métadonnées anonymes sont conservées : date, étapes
-                  traversées, feedback.
-                </p>
-                <div className="flex justify-end pt-2">
-                  <span className="font-mono text-[8px] tracking-widest text-[#2a2820] opacity-50">
-                    Interface de réflexion éphémère
-                  </span>
-                </div>
-              </div>
-
               {/* Session terminée */}
               <div className="flex flex-col items-center gap-4 w-full max-w-[560px]">
                 <div className="text-center">
-                  <div className="font-serif text-lg text-beige mb-2">
+                  <div className="font-serif text-lg text-beige">
                     Session terminée.
-                  </div>
-                  <div className="italic text-sm text-beige-faint">
-                    La conversation n'est pas enregistrée.
                   </div>
                 </div>
                 <button
@@ -2588,6 +2561,21 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                 >
                   Nouvelle situation
                 </button>
+              </div>
+
+              {/* Mentions — pied de page */}
+              <div className="w-full max-w-[560px] border-t border-border/30 pt-6 space-y-3 text-left">
+                <p className="text-[12px] leading-relaxed text-beige-faint italic">
+                  Le collègue n'est pas un outil de soin, un thérapeute, ni un
+                  service d'urgence. Si vous traversez une crise, le{" "}
+                  <strong className="font-normal text-beige/70">3114</strong>{" "}
+                  est disponible 24h/24.
+                </p>
+                <p className="text-[12px] leading-relaxed text-beige-faint italic">
+                  Le contenu de votre conversation n'est jamais enregistré.
+                  Seules des métadonnées anonymes sont conservées : date,
+                  étapes traversées, feedback.
+                </p>
               </div>
             </motion.div>
           ) : (

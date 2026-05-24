@@ -646,6 +646,7 @@ export default function Landing() {
 
         <footer className="border-t border-border/30 pt-16 pb-12 mt-8">
           <div className="font-mono text-[8px] tracking-widest text-beige-faint uppercase">Le collègue n'est pas un outil de soin.<br />3114 disponible 24h/24 en cas de besoin</div>
+          <div className="font-mono text-[8px] tracking-widest text-beige-faint/50 uppercase mt-4">Interface de réflexion éphémère</div>
         </footer>
       </main>
     </div>
