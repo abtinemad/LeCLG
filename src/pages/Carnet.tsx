@@ -1666,6 +1666,17 @@ export default function Carnet() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                // Le fragment de reprise passe par localStorage :
+                                // location.state ne survit pas à un reload ni à
+                                // un re-render mal timé. localStorage, si.
+                                try {
+                                  localStorage.setItem(
+                                    "collegue_resume_fragment",
+                                    JSON.stringify(card),
+                                  );
+                                } catch (err) {
+                                  console.warn("resume fragment store failed", err);
+                                }
                                 navigate('/chat', { state: { resumeFragment: card } });
                               }}
                               className="px-2 py-0.5 rounded-sm text-[6px] font-mono uppercase tracking-tighter border border-[#EA580C]/40 text-[#EA580C] hover:bg-[#EA580C]/10 transition-colors w-fit"

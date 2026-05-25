@@ -10,8 +10,6 @@ import {
   BookOpen,
   Cloud,
   X,
-  Volume2,
-  VolumeX,
   Gem,
 } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -303,8 +301,14 @@ export default function Chat() {
   const [closingPhase, setClosingPhase] = useState<
     "none" | "awaiting-reply" | "closed"
   >("none");
+  // Verrou anti-doublon de génération de la carte (voir startCardGeneration).
+  const cardGenStarted = useRef(false);
   // Vrai quand la personne a atteint son plafond de conversations du jour.
   const [dailyLimitReached, setDailyLimitReached] = useState(false);
+  // Vrai tant que la vérification du plafond au chargement n'a pas répondu :
+  // on n'affiche aucun bouton avant de savoir, pour ne jamais proposer
+  // « Commencer » à quelqu'un qui a déjà atteint sa limite.
+  const [limitChecking, setLimitChecking] = useState(true);
   // Échanges écoulés depuis la dernière étape validée (pour le nudge doux).
   const [exchangesSinceProgress, setExchangesSinceProgress] = useState(0);
   // Révélation de la Clé-LCLG sur l'écran de fin (à la première conversation).
@@ -350,48 +354,6 @@ export default function Chat() {
     content: string;
     type: "symbol" | "phrase";
   } | null>(null);
-  const [isSoundEnabled, setIsSoundEnabled] = useState(
-    localStorage.getItem("collegue_sound") !== "false",
-  );
-
-  const playResonance = useCallback(() => {
-    if (localStorage.getItem("collegue_sound") === "false") return;
-    try {
-      const audioCtx = new (
-        window.AudioContext || (window as any).webkitAudioContext
-      )();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(
-        110 + Math.random() * 50,
-        audioCtx.currentTime,
-      );
-      oscillator.frequency.exponentialRampToValueAtTime(
-        55,
-        audioCtx.currentTime + 1.5,
-      );
-
-      gainNode.gain.setValueAtTime(0.02, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(
-        0.001,
-        audioCtx.currentTime + 1.5,
-      );
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-
-      oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 1.5);
-    } catch (e) {}
-  }, []);
-
-  const toggleSound = () => {
-    const newVal = !isSoundEnabled;
-    setIsSoundEnabled(newVal);
-    localStorage.setItem("collegue_sound", String(newVal));
-  };
 
   const HYPNOTIC_PROMPTS = [
     "Considérez la masse de ce qui vous occupe en ce moment.",
@@ -474,20 +436,34 @@ export default function Chat() {
   ]);
 
   useEffect(() => {
-    const resumeFragment = location.state?.resumeFragment as
+    // Le fragment de reprise arrive soit par location.state (navigation
+    // directe), soit par localStorage (canal qui survit à un reload ou à un
+    // re-render). On lit les deux, localStorage en filet de sécurité.
+    let resumeFragment = location.state?.resumeFragment as
       | ReflectionCard
       | undefined;
-    if (resumeFragment && !sessionActive) {
+    if (!resumeFragment) {
+      try {
+        const stored = localStorage.getItem("collegue_resume_fragment");
+        if (stored) resumeFragment = JSON.parse(stored) as ReflectionCard;
+      } catch (e) {
+        console.warn("resume fragment read failed", e);
+      }
+    }
+    if (resumeFragment) {
+      // Reprise consommée : on retire la clé pour qu'elle ne se rejoue pas
+      // au prochain passage sur /chat.
+      localStorage.removeItem("collegue_resume_fragment");
       const { fragment, deplacement, direction } = resumeFragment;
-      setActiveResumeContext(
-        `Note de contexte — session en reprise : La personne revient et choisit de reprendre une réflexion restée ouverte — Fragment : ${fragment}, Déplacement : ${deplacement}, Direction : ${direction}. Ouvre en accueillant son retour, et propose-lui ce fil comme point de départ : touche-le légèrement — une image, un mot — juste assez pour qu'elle s'y retrouve et ait par où entrer. Laisse l'ouverture : elle peut repartir de là, ou d'ailleurs si autre chose l'occupe.`,
-      );
+      const resumeCtx = `Note de contexte — session en reprise : La personne revient et choisit de reprendre une réflexion restée ouverte — Fragment : ${fragment}, Déplacement : ${deplacement}, Direction : ${direction}. Ouvre en accueillant son retour, et propose-lui ce fil comme point de départ : touche-le légèrement — une image, un mot — juste assez pour qu'elle s'y retrouve et ait par où entrer. Laisse l'ouverture : elle peut repartir de là, ou d'ailleurs si autre chose l'occupe.`;
+      setActiveResumeContext(resumeCtx);
       localStorage.removeItem("collegue_chat_state");
       const storedId = localStorage.getItem("collegue_personal_id");
+      // resumeCtx passé explicitement : le state n'est pas encore propagé.
       if (storedId) {
-        confirmStart(storedId);
+        confirmStart(storedId, resumeCtx);
       } else {
-        confirmStart(generateNewKey());
+        confirmStart(generateNewKey(), resumeCtx);
       }
     } else {
       const saved = localStorage.getItem("collegue_chat_state");
@@ -558,6 +534,39 @@ export default function Chat() {
       setHasStoredKey(true);
       setPersonalId(stored);
     }
+
+    // Vérification du plafond AU CHARGEMENT : si la limite est déjà atteinte,
+    // l'écran d'accueil doit montrer « revenez demain » d'emblée, sans jamais
+    // afficher un bouton « Commencer » trompeur. Tant que la réponse n'est
+    // pas là, limitChecking masque les boutons (le logo reste seul).
+    const checkDailyLimit = async () => {
+      // Pas de clé → premier passage, aucun plafond possible.
+      if (!stored) {
+        setLimitChecking(false);
+        return;
+      }
+      try {
+        const dayStart = new Date();
+        dayStart.setUTCHours(0, 0, 0, 0);
+        const todays = await sbGet(
+          "sessions",
+          `personal_id=eq.${stored}&started_at=gte.${dayStart.toISOString()}&ended_at=not.is.null`,
+        );
+        if (
+          Array.isArray(todays) &&
+          todays.length >= MAX_CONVERSATIONS_PER_DAY
+        ) {
+          setDailyLimitReached(true);
+        }
+      } catch (e) {
+        // Contrôle indisponible : on n'enferme personne — confirmStart
+        // refera la vérification au clic, le serveur tranche en dernier.
+        console.warn("daily limit check (mount) failed", e);
+      } finally {
+        setLimitChecking(false);
+      }
+    };
+    checkDailyLimit();
   }, []);
 
   useEffect(() => {
@@ -1118,25 +1127,34 @@ export default function Chat() {
   };
 
   const handleResumeChoice = (choice: "reprendre" | "nouvelle") => {
+    let resumeCtx: string | null = null;
     if (choice === "reprendre" && resumeCardToOffer) {
       const { fragment, deplacement, direction } = resumeCardToOffer;
-      setActiveResumeContext(
-        `Note de contexte — session en reprise : La personne revient. Sa dernière réflexion est restée ouverte — Fragment : ${fragment}, Déplacement : ${deplacement}, Direction : ${direction}. Ouvre en accueillant son retour, et propose-lui ce fil comme point de départ : touche-le légèrement — une image, un mot — juste assez pour qu'elle s'y retrouve et ait par où entrer. Laisse l'ouverture : elle peut repartir de là, ou d'ailleurs si autre chose l'occupe.`,
-      );
-    } else {
-      setActiveResumeContext(null);
+      resumeCtx = `Note de contexte — session en reprise : La personne revient. Sa dernière réflexion est restée ouverte — Fragment : ${fragment}, Déplacement : ${deplacement}, Direction : ${direction}. Ouvre en accueillant son retour, et propose-lui ce fil comme point de départ : touche-le légèrement — une image, un mot — juste assez pour qu'elle s'y retrouve et ait par où entrer. Laisse l'ouverture : elle peut repartir de là, ou d'ailleurs si autre chose l'occupe.`;
     }
+    setActiveResumeContext(resumeCtx);
     setResumeCardToOffer(null);
-    
+
+    // resumeCtx est passé explicitement : setActiveResumeContext ne sera pas
+    // encore propagé quand confirmStart lira le contexte.
     if (hasStoredKey && personalId) {
-      confirmStart(personalId);
+      confirmStart(personalId, resumeCtx);
     } else {
-      confirmStart(generateNewKey());
+      confirmStart(generateNewKey(), resumeCtx);
     }
   };
 
-  const confirmStart = async (providedId?: string) => {
+  const confirmStart = async (
+    providedId?: string,
+    resumeContextArg?: string | null,
+  ) => {
     const finalId = providedId || personalId;
+    // Le contexte de reprise est passé en argument quand l'appelant vient de
+    // le poser via setState : à ce moment le state `activeResumeContext` n'est
+    // pas encore à jour (re-render non encore effectué). L'argument prime ;
+    // sinon on retombe sur le state (cas d'un démarrage normal).
+    const resumeContext =
+      resumeContextArg !== undefined ? resumeContextArg : activeResumeContext;
 
     // Plafond : pré-vérification du nombre de conversations du jour. Le serveur
     // reste le garde-fou dur ; ceci sert à afficher un message clair plutôt que
@@ -1201,7 +1219,7 @@ export default function Chat() {
       currentSessionId.current = sessionId;
     }
 
-    if (activeResumeContext) {
+    if (resumeContext) {
       setMessages([
         { role: "assistant", content: "", ts: new Date().toISOString() },
       ]);
@@ -1211,7 +1229,7 @@ export default function Chat() {
           [
             {
               role: "user",
-              content: "(La personne s'assoit en silence, prête à reprendre)",
+              content: `${resumeContext}\n\n(La personne s'assoit, prête à reprendre ce fil. Ouvre toi-même la conversation : accueille son retour et nomme franchement ce qui était resté ouvert — reprends le fragment, le déplacement et la direction ci-dessus dans tes mots, pour qu'elle retrouve où elle en était. Termine en lui laissant l'espace de continuer ou de bifurquer.)`,
               ts: new Date().toISOString(),
             },
           ],
@@ -1567,7 +1585,6 @@ export default function Chat() {
     setInputText("");
     setLastActivity(Date.now());
     flowRef.current.isCalming = false;
-    playResonance();
 
     if (pendingValidateTimeout.current) {
       clearTimeout(pendingValidateTimeout.current);
@@ -1661,7 +1678,6 @@ export default function Chat() {
       });
 
       if (fullText) {
-        playResonance();
         const ts = new Date().toISOString();
         const finalMessages: Message[] = [
           ...updatedMessages,
@@ -1854,11 +1870,22 @@ Fais un point en deux temps. Premier temps : une image tirée directement de ce 
     }
   };
 
+  // Garantit que la carte n'est générée qu'une seule fois, quel que soit le
+  // chemin de clôture (avec miroir : lancée dès la fin du reflet ; sans
+  // miroir : lancée par finalizeClose). Le ref rend l'appel idempotent.
+  const startCardGeneration = (convo?: Message[]) => {
+    if (cardGenStarted.current) return;
+    cardGenStarted.current = true;
+    saveSession();
+    generateReflectionCard(convo);
+  };
+
   // ── Clôture effective — verrouillage + fragment ───────────
   const finalizeClose = () => {
     setShowEnded(true);
-    saveSession();
-    generateReflectionCard();
+    // Si un miroir a joué, la carte est déjà lancée (le garde rend ceci
+    // inopérant). Sinon — clôture directe sans miroir — elle démarre ici.
+    startCardGeneration();
     // Révélation de la clé : une seule fois, à la première conversation close.
     const firstTime = !localStorage.getItem("collegue_key_revealed");
     setKeyJustRevealed(firstTime);
@@ -1882,6 +1909,10 @@ Fais un point en deux temps. Premier temps : une image tirée directement de ce 
       flowRef.current.isLoading = false;
     };
     const safetyTimer = setTimeout(forceClose, 35000);
+
+    // Conversation finale pour la carte : la conversation reçue, complétée du
+    // texte du miroir si le flux aboutit.
+    let convoForCard: Message[] = convo;
 
     const summary = convo
       .filter(
@@ -1934,16 +1965,21 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
           },
         ];
         setMessages(finalMessages);
+        convoForCard = finalMessages;
       }
     } catch (e) {
       console.error("miroir failed", e);
     } finally {
       // On NE ferme PAS l'écran automatiquement : le miroir reste affiché,
       // la saisie se verrouille, et c'est la personne qui clôt via
-      // « Terminer ». forceClose() est idempotent : si le garde-fou a déjà
-      // tiré, ceci ne fait rien.
+      // « Voir ma carte ». forceClose() est idempotent : si le garde-fou a
+      // déjà tiré, ceci ne fait rien.
       clearTimeout(safetyTimer);
       forceClose();
+      // La carte se génère et se persiste DÈS MAINTENANT, en arrière-plan,
+      // pendant que la personne lit le reflet. Fermer l'onglet sans cliquer
+      // « Voir ma carte » ne perd donc plus la carte ni la session.
+      startCardGeneration(convoForCard);
     }
   };
 
@@ -1964,8 +2000,8 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
   };
 
   // ── Carte de réflexion via Worker ─────────────────────────
-  const generateReflectionCard = async () => {
-    const realMessages = messages.filter((m, i) => {
+  const generateReflectionCard = async (convo?: Message[]) => {
+    const realMessages = (convo ?? messages).filter((m, i) => {
       if (m.content === "Bonjour, j'ai une situation à vous soumettre.")
         return false;
       if (m.role === "assistant" && i <= 1) return false;
@@ -2239,21 +2275,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                 <span>Terminer</span>
               </button>
             )}
-            <button
-              onClick={toggleSound}
-              className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-beige-faint hover:text-beige ml-1"
-              title={
-                isSoundEnabled
-                  ? "Désactiver la résonance"
-                  : "Activer la résonance"
-              }
-            >
-              {isSoundEnabled ? (
-                <Volume2 size={13} strokeWidth={1.5} />
-              ) : (
-                <VolumeX size={13} strokeWidth={1.5} />
-              )}
-            </button>
+
           </div>
         </div>
 
@@ -2331,11 +2353,37 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               <div className="relative w-28 h-28 md:w-32 md:h-32 flex items-center justify-center mb-8 transition-opacity duration-700 opacity-80 hover:opacity-100">
                 <LogoEmber className="w-full h-full" />
               </div>
-              {dailyLimitReached ? (
-                <p className="italic text-sm text-beige leading-relaxed max-w-xs mb-2">
-                  Laissez ce qui a émergé travailler en vous, et revenez
-                  demain. Votre carnet reste ouvert.
-                </p>
+              {limitChecking ? (
+                // Vérification du plafond en cours : le logo reste seul une
+                // fraction de seconde, le temps de savoir quoi afficher.
+                <div className="h-12" />
+              ) : dailyLimitReached ? (
+                <>
+                  <p className="italic text-sm text-beige leading-relaxed max-w-xs mb-6">
+                    Laissez ce qui a émergé travailler en vous, et{" "}
+                    <style>{`
+                      @keyframes demain-shimmer {
+                        0%, 100% { opacity: 0.3; }
+                        50% { opacity: 1; }
+                      }
+                    `}</style>
+                    <span
+                      style={{
+                        animation: "demain-shimmer 3.2s ease-in-out infinite",
+                      }}
+                    >
+                      revenez demain
+                    </span>
+                    . Votre carnet reste ouvert.
+                  </p>
+                  <Link
+                    to="/carnet"
+                    className="inline-flex items-center gap-2 font-mono text-xs tracking-widest uppercase text-bg bg-beige px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity"
+                  >
+                    <BookOpen size={12} strokeWidth={1.5} />
+                    Aller au carnet
+                  </Link>
+                </>
               ) : (
                 <>
                   <h2 className="text-beige text-xl md:text-2xl font-medium mb-4 max-w-sm">
@@ -2557,15 +2605,29 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                     Session terminée.
                   </div>
                 </div>
+                {/* Action principale : rejoindre le carnet où le fragment se
+                    dépose. Masquée quand l'encadré de révélation de la clé
+                    affiche déjà son propre « Aller au carnet ». */}
+                {!keyJustRevealed && (
+                  <Link
+                    to="/carnet"
+                    className="inline-flex items-center gap-2 font-mono text-[10px] tracking-widest uppercase text-bg bg-beige px-6 py-3 rounded hover:opacity-90 transition-opacity"
+                  >
+                    <BookOpen size={12} strokeWidth={1.5} />
+                    Aller au carnet
+                  </Link>
+                )}
                 <button
                   onClick={downloadTranscript}
                   className="flex items-center gap-2 border border-border text-beige-faint font-mono text-[9px] tracking-widest uppercase px-6 py-2.5 rounded-sm hover:text-beige hover:border-beige-faint transition-all"
                 >
                   <Download className="w-3 h-3" /> Télécharger le transcript
                 </button>
+                {/* Reset de l'état de chat — discret : disponible sans pousser
+                    à réenchaîner une situation. */}
                 <button
                   onClick={clearChatState}
-                  className="font-mono text-[11px] tracking-widest uppercase text-beige-faint border border-border px-8 py-3.5 rounded-sm hover:text-beige-dim transition-colors"
+                  className="font-mono text-[9px] tracking-widest uppercase text-beige-faint/50 hover:text-beige-faint transition-colors mt-1"
                 >
                   Nouvelle situation
                 </button>
@@ -2715,7 +2777,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                 onClick={endSession}
                 className="px-6 py-3 rounded-lg bg-beige text-bg font-mono text-xs tracking-widest uppercase transition-all hover:opacity-90"
               >
-                Terminer
+                Voir ma carte
               </button>
             </div>
           </div>
