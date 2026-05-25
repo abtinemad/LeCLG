@@ -39,7 +39,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL || "https://REDACTED.supabase.co";
 // Toute écriture est filtrée sur ces colonnes : un champ inconnu envoyé par
 // le front est ignoré au lieu de faire échouer la requête.
 const TABLE_COLUMNS: Record<string, string[]> = {
-  sessions:  ["id", "personal_id", "started_at", "ended_at", "step_reached", "messages", "reflection_card"],
+  sessions:  ["id", "personal_id", "started_at", "ended_at", "step_reached", "messages", "reflection_card", "status"],
   cartes:    ["id", "personal_id", "fragment", "deplacement", "direction", "texture_relationnelle", "sphere", "emotion", "prisme", "date", "image_url", "user_note", "created_at"],
   carnet:    ["id", "personal_id", "plan", "lien_data", "affect_data", "elan_data", "matrice_data", "lueurs", "songes", "serpentin_state", "prismes_unlocked", "last_sync", "created_at"],
   eclats:    ["id", "personal_id", "type", "request_text", "matrice_snapshot", "elan_snapshot", "affect_snapshot", "lien_snapshot", "created_at"],
