@@ -181,13 +181,13 @@ async function sbRequest(method: string, tablePath: string, body: any, serviceKe
 app.post("/api/reflection", asyncHandler(async (req: Request, res: Response) => {
   const { prompt }: ReflectionRequest = req.body;
 
-  const response = await ai.models.generateContent({
+  const parsed = await geminiJSON({
     model: "gemini-3.5-flash",
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    config: { responseMimeType: "application/json", maxOutputTokens: 1024 }
+    config: { maxOutputTokens: 2048 }
   });
 
-  res.json({ text: response.text });
+  res.json({ text: JSON.stringify(parsed) });
 }));
 
 
@@ -304,6 +304,20 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
         body: JSON.stringify({ type: "chat", messages, max_tokens })
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        console.error(`External worker returned status ${response.status}: ${errorText}`);
+        const text = (errorText || "").toLowerCase();
+        let message = "\n[Le souffleur d'idées rencontre une limitation temporaire. Veuillez patienter une minute puis réessayer.]";
+        if (response.status === 429 || text.includes("rate") || text.includes("limit") || text.includes("exceeded") || text.includes("quota") || text.includes("exhausted")) {
+          message = "\n[Le souffleur d'idées est temporairement fatigué (limite de requêtes atteinte). Reprenez votre respiration, attendez une minute, puis réessayez de soumettre votre pensée avec douceur.]";
+        }
+        res.write(`data: ${JSON.stringify({ delta: { text: message } })}\n\n`);
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
+      }
+
       if (!response.body) throw new Error("No response body from worker");
 
       // Node.js stream pipe-like behavior using Web Streams
@@ -332,6 +346,11 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
         headers: { "Content-Type": "application/json", "X-Internal-Secret": INTERNAL_SECRET },
         body: JSON.stringify({ type: "eval", messages, max_tokens })
       });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        console.error(`Eval proxy returned status ${response.status}: ${errorText}`);
+        return res.status(response.status).json({ error: "eval_failed", message: errorText });
+      }
       const data = await response.json();
       return res.json(data);
     } catch (e: any) {

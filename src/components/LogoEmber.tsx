@@ -1,0 +1,966 @@
+import { motion, useMotionValue, useSpring } from "motion/react";
+import { useEffect, useState, useRef } from "react";
+
+/**
+ * LogoEmber — Rendu ultra-réaliste d'un œil humain.
+ * Concentré exclusivement sur l'iris, la pupille, et le clignement d'œil.
+ * L'iris prend toute la surface du logo pour un rendu optimal sous forme de "judas" mystique,
+ * et sa couleur change de manière fluide à travers tous les tons réalistes de l'iris humain.
+ *
+ * À NE PAS MODIFIER : le nom d'export `LogoEmber`, la prop `className`,
+ * le viewBox, et les tracés (D1, D2, D3) servant de masque de découpage de la marque.
+ */
+
+const D1 =
+  "M153.93,206.19c2.39-1.29,4.73-2.66,7.17-3.85c7.86-3.82,15.96-7.08,24.08-10.31c12.02-4.78,24.31-8.71,36.91-11.64c5.73-1.33,11.44-2.81,17.22-3.92c4.4-0.84,8.9-1.21,13.36-1.79c0.3-0.04,0.61-0.01,1.26-0.01c-0.7,0.39-1.11,0.63-1.73,0.98c0.39,0.16,0.59,0.33,0.78,0.31c3.34-0.34,6.68-0.7,10.01-1.06c1.64-0.18,3.28-0.31,4.91-0.56c0.79-0.12,1.54-0.45,2.31-0.65c0.42-0.11,0.86-0.23,1.29-0.24c7.79-0.18,15.57-0.34,23.36-0.49c1.01-0.02,2.03,0.12,3.04,0.05c0.86-0.05,1.7-0.31,2.56-0.44c0.74-0.11,1.5-0.27,2.24-0.25c8.92,0.26,17.85,0.4,26.77,0.87c6.82,0.36,13.63,1.08,20.43,1.73c5.39,0.51,10.54,2.15,15.66,3.8c3.8,1.22,7.55,2.57,11.33,3.85c0.78,0.26,1.57,0.56,2.38,0.65c5.96,0.69,11.61,2.62,17.23,4.56c7.77,2.69,15.53,5.47,23.13,8.6c8.15,3.35,15.91,7.5,23.15,12.56c0.29,0.2,0.57,0.43,1.17,0.89c-0.82-0.06-1.23-0.09-1.76-0.13c0.12,0.19,0.17,0.38,0.28,0.45c3.72,2.27,7.41,4.62,11.53,6.15c7.9,2.94,15.03,7.24,21.7,12.34c4.72,3.61,9.43,7.24,14.15,10.87c0.75,0.58,1.49,1.17,2.23,1.77c0.24,0.2,0.64,0.45,0.64,0.67c-0.08,2.04,1.7,2.69,2.84,3.7c6.48,5.69,12.67,11.67,18.43,18.08c4.87,5.41,9.53,11,14.31,16.49c1.04,1.19,2.21,2.27,3.25,3.46c2.24,2.57,3.91,5.48,4.56,8.85c0.42,2.17,1.26,4.15,2.45,5.92c5.99,8.91,10.63,18.56,15.45,28.09c3.82,7.56,7.14,15.35,10.11,23.3c3.79,10.16,6.66,20.57,8.55,31.23c1.19,6.72,2.03,13.5,2.86,20.27c1.28,10.38,1.64,20.81,1.54,31.27c-0.11,11.67-1.09,23.26-3.29,34.73c-2.79,14.51-6.56,28.75-11.68,42.62c-2.85,7.72-6.26,15.21-10.23,22.43c-3.8,6.92-7.63,13.83-11.76,20.56c-3.04,4.94-6.44,9.68-9.93,14.32c-4.3,5.7-8.67,11.37-13.35,16.75c-6.27,7.21-12.78,14.23-19.97,20.56c-5.7,5.01-11.38,10.07-17.31,14.81c-6.73,5.37-13.67,10.47-21.02,14.99c-4.31,2.65-8.59,5.37-12.97,7.89c-9.29,5.33-18.82,10.18-28.72,14.28c-4.97,2.06-9.94,4.1-14.98,5.96c-5.1,1.88-10.25,3.65-15.43,5.27c-8.64,2.7-17.42,4.92-26.25,6.92c-11.14,2.52-22.42,4.1-33.77,5.16c-12.68,1.18-25.41,1.66-38.14,1.05c-8.28-0.4-16.57-0.92-24.82-1.68c-4.78-0.44-9.53-1.35-14.24-2.27c-8.39-1.65-16.8-3.21-25.09-5.28c-10.57-2.64-20.9-6.12-31.09-9.96c-5.21-1.96-10.42-3.93-15.53-6.12c-4.59-1.97-9.11-4.11-13.53-6.44c-7-3.69-13.91-7.53-20.8-11.42c-7.67-4.33-14.84-9.42-21.83-14.74c-4.17-3.18-8.33-6.39-12.35-9.75c-3.92-3.29-7.73-6.73-11.47-10.24c-4.2-3.94-8.37-7.93-12.35-12.09c-9.08-9.47-17.37-19.59-24.91-30.35c-6.34-9.04-12.04-18.46-17.05-28.27c-4.37-8.57-8.23-17.37-11.46-26.45c-2.55-7.16-4.84-14.39-6.76-21.74c-2.22-8.52-3.91-17.15-5.28-25.85c-1.83-11.61-2.59-23.27-2.18-35.01c0.24-6.83,0.21-13.68,0.68-20.49c0.37-5.36,1.31-10.67,2.01-16c1.24-9.52,3.98-18.68,6.74-27.83c2.59-8.62,5.7-17.05,9.23-25.32c3.85-9.02,8.17-17.83,13.38-26.17c2.24-3.6,4.57-7.14,6.81-10.74c1.4-2.26,2.79-4.53,4.05-6.86c2.69-4.98,6.13-9.43,9.51-13.93c3.8-5.05,7.51-10.2,11.97-14.71c5.43-5.49,11.07-10.76,17.18-15.65c0.06,0.36,0.11,0.63,0.19,1.07c0.36-0.21,0.69-0.35,0.96-0.57c0.99-0.79,1.97-1.59,2.93-2.41c1.43-1.23,2.78-2.33,3.53-4.34c1.35-3.63,4.14-6.27,7.53-8.24c5.2-3.02,10.43-5.99,15.52-9.18c5.25-3.3,10.34-6.86,15.52-10.26c2.8-1.84,5.64-3.6,8.58-5.3c0.43,1.48,1.1,0.78,1.77,0.14C155.03,206.36,154.48,206.27,153.93,206.19z M476.5,599.84c3.25-2.92,6.59-5.74,9.73-8.77c7.79-7.52,15.23-15.39,21.97-23.87c4.29-5.39,8.49-10.86,12.46-16.49c5.17-7.34,9.89-14.97,14.19-22.86c3.7-6.8,6.92-13.8,9.68-21.01c2.03-5.32,3.78-10.74,5.57-16.15c3.31-9.99,6.08-20.11,7.71-30.53c1.27-8.13,2.68-16.21,2.99-24.48c0.56-14.92-0.32-29.73-2.71-44.46c-1.34-8.25-3.23-16.39-5.44-24.45c-1.18-4.33-2.24-8.71-3.66-12.96c-2.5-7.5-5.71-14.74-9.03-21.91c-4.26-9.2-9.21-18.04-14.45-26.71c-4.06-6.72-8.69-13.07-13.51-19.27c-5.29-6.8-10.88-13.34-16.86-19.55c-5.15-5.34-10.49-10.46-16.15-15.24c-7.15-6.04-14.6-11.71-22.26-17.1c-9.9-6.96-20.16-13.32-30.88-18.93c-11.97-6.27-24.4-11.47-37.28-15.6c-2.64-0.85-5.22-1.89-7.87-2.7c-3.21-0.98-6.45-1.83-9.69-2.72c-1.65-0.45-3.3-0.92-4.97-1.25c-6.02-1.2-12.07-2.29-18.09-3.52c-12.36-2.53-24.75-4.75-37.41-5.07c-13.37-0.34-26.72-0.02-40.02,1.52c-11.07,1.28-22.06,3.1-33.01,5.19c-12.46,2.38-24.71,5.49-36.66,9.81c-2.89,1.05-5.67,2.57-8.85,2.71c-0.18,0.01-0.36,0.11-0.53,0.19c-2.49,1.24-4.95,2.52-7.46,3.72c-5.14,2.45-10.33,4.81-15.46,7.3c-3.13,1.52-6.23,3.12-9.24,4.86c-3.34,1.93-6.54,4.12-9.87,6.06c-7.17,4.19-14.14,8.66-20.58,13.94c-5.04,4.14-10.17,8.15-15.16,12.34c-3.78,3.17-7.61,6.32-11.02,9.87c-5.21,5.43-10.11,11.15-15.06,16.82c-6.33,7.25-12,15.02-17.27,23.06c-4.82,7.35-9.23,14.95-13.01,22.91c-3.37,7.09-6.78,14.15-9.69,21.44c-3.31,8.3-6.2,16.74-8.12,25.47c-1.47,6.67-2.66,13.41-3.79,20.14c-0.83,4.92-2.17,9.77-1.99,14.83c0.02,0.63-0.03,1.27-0.06,1.9c-0.45,10.68-1.2,21.35,0.07,32.05c0.89,7.48,1.85,14.94,3.3,22.33c1.43,7.32,3.24,14.56,5.34,21.73c3.02,10.34,6.8,20.38,11.23,30.18c3.03,6.68,6.43,13.19,10.1,19.55c6.99,12.09,14.88,23.55,23.94,34.16c3.9,4.56,8.21,8.79,12.58,12.92c6.39,6.04,12.96,11.9,19.54,17.73c4.73,4.19,9.6,8.24,14.44,12.31c1.69,1.42,3.43,2.82,5.28,4.01c2.76,1.78,5.66,3.35,8.48,5.04c6.58,3.94,13.32,7.55,20.52,10.26c5.26,1.99,10.06,4.77,14.1,8.73c1.02,1,2.21,1.66,3.54,2.15c2.14,0.78,4.25,1.62,6.37,2.44c6.73,2.6,13.46,5.21,20.46,7.01c11.28,2.9,22.59,5.7,33.9,8.48c5.23,1.28,10.53,2.21,15.92,2.52c3.6,0.21,7.2,0.48,10.79,0.75c3.47,0.27,6.93,0.63,10.41,0.86c2.91,0.19,5.82,0.21,8.73,0.34c8.29,0.39,16.59,0.49,24.88-0.01c9.99-0.6,19.94-1.71,29.79-3.5c5.85-1.06,11.63-2.52,17.42-3.89c7.39-1.75,14.81-3.48,21.81-6.49c6.63-2.85,13.35-5.47,20.1-8.01c4.97-1.87,9.96-3.74,14.78-5.97c8.28-3.84,16.18-8.42,23.89-13.29C456.21,615.85,466.53,608.31,476.5,599.84z";
+
+const D2 =
+  "M329.42,399.81c-5.75,2.69-11.36,5.33-16.98,7.97c-0.29,0.13-0.58,0.27-0.85,0.43c-1.04,0.64-1.33,1.29-0.77,2.37c2.68,5.2,3.04,10.93,3.82,16.55c0.69,5.03,0.77,10.1,0.18,15.15c-0.53,4.55-1.73,8.95-3.09,13.3c-1.93,6.17-4.24,12.19-7.21,17.94c-3.66,7.1-8.01,13.74-12.93,20.02c-4.68,5.98-9.67,11.7-15.06,17.06c-5.07,5.05-10.16,10.07-15.26,15.08c-6.94,6.83-13.06,14.28-17.45,23.03c-2.15,4.28-3.72,8.78-3.81,13.61c-0.15,7.62,2.8,13.79,9.6,17.49c4.39,2.39,9.25,2.95,14.17,1.32c2.28-0.75,4.61-1.4,6.87-2.22c1.23-0.45,2.42-1.08,3.52-1.79c1.59-1.04,3.06-2.25,4.61-3.34c1.58-1.11,2.77-2.57,3.95-4.06c0.44-0.55,0.77-1.32,1.8-1.23c0.2,0.98-0.38,1.57-0.9,2.18c-2.65,3.15-5.31,6.27-7.93,9.45c-1.53,1.85-2.92,3.81-4.46,5.66c-5.65,6.8-12.85,11.28-21.41,13.29c-9.29,2.18-17.65-0.11-24.55-6.72c-4.61-4.42-6.63-10.1-6.39-16.5c0.22-5.84,1.69-11.37,4.23-16.62c2.43-5.02,5.01-9.96,8.68-14.22c3.3-3.84,6.63-7.65,10.07-11.36c7.6-8.23,15.29-16.37,21.98-25.38c5.14-6.93,9.68-14.23,13.4-22c3.67-7.67,6.42-15.68,8.17-24.02c1.63-7.77,2.68-15.61,2.3-23.56c-0.21-4.35-0.95-8.67-1.46-13c-0.09-0.75-0.18-1.52-0.39-2.24c-0.41-1.38-1.05-1.78-2.41-1.19c-2.38,1.02-4.75,2.09-7.01,3.36c-6.45,3.64-12.89,7.3-19.24,11.1c-11.3,6.76-22.47,13.74-33.1,21.53c-6.02,4.42-11.83,9.11-17.67,13.76c-4.63,3.68-8.63,8.01-12.26,12.66c-3.61,4.63-7.13,9.34-10.46,14.17c-2.21,3.22-4,6.73-6.01,10.08c-1.01,1.68-2.08,3.31-3.2,4.92c-0.28,0.41-0.91,0.91-1.26,0.84c-0.4-0.08-0.86-0.73-0.96-1.21c-0.85-4.15-1.72-8.31-2.41-12.49c-0.68-4.13-0.98-8.3-0.69-12.49c0.52-7.67,3.16-14.5,7.96-20.54c6.01-7.56,13.24-13.73,21.2-19.13c3.4-2.31,6.55-4.98,9.94-7.31c2.81-1.93,5.77-3.65,8.71-5.39c5.29-3.11,10.61-6.16,15.92-9.25c0.31-0.18,0.58-0.42,0.71-0.94c-1.57,0.7-3.13,1.39-4.7,2.09c-0.06-0.1-0.12-0.19-0.18-0.29c0.3-0.24,0.56-0.55,0.89-0.71c6.06-3.02,12.07-6.14,18.21-8.99c6.37-2.96,12.87-5.64,19.31-8.45c3.19-1.39,6.38-2.77,9.55-4.21c1.76-0.8,1.8-1.12,0.76-2.66c-6.4-9.49-14.63-17.04-24.33-23.08c-7.94-4.94-16.52-8.25-25.62-10.16c-6.86-1.44-13.83-1.49-20.8-0.84c-7.6,0.71-14.96,2.49-22.24,4.71c-7.51,2.29-15.03,4.55-22.59,6.66c-5.51,1.54-11.19,2.16-16.9,2.26c-5.01,0.09-9.99-0.08-14.92-1.21c-6.26-1.43-11.96-4.03-17.19-7.74c-2.83-2.01-5.87-3.73-8.36-6.2c-0.36-0.36-0.77-0.65-1.14-1c-1.6-1.52-1.4-2.63,0.66-3.29c4.94-1.59,9.89-3.16,14.86-4.66c0.79-0.24,1.75-0.2,2.57-0.03c1.67,0.33,3.31,1.19,4.97,1.19c2.94-0.01,4.6,1.86,6.51,3.54c3.18,2.8,6.31,5.67,10.24,7.73c0.55-0.29,1.29-0.48,1.72-0.96c0.76-0.84,1.61-0.83,2.58-0.72c9.25,1.01,18.29,0.11,27.22-2.59c7.99-2.42,16.04-4.69,24.13-6.76c6.38-1.64,12.92-2.45,19.5-2.94c6.72-0.5,13.42-0.46,20.12,0.09c11.49,0.95,22.7,3.13,33.31,7.81c5.04,2.23,9.9,4.83,14.52,7.85c1.38,0.9,2.2,2.05,2.08,3.8c-0.03,0.46,0.36,1.06,0.73,1.41c1.77,1.72,3.75,3.24,5.37,5.09c2.42,2.75,4.69,5.64,6.83,8.62c0.97,1.35,2.04,2.07,3.62,1.87c1.37-0.17,2.77-0.4,4.04-0.89c4.91-1.86,9.78-3.83,14.66-5.77c3.59-1.42,7.16-2.87,10.75-4.3c1.73-0.69,1.83-0.77,1.63-2.66c-0.83-8.06-1.66-16.12-2.56-24.17c-0.32-2.82-0.93-5.61-1.27-8.43c-0.43-3.58-0.78-7.17-1.07-10.77c-0.73-8.96-1.45-17.92-2.09-26.89c-0.69-9.79-1.29-19.58-1.93-29.37c-0.15-2.27-0.31-4.55-0.47-6.82c-0.04-0.5-0.08-1.02-0.2-1.51c-0.35-1.49-1.06-1.86-2.48-1.28c-1.81,0.75-3.62,1.51-5.41,2.32c-2.99,1.36-5.96,2.78-8.95,4.16c-0.31,0.14-0.69,0.15-1.01,0.22c-0.55-0.68-0.17-1.19,0.12-1.64c1.64-2.55,3.16-5.19,5-7.59c3.96-5.17,8.15-10.15,12.12-15.31c3.56-4.62,7.24-9.11,11.38-13.22c0.22-0.22,0.41-0.47,0.68-0.8c-0.23-0.44-0.54-0.84-0.67-1.3c-0.11-0.37-0.02-0.8-0.02-1.49c1.12,0.66,1.78,0.26,2.49-0.36c4.13-3.55,8.29-7.05,12.43-10.58c1.16-0.98,2.27-2.02,3.47-2.96c0.4-0.32,1.08-0.65,1.48-0.52c0.78,0.26,0.46,1.05,0.37,1.65c-0.96,5.87-2.09,11.72-2.86,17.61c-0.69,5.27-1.16,10.57-1.41,15.88c-0.27,5.68-0.34,11.39-0.23,17.08c0.19,9.55,0.58,19.1,0.91,28.65c0.29,8.35,0.6,16.7,0.96,25.04c0.25,5.69,0.55,11.38,0.91,17.06c0.21,3.28,0.57,6.55,0.92,9.82c0.44,4.09,0.98,8.16,1.38,12.25c0.12,1.27,0.61,1.95,1.86,2.24c1.79,0.42,3.57,0.89,5.31,1.47c1.8,0.6,3.32,0.32,4.77-0.89c2.84-2.36,6.14-3.73,9.79-4.28c0.25-0.04,0.5-0.12,0.75-0.1c4.16,0.28,7.98-1.18,11.84-2.37c10.35-3.19,20.69-6.38,31.03-9.59c0.72-0.22,1.45-0.49,2.1-0.86c6.76-3.84,14.08-6,21.71-7.13c5.17-0.77,10.1-2.33,15.04-3.92c0.66-0.21,1.33-0.44,2.02-0.52c0.83-0.09,1.16,0.38,0.96,1.19c-0.03,0.12-0.09,0.24-0.15,0.35c-2.85,5.24-3.89,11.09-5.42,16.75c-3.3,12.16-6,24.47-8.28,36.85c-3.28,17.76-7.84,35.21-12.75,52.57c-3.2,11.32-6.91,22.51-10.36,33.76c-4.07,13.25-8.3,26.45-12.1,39.78c-2.9,10.16-5.26,20.47-7.83,30.72c-1.1,4.42-2.11,8.87-3.16,13.3c-0.06,0.25-0.11,0.5-0.21,0.73c-0.44,1.05-0.91,1.2-1.88,0.54c-2.73-1.85-5.26-3.95-7.48-6.4c-3.26-3.59-5.84-7.65-8.05-11.93c-3.31-6.41-6.64-12.81-9.65-19.36c-3.03-6.6-5.7-13.38-8.49-20.09c-4.97-11.92-9.03-24.18-12.99-36.46c-2.06-6.38-3.7-12.89-5.35-19.39c-2.1-8.28-4.22-16.56-5.98-24.92c-2.01-9.54-3.62-19.15-5.41-28.73c-0.02-0.12-0.04-0.25-0.07-0.37c-0.5-2.47-1.64-3.18-4.03-2.29c-1.48,0.55-2.87,1.34-4.29,2.02C330.7,399.21,330.13,399.48,329.42,399.81z M406.31,515.61c1.12-4.16,2.25-8.31,3.36-12.47c2.73-10.28,5.73-20.49,8.08-30.85c3.31-14.56,6.13-29.24,9.14-43.86c0.88-4.27,1.89-8.52,2.56-12.83c1.84-11.82,3.52-23.66,5.27-35.49c1.06-7.2,2.14-14.4,3.2-21.6c0.19-1.27-0.31-1.79-1.56-1.53c-0.92,0.2-1.82,0.55-2.71,0.86c-6.87,2.41-13.75,4.77-20.59,7.25c-5.88,2.14-11.74,4.35-17.56,6.67c-6.58,2.62-13.1,5.39-19.64,8.12c-4.26,1.78-8.52,3.56-12.75,5.41c-1.67,0.73-2.15,1.74-1.89,3.5c0.6,3.94,1.22,7.87,1.86,11.81c1.47,8.99,2.95,17.97,4.43,26.95c1.4,8.49,3.24,16.9,5.46,25.21c3.56,13.32,7.6,26.5,12.14,39.52c2,5.73,4.07,11.43,6.27,17.08c2.72,7.01,5.6,13.96,8.43,20.92c0.29,0.71,0.28,1.86,1.34,1.84c1.06-0.02,1.03-1.15,1.23-1.9C403.7,525.45,404.96,520.67,406.31,515.61z";
+
+const D3 =
+  "M143.84,368.69c-0.24-0.03-0.41-0.06-0.58-0.08c0-0.04,0.01-0.08,0.01-0.12c0.27,0.02,0.55,0.04,0.82,0.06c0,0.04,0,0.09-0.01,0.1C144.03,368.68,143.97,368.68,143.84,368.69z";
+
+// Géométrie de l'Œil et Judas
+const CENTER_X = 297;
+const CENTER_Y = 421;
+const PUPIL_R = 76;
+const IRIS_R = 215; // Rayon proportionnel et réaliste permettant d'exposer la sclère (blanc de l'œil)
+
+// Génération de 180 fibres d'arrière-plan (fines et denses)
+const BG_FIBER_COUNT = 180;
+const BACKGROUND_FIBERS = Array.from({ length: BG_FIBER_COUNT }).map((_, i) => {
+  const angle = (i * 2 * Math.PI) / BG_FIBER_COUNT;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  
+  const rStart = PUPIL_R + (Math.sin(i * 3) * 3);
+  const rEnd = IRIS_R - 5 + (Math.cos(i * 1.8) * 5);
+  
+  const opacity = 0.16 + Math.abs(Math.sin(i * 1.1)) * 0.38;
+  const strokeWidth = 0.5 + Math.abs(Math.cos(i * 1.3)) * 0.7;
+
+  // Tons de transition neutres et soyeux (coopèrent avec les dégradés changeants)
+  const colors = ["#fdf5e6", "#8f9da8", "#b48446", "#a3b299", "#8b7355"];
+  const color = colors[i % colors.length];
+
+  return {
+    x1: CENTER_X + cos * rStart,
+    y1: CENTER_Y + sin * rStart,
+    x2: CENTER_X + cos * rEnd,
+    y2: CENTER_Y + sin * rEnd,
+    opacity,
+    strokeWidth,
+    color,
+  };
+});
+
+// Génération de 90 fibres de premier plan (tridimensionnelles, ondulées type Bezier)
+const FG_FIBER_COUNT = 90;
+const FOREGROUND_FIBERS = Array.from({ length: FG_FIBER_COUNT }).map((_, i) => {
+  const angle = (i * 2 * Math.PI) / FG_FIBER_COUNT;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  
+  const perpCos = -sin;
+  const perpSin = cos;
+  
+  const rStart = PUPIL_R - 1 + (Math.sin(i * 2.7) * 2);
+  const rEnd = IRIS_R + (Math.cos(i * 2.1) * 6);
+  const rMid = (rStart + rEnd) / 2;
+  
+  // Wiggle doux pour créer l'aspect filamenteux des muscles de l'iris
+  const wiggle = Math.sin(i * 0.5) * 8 + Math.cos(i * 2.3) * 3;
+  
+  const xStart = CENTER_X + cos * rStart;
+  const yStart = CENTER_Y + sin * rStart;
+  const xEnd = CENTER_X + cos * rEnd;
+  const yEnd = CENTER_Y + sin * rEnd;
+  
+  const xMid = CENTER_X + cos * rMid + perpCos * wiggle;
+  const yMid = CENTER_Y + sin * rMid + perpSin * wiggle;
+  
+  const opacity = 0.28 + Math.abs(Math.sin(i * 1.4)) * 0.45;
+  const strokeWidth = 1.0 + Math.abs(Math.cos(i * 1.1)) * 1.1;
+  
+  const colors = ["#fdf5e6", "#8f9da8", "#b48446", "#a3b299", "#8b7355"];
+  const color = colors[(i + 2) % colors.length];
+
+  return {
+    d: `M ${xStart.toFixed(1)},${yStart.toFixed(1)} Q ${xMid.toFixed(1)},${yMid.toFixed(1)} ${xEnd.toFixed(1)},${yEnd.toFixed(1)}`,
+    opacity,
+    strokeWidth,
+    color,
+  };
+});
+
+// Interface de type pour les vaisseaux capillaires
+interface Vessel {
+  id: string;
+  d: string;
+  opacity: number;
+  strokeWidth: number;
+  color: string;
+}
+
+// Génération de 9 structures de capillaires / vaisseaux sanguins se propageant depuis la périphérie sur la sclère osseuse/blanche
+const generateVessels = (): Vessel[] => {
+  const vessels: Vessel[] = [];
+  const count = 9;
+  
+  for (let i = 0; i < count; i++) {
+    const angle = (i * 2 * Math.PI) / count + (Math.sin(i * 1.5) * 0.15);
+    const cosBy = Math.cos(angle);
+    const sinBy = Math.sin(angle);
+    
+    // Naissance à la périphérie extérieure de la sclère, convergence vers le limbe de l'iris (215)
+    const rStart = 380 + (i % 3) * 40;
+    const rEnd = 222 + (i % 2) * 15;
+    
+    // Tracé principal sinueux
+    let currentX = CENTER_X + cosBy * rStart;
+    let currentY = CENTER_Y + sinBy * rStart;
+    let pathD = `M ${currentX.toFixed(1)} ${currentY.toFixed(1)}`;
+    
+    const stepCount = 5;
+    for (let j = 1; j <= stepCount; j++) {
+      const t = j / stepCount;
+      const r = rStart - (rStart - rEnd) * t;
+      
+      const wiggleAngle = angle + Math.PI / 2;
+      const wiggleAmplitude = 12 * Math.sin(t * Math.PI) * (i % 2 === 0 ? 1 : -1);
+      
+      const x = CENTER_X + Math.cos(angle) * r + Math.cos(wiggleAngle) * wiggleAmplitude;
+      const y = CENTER_Y + Math.sin(angle) * r + Math.sin(wiggleAngle) * wiggleAmplitude;
+      
+      pathD += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
+    }
+    
+    // Ajout d'une ramification (branche) à mi-chemin
+    const branchR = rStart - (rStart - rEnd) * 0.5;
+    const branchAngleFactor = angle + 0.25 * (i % 2 === 0 ? -1 : 1);
+    const bStartX = CENTER_X + cosBy * branchR + Math.cos(angle + Math.PI/2) * (8 * Math.sin(0.5 * Math.PI) * (i % 2 === 0 ? 1 : -1));
+    const bStartY = CENTER_Y + sinBy * branchR + Math.sin(angle + Math.PI/2) * (8 * Math.sin(0.5 * Math.PI) * (i % 2 === 0 ? 1 : -1));
+    
+    const bEndX = CENTER_X + Math.cos(branchAngleFactor) * (rEnd + 10);
+    const bEndY = CENTER_Y + Math.sin(branchAngleFactor) * (rEnd + 10);
+    
+    const bControlX = (bStartX + bEndX) / 2 + (i % 2 === 0 ? 10 : -10);
+    const bControlY = (bStartY + bEndY) / 2 + (i % 2 === 0 ? -10 : 10);
+    
+    const branchD = `M ${bStartX.toFixed(1)} ${bStartY.toFixed(1)} Q ${bControlX.toFixed(1)} ${bControlY.toFixed(1)} ${bEndX.toFixed(1)} ${bEndY.toFixed(1)}`;
+    
+    // Opacité robuste et épaisseur bien visible (grossis comme demandé par l'utilisateur tout en gardant un nombre réduit de 5)
+    const opacity = 0.65 + (i % 3) * 0.08; // De 0.65 à 0.81 pour une présence nette
+    const strokeWidth = 3.2 + (i % 3) * 1.5; // De 3.2px à 6.2px pour être très visible sur la sclère
+    const color = i % 2 === 0 ? "#800505" : "#990606"; // Rouge biologique bien visible
+    
+    vessels.push({
+      id: `vessel-trunk-${i}`,
+      d: pathD,
+      opacity,
+      strokeWidth,
+      color
+    });
+    
+    vessels.push({
+      id: `vessel-branch-${i}`,
+      d: branchD,
+      opacity: opacity * 0.85,
+      strokeWidth: strokeWidth * 0.75, // Plus fin pour les ramifications mais toujours bien visible
+      color
+    });
+  }
+  return vessels;
+};
+
+const BLOOD_VESSELS = generateVessels();
+
+export function LogoEmber({ className = "" }: { className?: string }) {
+  const [isInteracting, setIsInteracting] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  // Détection de visibilité (Intersection Observer) et d'activité d'onglet (Page Visibility API) pour économiser le CPU/GPU
+  const [isVisible, setIsVisible] = useState(true);
+  const [isTabActive, setIsTabActive] = useState(true);
+
+  useEffect(() => {
+    const element = svgRef.current;
+    if (!element) return;
+
+    if (typeof window === "undefined" || !("IntersectionObserver" in window)) {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      {
+        rootMargin: "150px", // Éveil anticipé avant l'entrée dans le viewport pour aucun retard
+        threshold: 0.01,
+      }
+    );
+
+    observer.observe(element);
+    return () => {
+      observer.unobserve(element);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityChange = () => {
+      setIsTabActive(document.visibilityState === "visible");
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  const isSleeping = !isVisible || !isTabActive;
+
+  // Logger pour valider l'activité et prouver la gestion intelligente de veille des animations
+  useEffect(() => {
+    if (isSleeping) {
+      console.log(
+        "%c👁️ [LogoEmber] Mise en veille intelligente activée (Intersection Observer / Page Visibility). Boucles d'animation suspendues et CPU préservé.",
+        "color: #eab308; font-weight: bold; background: #1c1917; padding: 4px 8px; border-radius: 4px;"
+      );
+    } else {
+      console.log(
+        "%c👁️ [LogoEmber] Réveil de l'emblème. Moteurs d'animation et de suivi oculaire en temps réel réactivés.",
+        "color: #14b8a6; font-weight: bold; background: #1c1917; padding: 4px 8px; border-radius: 4px;"
+      );
+    }
+  }, [isSleeping]);
+
+  // Valeurs de mouvement physiques fluides pour le regard interactif
+  const gazeX = useMotionValue(0);
+  const gazeY = useMotionValue(0);
+
+  // Valeurs pour le reflet vitré de la cornée (mouvement de parallaxe asymétrique doux)
+  const reflectX = useMotionValue(0);
+  const reflectY = useMotionValue(0);
+
+  // Valeurs pour le mouvement asymétrique léger du contour du logo (effet de suspension 3D)
+  const logoX = useMotionValue(0);
+  const logoY = useMotionValue(0);
+
+  // Amortissement de haute qualité pour un contrôle soyeux de l'inertie
+  // Ajustement pour des saccades plus rapides, plus vives et organiques (snappy) avec une amplitude de mouvement élargie
+  const springConfig = { damping: 30, stiffness: 190, mass: 0.95 };
+  const reflectSpringConfig = { damping: 44, stiffness: 140, mass: 1.0 }; // Transition encore plus soyeuse et fluide pour le reflet humide
+  const smoothX = useSpring(gazeX, springConfig);
+  const smoothY = useSpring(gazeY, springConfig);
+  const smoothReflectX = useSpring(reflectX, reflectSpringConfig);
+  const smoothReflectY = useSpring(reflectY, reflectSpringConfig);
+  const smoothLogoX = useSpring(logoX, springConfig);
+  const smoothLogoY = useSpring(logoY, springConfig);
+
+  // 1. Gestion des mouvements du regard (Souris / Tactile / Scroll)
+  useEffect(() => {
+    if (isSleeping) {
+      // Si l'œil est en veille, on n'écoute rien sur le document et on recentre pour éviter les états bloqués excentrés
+      gazeX.set(0);
+      gazeY.set(0);
+      reflectX.set(0);
+      reflectY.set(0);
+      logoX.set(0);
+      logoY.set(0);
+      return;
+    }
+
+    // Surligner l'interaction
+    const registerInteraction = (targetX: number, targetY: number) => {
+      gazeX.set(targetX);
+      gazeY.set(targetY);
+      // Le reflet de la cornée humide bouge de façon déphasée (direction opposée ou réduite) pour accentuer la rondeur de la cornée 3D
+      reflectX.set(targetX * -0.22);
+      reflectY.set(targetY * -0.22);
+      // Le contour extérieur fin du logo bouge très légèrement avec le regard (parallaxe de premier plan)
+      logoX.set(targetX * 0.12);
+      logoY.set(targetY * 0.12);
+      setIsInteracting(true);
+
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        setIsInteracting(false);
+      }, 3500); // 3.5s d'immobilité avant de retourner à l'autonomie
+    };
+
+    // Suivi au scroll de page (Parfait pour mobile/téléphone)
+    const handleScroll = () => {
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight <= 0) return;
+      const scrollPercent = window.scrollY / docHeight;
+      
+      // Traduction de la progression du défilement en déplacement de l'iris (amplitude augmentée pour plus de mobilité)
+      const targetY = (scrollPercent - 0.45) * 80; 
+      const targetX = Math.sin(scrollPercent * Math.PI) * 25;
+
+      registerInteraction(targetX, targetY);
+    };
+
+    // Suivi au toucher sur tout l'écran (Mobile friendly - amplitude augmentée à 110px pour plus de mobilité)
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!e.touches || e.touches.length === 0) return;
+      const touch = e.touches[0];
+      
+      const xRatio = (touch.clientX / window.innerWidth) - 0.5;
+      const yRatio = (touch.clientY / window.innerHeight) - 0.5;
+      
+      registerInteraction(xRatio * 110, yRatio * 110);
+    };
+
+    // Suivi de la souris (Ordinateurs - amplitude augmentée à 110px pour plus de mobilité)
+    const handleMouseMove = (e: MouseEvent) => {
+      const xRatio = (e.clientX / window.innerWidth) - 0.5;
+      const yRatio = (e.clientY / window.innerHeight) - 0.5;
+      
+      registerInteraction(xRatio * 110, yRatio * 110);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchstart", handleTouchMove, { passive: true });
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchstart", handleTouchMove);
+      window.removeEventListener("mousemove", handleMouseMove);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [gazeX, gazeY, reflectX, reflectY, logoX, logoY, isSleeping]);
+
+  // 2. Comportement autonome de saccades et d'exploration quand l'utilisateur n'interagit pas
+  useEffect(() => {
+    if (isSleeping || isInteracting) return;
+
+    const performSaccade = () => {
+      // Choix d'un point d'observation aléatoire organique plus étendu (rayon max 45px au lieu de 22px)
+      const r = Math.random() * 45;
+      const angle = Math.random() * 2 * Math.PI;
+      const tx = Math.cos(angle) * r;
+      const ty = Math.sin(angle) * r;
+      
+      gazeX.set(tx);
+      gazeY.set(ty);
+      reflectX.set(tx * -0.22);
+      reflectY.set(ty * -0.22);
+      logoX.set(tx * 0.12);
+      logoY.set(ty * 0.12);
+    };
+
+    // Première saccade initiale autonome
+    performSaccade();
+
+    // Boucle de saccades espacées (Simule des points de fixations physiologiques plus réguliers et vivants)
+    const interval = setInterval(() => {
+      performSaccade();
+    }, 2000 + Math.random() * 3000); // Saccade toutes les 2.0 à 5.0 secondes (mouvements plus fréquents)
+
+    return () => clearInterval(interval);
+  }, [isInteracting, gazeX, gazeY, reflectX, reflectY, logoX, logoY, isSleeping]);
+
+  return (
+    <svg
+      ref={svgRef}
+      viewBox="0 0 595.28 841.89"
+      className={className}
+      preserveAspectRatio="xMidYMid meet"
+      role="img"
+      aria-label="L'Œil Conscient"
+      shapeRendering="geometricPrecision"
+    >
+      <style>{`
+        @keyframes nystagmus-shake {
+          0%, 100% { transform: translate(0px, 0px); }
+          10% { transform: translate(0.5px, -0.4px); }
+          20% { transform: translate(-0.7px, 0.6px); }
+          30% { transform: translate(0.4px, -0.3px); }
+          40% { transform: translate(-0.6px, 0.7px); }
+          50% { transform: translate(0.8px, -0.5px); }
+          60% { transform: translate(-0.4px, 0.3px); }
+          70% { transform: translate(0.6px, -0.7px); }
+          80% { transform: translate(-0.5px, 0.4px); }
+          90% { transform: translate(0.3px, -0.3px); }
+        }
+        @keyframes pulse-vessels {
+          0%, 100% {
+            stroke-dashoffset: 0;
+            opacity: 0.5;
+          }
+          22% {
+            stroke-dashoffset: -90;
+            opacity: 0.95;
+          }
+          100% {
+            stroke-dashoffset: -120;
+            opacity: 0.5;
+          }
+        }
+        @keyframes slow-rotate-iris {
+          from { transform: rotate(360deg); }
+          to { transform: rotate(0deg); }
+        }
+        @keyframes circle-pulse-rotate {
+          0%, 100% {
+            transform: scale(0.96) rotate(0deg);
+          }
+          50% {
+            transform: scale(1.04) rotate(180deg);
+          }
+          100% {
+            transform: scale(0.96) rotate(360deg);
+          }
+        }
+        @keyframes circle-rotate-reverse {
+          from { transform: rotate(360deg); }
+          to { transform: rotate(0deg); }
+        }
+        @keyframes collarette-organic {
+          0%, 100% {
+            transform: scale(0.85) translate(0px, 0px);
+          }
+          15% {
+            transform: scale(1.11) translate(4px, -3px);
+          }
+          30% {
+            transform: scale(0.88) translate(-2px, 4px);
+          }
+          50% {
+            transform: scale(1.05) translate(1px, -1px);
+          }
+          68% {
+            transform: scale(0.83) translate(-4px, 3px);
+          }
+          84% {
+            transform: scale(1.09) translate(2px, -2px);
+          }
+        }
+        .animate-nystagmus {
+          animation: nystagmus-shake 0.25s infinite linear;
+        }
+        .animate-pulse-vessels {
+          animation: pulse-vessels 1.35s infinite ease-in-out;
+        }
+        .animate-slow-rotate {
+          animation: slow-rotate-iris 100s infinite linear;
+          transform-origin: 297px 421px;
+        }
+        .animate-circle-pulse {
+          animation: circle-pulse-rotate 75s infinite linear;
+          transform-origin: 297px 421px;
+        }
+        .animate-circle-reverse {
+          animation: circle-rotate-reverse 110s infinite linear;
+          transform-origin: 297px 421px;
+        }
+        .animate-collarette {
+          animation: collarette-organic 18s infinite ease-in-out;
+          transform-origin: 297px 421px;
+        }
+      `}</style>
+      <defs>
+        {/* Dégradé extrêmement réaliste pour la sclère (le blanc de l'œil) */}
+        <radialGradient id="sclera-grad" cx="297" cy="421" r="410" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#fcfbf8" />
+          <stop offset="68%" stopColor="#f2eceb" />
+          <stop offset="88%" stopColor="#ebdcdb" />
+          <stop offset="100%" stopColor="#dfcbce" />
+        </radialGradient>
+
+        {/* Dégradés ultra-réalistes (animés avec précision à travers les tons purement humains : ambre, marron, vert cannelle, ardoise et bleu) */}
+        <radialGradient id="iris-surface-grad" cx="297" cy="421" r="215" gradientUnits="userSpaceOnUse">
+          {/* Centre près de la pupille (Collerette) */}
+          <motion.stop
+            offset="0%"
+            animate={isSleeping ? false : {
+              stopColor: [
+                "#120904", // Brun foncé
+                "#0b0f0a", // Olive sombre
+                "#080d16", // Gris-bleu ardoise
+                "#0d0702", // Chocolat noir
+                "#111317", // Graphite
+                "#120904"
+              ]
+            }}
+            transition={{ duration: 68, repeat: Infinity, ease: "linear" }}
+          />
+
+          {/* Corps de l'iris intérieur */}
+          <motion.stop
+            offset="15%"
+            animate={isSleeping ? false : {
+              stopColor: [
+                "#b48446", // Ambre doré miel
+                "#8e8a55", // Couronne kaki
+                "#ab8d58", // Halo miel doré
+                "#8a5422", // Caramel riche
+                "#9e825b", // Gris-bronze doux
+                "#b48446"
+              ]
+            }}
+            transition={{ duration: 68, repeat: Infinity, ease: "linear" }}
+          />
+
+          {/* Corps principal de l'iris externe */}
+          <motion.stop
+            offset="55%"
+            animate={isSleeping ? false : {
+              stopColor: [
+                "#9d692e", // Noisette ambrée d'aspect naturel
+                "#5c7050", // Vert sauge/olive réaliste
+                "#567c9c", // Bleu acier d'aspect naturel
+                "#6c3f15", // Brun cannelle
+                "#707b85", // Gris perle réaliste
+                "#9d692e"
+              ]
+            }}
+            transition={{ duration: 68, repeat: Infinity, ease: "linear" }}
+          />
+
+          {/* Zone de transition périphérique */}
+          <motion.stop
+            offset="92%"
+            animate={isSleeping ? false : {
+              stopColor: [
+                "#784415", // Brun chêne réaliste
+                "#394a32", // Vert sapin profond
+                "#36526d", // Bleu saphir sourd
+                "#4a280c", // Brun café naturel
+                "#4e5a63", // Gris ardoise doux
+                "#784415"
+              ]
+            }}
+            transition={{ duration: 68, repeat: Infinity, ease: "linear" }}
+          />
+
+          {/* Anneau limbal externe */}
+          <motion.stop
+            offset="100%"
+            animate={isSleeping ? false : {
+              stopColor: [
+                "#0e0703", // Limbe cannelle
+                "#070a06", // Limbe vert olive
+                "#0a1017", // Limbe bleu nuit
+                "#080401", // Limbe cacao sombre
+                "#0b0d10", // Limbe graphite
+                "#0e0703"
+              ]
+            }}
+            transition={{ duration: 68, repeat: Infinity, ease: "linear" }}
+          />
+        </radialGradient>
+
+        {/* ClipPath pour découper les lettres calligraphiques de la marque */}
+        <clipPath id="logo-letters-clip">
+          <path d={D1} />
+          <path d={D2} />
+          <path d={D3} />
+        </clipPath>
+
+        {/* ClipPath global pour le contour net de l'œil ouvert (sans clignement) */}
+        <clipPath id="eyelid-blink-clip">
+          <path
+            d="M -100,421 C 50,-300 550,-300 695.28,421 C 550,1141 50,1141 -100,421 Z"
+          />
+        </clipPath>
+
+        {/* Filtre de distorsion liquide organique pour un effet gélatineux mou et ultra fluide */}
+        <filter id="organic-liquid-filter" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence 
+            type="fractalNoise" 
+            baseFrequency="0.007 0.011" 
+            numOctaves="1" 
+            result="noise" 
+            seed="3"
+          >
+            <animate 
+              attributeName="baseFrequency" 
+              values="0.007 0.011; 0.010 0.007; 0.008 0.013; 0.007 0.011" 
+              dur="24s" 
+              repeatCount="indefinite" 
+            />
+          </feTurbulence>
+          <feDisplacementMap 
+            in="SourceGraphic" 
+            in2="noise" 
+            scale="28" 
+            xChannelSelector="R" 
+            yChannelSelector="G" 
+          />
+        </filter>
+
+        {/* Ombrage tridimensionnel réaliste de la paupière supérieure (effet dramatique de volume orbital) */}
+        <linearGradient id="eyelid-shadow-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#050303" stopOpacity="0.85" />
+          <stop offset="18%" stopColor="#050303" stopOpacity="0.55" />
+          <stop offset="42%" stopColor="#010000" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+        </linearGradient>
+
+        {/* Ombrage tridimensionnel réaliste de la paupière inférieure (effet dramatique de volume orbital) */}
+        <linearGradient id="lower-eyelid-shadow-grad" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stopColor="#050303" stopOpacity="0.85" />
+          <stop offset="18%" stopColor="#050303" stopOpacity="0.55" />
+          <stop offset="42%" stopColor="#010000" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+        </linearGradient>
+
+        {/* Vignette radiale d'épaisseur 3D pour assombrir les bords sphériques de l'œil */}
+        <radialGradient id="eyeball-3d-shading" cx="297" cy="421" r="380" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#000000" stopOpacity="0" />
+          <stop offset="65%" stopColor="#000000" stopOpacity="0.12" />
+          <stop offset="85%" stopColor="#000000" stopOpacity="0.40" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0.75" />
+        </radialGradient>
+
+        {/* Ombre de concavité de l'iris (rendu en forme de cuvette / profondeur tridimensionnelle du limbe) */}
+        <radialGradient id="iris-depth-shading" cx="297" cy="421" r="215" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#000000" stopOpacity="0.75" />  {/* Noir de la pupille qui diffuse au centre */}
+          <stop offset="35%" stopColor="#000000" stopOpacity="0" />
+          <stop offset="76%" stopColor="#000000" stopOpacity="0" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0.70" /> {/* Limbe externe sombre */}
+        </radialGradient>
+      </defs>
+
+      {/* Parent de rotation générale du logo : fait pivoter la structure et les lettres sur elles-mêmes pour un effet cosmique hypnotique */}
+      <motion.g
+        style={{ transformOrigin: `${CENTER_X}px ${CENTER_Y}px`, willChange: "transform" }}
+        animate={isSleeping ? false : {
+          rotate: [0, 360]
+        }}
+        transition={{
+          duration: 160, // 160 secondes pour un tour complet, extrêmement majestueux, doux et hypnotique
+          repeat: Infinity,
+          ease: "linear"
+        }}
+      >
+        {/* Rendu principal de l'œil complet, clippé à la fois par la forme du Judas clignotant et les lettres du logo */}
+        <g clipPath="url(#logo-letters-clip)" filter="url(#organic-liquid-filter)">
+          {/* Fond noir de soutien absolu */}
+          <rect width="595.28" height="841.89" fill="#000000" />
+
+          {/* Dessin du Judas composé de l'iris géant et de ses textures */}
+          <g clipPath="url(#eyelid-blink-clip)">
+            
+            {/* Système de regard dynamique fluide avec zoom organique mimant la curiosité ou la présence */}
+            <motion.g
+              style={{ 
+                x: smoothX, 
+                y: smoothY, 
+                transformOrigin: `${CENTER_X}px ${CENTER_Y}px`,
+                willChange: "transform"
+              }}
+              animate={isSleeping ? false : {
+                scale: [1, 1, 1.16, 1.26, 1.26, 1.05, 1, 1.03, 1.23, 1.23, 1],
+              }}
+              transition={{
+                scale: {
+                  duration: 22, // Respiration lente : rapprochement de l'œil très fluide
+                  repeat: Infinity,
+                  times: [0, 0.20, 0.32, 0.44, 0.58, 0.70, 0.80, 0.86, 0.92, 0.96, 1],
+                  ease: "easeInOut"
+                }
+              }}
+            >
+              {/* Groupe de Nystagmus physiologique (oscillations rapides et involontaires de haute fréquence) - Optimisé en CSS pur */}
+              <g
+                className={isSleeping ? "" : "animate-nystagmus"}
+                style={{ transformOrigin: `${CENTER_X}px ${CENTER_Y}px`, willChange: "transform" }}
+              >
+                {/* 1. Sclère — Le blanc de l'œil réaliste */}
+                <circle cx={CENTER_X} cy={CENTER_Y} r="380" fill="url(#sclera-grad)" />
+
+                {/* 2. L'arbre vasculaire microscopique avec double couche : structure permanente + flux sanguin dynamique ultra-visible */}
+                {BLOOD_VESSELS.map((v) => (
+                  <g key={v.id}>
+                    {/* Couche 1: Structure du capillaire de fond (permanent, sombre pour assurer le contraste) */}
+                    <path
+                      d={v.d}
+                      fill="none"
+                      stroke={v.color}
+                      strokeWidth={v.strokeWidth}
+                      opacity={v.opacity * 0.95}
+                      strokeLinecap="round"
+                    />
+
+                    {/* Couche 2: Flux sanguin actif circulant à l'intérieur du capillaire (pulsation douce et biologique en CSS pur, assortie à l'anatomie) */}
+                    <path
+                      d={v.d}
+                      fill="none"
+                      stroke="#a30c0c" // Naturel biologique (rouge sang profond)
+                      strokeWidth={v.strokeWidth * 0.55} // Très délicat
+                      strokeDasharray="6 24" // Espacement biologique des perles de flux
+                      className={isSleeping ? "" : "animate-pulse-vessels"}
+                      style={{
+                        willChange: "opacity, stroke-dashoffset",
+                      }}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </g>
+                ))}
+
+                {/* Calque d'ombrage orbital (paupière) supérieur simulé pour asseoir le blanc de l'œil dans son orbite */}
+                <circle cx={CENTER_X} cy={CENTER_Y} r="380" fill="url(#eyelid-shadow-grad)" opacity="0.82" style={{ mixBlendMode: "multiply" }} />
+
+                {/* Calque d'ombrage orbital (paupière) inférieur pour arrondir entièrement l'œil dans son orbite */}
+                <circle cx={CENTER_X} cy={CENTER_Y} r="380" fill="url(#lower-eyelid-shadow-grad)" opacity="0.82" style={{ mixBlendMode: "multiply" }} />
+
+                {/* Nouveau calque Vignette 3D radiale (eyeball-3d-shading) en mode multiply pour donner de la rondeur sphérique à l'orbite entière */}
+                <circle cx={CENTER_X} cy={CENTER_Y} r="380" fill="url(#eyeball-3d-shading)" style={{ mixBlendMode: "multiply" }} opacity="0.9" />
+
+                {/* Rotation lente majestueuse continue de l'iris - Optimisé en CSS pur */}
+                <g
+                  className={isSleeping ? "" : "animate-slow-rotate"}
+                  style={{ transformOrigin: `${CENTER_X}px ${CENTER_Y}px`, willChange: "transform" }}
+                >
+                  {/* Surface pigmentée d'arrière-plan de l'iris géant à couleurs changeantes naturelles */}
+                  <circle
+                    cx={CENTER_X}
+                    cy={CENTER_Y}
+                    r={IRIS_R}
+                    fill="url(#iris-surface-grad)"
+                  />
+
+                  {/* 1. Trame des fibres d'arrière-plan discrètes */}
+                  {BACKGROUND_FIBERS.map((f, i) => (
+                    <line
+                      key={`bg-fib-${i}`}
+                      x1={f.x1}
+                      y1={f.y1}
+                      x2={f.x2}
+                      y2={f.y2}
+                      stroke={f.color}
+                      strokeWidth={f.strokeWidth}
+                      opacity={f.opacity}
+                      style={{ mixBlendMode: "overlay" }}
+                    />
+                  ))}
+
+                  {/* 2. Cryptes circulaires et anneaux de contractions de l'iris */}
+                  <circle cx={CENTER_X} cy={CENTER_Y} r={IRIS_R * 0.9} fill="none" stroke="#6e5c4a" strokeWidth="0.85" strokeDasharray="3 15" opacity="0.32" />
+                  <circle cx={CENTER_X} cy={CENTER_Y} r={IRIS_R * 0.6} fill="none" stroke="#a89575" strokeWidth="1.1" strokeDasharray="5 11" opacity="0.38" />
+                  <circle cx={CENTER_X} cy={CENTER_Y} r={IRIS_R * 0.35} fill="none" stroke="#d4c19c" strokeWidth="0.9" strokeDasharray="2 8" opacity="0.45" />
+
+                  {/* 3. Fibres de premier plan courbées (trabécules musculaires) */}
+                  {FOREGROUND_FIBERS.map((f, i) => (
+                    <path
+                      key={`fg-fib-${i}`}
+                      d={f.d}
+                      fill="none"
+                      stroke={f.color}
+                      strokeWidth={f.strokeWidth}
+                      opacity={f.opacity}
+                      style={{ filter: "drop-shadow(0px 0px 1px rgba(0,0,0,0.8))" }}
+                    />
+                  ))}
+
+                  {/* Calque d'ombrage de concavité de l'iris (rendu en forme de cuvette / profondeur tridimensionnelle du limbe) */}
+                  <circle cx={CENTER_X} cy={CENTER_Y} r={IRIS_R} fill="url(#iris-depth-shading)" style={{ mixBlendMode: "multiply" }} opacity="0.82" />
+
+                  {/* 4. Collerette fibreuse festonnée entourant la zone de la pupille - Optimisé en CSS pur */}
+                  <circle
+                    cx={CENTER_X}
+                    cy={CENTER_Y}
+                    r="115"
+                    fill="none"
+                    stroke="#fdf5e6"
+                    strokeWidth="1.4"
+                    strokeDasharray="4 8"
+                    opacity="0.55"
+                    className={isSleeping ? "" : "animate-circle-pulse"}
+                    style={{ willChange: "transform" }}
+                  />
+
+                  {/* 5. Cils de lumière / Effets rayonnants dorés de l'iris - Optimisé en CSS pur */}
+                  <circle
+                    cx={CENTER_X}
+                    cy={CENTER_Y}
+                    r="165"
+                    fill="none"
+                    stroke="#b8935c"
+                    strokeWidth="1.1"
+                    strokeDasharray="1 16"
+                    opacity="0.65"
+                    className={isSleeping ? "" : "animate-circle-reverse"}
+                    style={{ willChange: "transform" }}
+                  />
+
+                  {/* 6. Pupille noire profonde avec oscillations d'Hippus et micro-dérives flottantes indépendantes - Optimisé en CSS pur */}
+                  <g
+                    className={isSleeping ? "" : "animate-collarette"}
+                    style={{ transformOrigin: `${CENTER_X}px ${CENTER_Y}px`, willChange: "transform" }}
+                  >
+                    {/* Collerette pupillaire (Ourlet pigmentaire sombre et irrégulier bordant la pupille) */}
+                    <circle cx={CENTER_X} cy={CENTER_Y} r={PUPIL_R + 3} fill="none" stroke="#0f0905" strokeWidth="3" opacity="0.9" />
+                    
+                    {/* Cœur pupillaire d'un noir d'encre absolu */}
+                    <circle cx={CENTER_X} cy={CENTER_Y} r={PUPIL_R} fill="#020203" />
+                  </g>
+                </g>
+              </g>
+            </motion.g>
+
+            {/* 7. Reflets spéculaires et éclats vitreux de la cornée humide (effet de profondeur 3D par parallaxe inverse) */}
+            
+            {/* 7a. Halo de diffusion de la source de lumière principale */}
+            <motion.ellipse
+              cx={CENTER_X + 22}
+              cy={CENTER_Y - 25}
+              rx="29"
+              ry="16"
+              transform={`rotate(-28 ${CENTER_X + 22} ${CENTER_Y - 25})`}
+              fill="#ffffff"
+              opacity="0.12"
+              style={{
+                x: smoothReflectX,
+                y: smoothReflectY
+              }}
+            />
+
+            {/* 7b. Reflet majeur (Source de lumière studio principale ultra-nette) */}
+            <motion.ellipse
+              cx={CENTER_X + 22}
+              cy={CENTER_Y - 25}
+              rx="19"
+              ry="9.5"
+              transform={`rotate(-28 ${CENTER_X + 22} ${CENTER_Y - 25})`}
+              fill="#ffffff"
+              opacity="0.82"
+              style={{
+                x: smoothReflectX,
+                y: smoothReflectY
+              }}
+            />
+
+            {/* 7c. Reflet de fenêtre de studio photo (Softbox à 4 carreaux pour ajouter de la crédibilité au volume) */}
+            <motion.g
+              style={{
+                x: smoothReflectX,
+                y: smoothReflectY,
+                transformOrigin: `${CENTER_X + 54}px ${CENTER_Y - 55}px`,
+              }}
+              opacity="0.28"
+            >
+              <g transform={`rotate(-18 ${CENTER_X + 54} ${CENTER_Y - 55})`}>
+                <rect x={CENTER_X + 46} y={CENTER_Y - 65} width="7" height="9" rx="1.5" fill="#ffffff" />
+                <rect x={CENTER_X + 55} y={CENTER_Y - 65} width="7" height="9" rx="1.5" fill="#ffffff" />
+                <rect x={CENTER_X + 46} y={CENTER_Y - 54} width="7" height="9" rx="1.5" fill="#ffffff" />
+                <rect x={CENTER_X + 55} y={CENTER_Y - 54} width="7" height="9" rx="1.5" fill="#ffffff" />
+              </g>
+            </motion.g>
+
+            {/* 7d. Reflet secondaire d'ambiance (contre-bas) */}
+            <motion.circle
+              cx={CENTER_X - 25}
+              cy={CENTER_Y + 28}
+              r="6"
+              fill="#ffffff"
+              opacity="0.45"
+              style={{
+                x: smoothReflectX,
+                y: smoothReflectY
+              }}
+            />
+
+            {/* 7e. Micro-étincelle d'humidité additionnelle (pinpoint sparkle) */}
+            <motion.circle
+              cx={CENTER_X - 35}
+              cy={CENTER_Y + 12}
+              r="2.5"
+              fill="#ffffff"
+              opacity="0.55"
+              style={{
+                x: smoothReflectX,
+                y: smoothReflectY
+              }}
+            />
+
+            {/* 7f. Ménisques de larmes (tear-film meniscus) : croissants lumineux très fins épousant le limbe pour simuler l'humidité oculaire */}
+            <motion.path
+              d="M 160,520 A 185,185 0 0,0 260,595"
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              opacity="0.16"
+              style={{
+                x: smoothReflectX,
+                y: smoothReflectY
+              }}
+            />
+            <motion.path
+              d="M 360,575 A 185,185 0 0,0 432,504"
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              opacity="0.11"
+              style={{
+                x: smoothReflectX,
+                y: smoothReflectY
+              }}
+            />
+
+            {/* 7g. Fine couche spéculaire globale simulant la courbure de la cornée humide */}
+            <motion.circle
+              cx={CENTER_X}
+              cy={CENTER_Y}
+              r={IRIS_R - 10}
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth="0.5"
+              opacity="0.1"
+              style={{
+                x: smoothReflectX,
+                y: smoothReflectY
+              }}
+            />
+          </g>
+        </g>
+
+        {/* Silhouette extérieure délicate qui soutient l'identité visuelle de la marque avec parallaxe 3D et souffle vivant */}
+        <motion.g
+          fill="none"
+          stroke="#fdf5e6"
+          strokeWidth="1.25"
+          filter="url(#organic-liquid-filter)"
+          style={{
+            x: smoothLogoX,
+            y: smoothLogoY,
+            transformOrigin: `${CENTER_X}px ${CENTER_Y}px`
+          }}
+          animate={isSleeping ? false : {
+            opacity: [0.18, 0.22, 0.18],
+            scale: [1, 1.006, 0.994, 1.004, 1]
+          }}
+          transition={{
+            opacity: {
+              duration: 8,
+              repeat: Infinity,
+              ease: "easeInOut",
+            },
+            scale: {
+              duration: 7,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }
+          }}
+        >
+          <path d={D1} />
+          <path d={D2} />
+        </motion.g>
+      </motion.g>
+    </svg>
+  );
+}

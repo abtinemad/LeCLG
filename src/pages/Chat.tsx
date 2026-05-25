@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Brain,
   BookOpen,
+  Cloud,
   X,
   Volume2,
   VolumeX,
@@ -16,6 +17,7 @@ import {
 import confetti from "canvas-confetti";
 import { sbInsert, sbUpdate, sbGet } from "../lib/worker";
 import { ClarteSection } from "../components/SerpentinGuide";
+import { LogoEmber } from "../components/LogoEmber";
 
 // ============================================================
 // ICONS
@@ -2020,6 +2022,9 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
           prompt: prompt,
         }),
       });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = await res.json();
       const raw = (data.text || "{}").replace(/```json|```/g, "").trim();
       const card: ReflectionCard = JSON.parse(raw);
@@ -2205,6 +2210,13 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
           </div>
           <div className="flex items-center gap-3">
             <Link
+              to="/climat"
+              className={`transition-colors flex items-center p-1.5 ${location.pathname === "/climat" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
+              title="Climat collectif"
+            >
+              <Cloud size={13} strokeWidth={1.5} />
+            </Link>
+            <Link
               to="/chat"
               className={`font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${location.pathname === "/chat" ? "text-beige bg-white/5 ring-1 ring-white/10" : "text-beige-faint hover:text-beige"}`}
             >
@@ -2316,12 +2328,8 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               animate={{ opacity: 1, y: 0 }}
               className="flex flex-col items-center justify-center min-h-[60vh] text-center"
             >
-              <div className="w-14 h-14 bg-bg border border-beige-faint rounded-full flex items-center justify-center mb-6 overflow-hidden opacity-20 hover:opacity-100 transition-all duration-700 grayscale hover:grayscale-0">
-                <img
-                  src="/logo.png"
-                  alt="Le collègue"
-                  className="w-full h-full object-cover"
-                />
+              <div className="relative w-28 h-28 md:w-32 md:h-32 flex items-center justify-center mb-8 transition-opacity duration-700 opacity-80 hover:opacity-100">
+                <LogoEmber className="w-full h-full" />
               </div>
               {dailyLimitReached ? (
                 <p className="italic text-sm text-beige leading-relaxed max-w-xs mb-2">

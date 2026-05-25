@@ -14,6 +14,7 @@ import {
   Copy,
   Check,
   BookOpen,
+  Cloud,
   Zap,
   Download,
   Network,
@@ -1299,6 +1300,13 @@ export default function Carnet() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              to="/climat"
+              className={`transition-colors flex items-center p-1.5 ${location.pathname === "/climat" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
+              title="Climat collectif"
+            >
+              <Cloud size={13} strokeWidth={1.5} />
+            </Link>
             <Link
               to="/chat"
               className={`font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${location.pathname === "/chat" ? "text-beige bg-white/5 ring-1 ring-white/10" : "text-beige-faint hover:text-beige"}`}
