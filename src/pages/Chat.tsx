@@ -43,6 +43,13 @@ const WORKER_URL = "/api/worker";
 
 // Plafond de conversations réellement engagées par jour (le serveur fait foi).
 const MAX_CONVERSATIONS_PER_DAY = 3;
+// Seuil d'engagement : une conversation ne décompte un crédit du plafond
+// qu'à partir du moment où la personne a écrit STRICTEMENT PLUS que ce
+// nombre de messages. En deçà, c'est un simple coup d'œil — aucun crédit
+// consommé. Concrètement : 1 à 3 messages = gratuit, le 4e verrouille le
+// crédit. Le plafond s'appuyant sur `ended_at`, il suffit de ne poser
+// `ended_at` qu'une fois ce seuil franchi (voir saveSession).
+const ENGAGEMENT_MIN_USER_MESSAGES = 3;
 // Plafond dur invisible : une conversation ne peut pas s'étendre sans fin.
 // Plafond souple en deux temps. Le problème n'est pas la longueur en soi —
 // c'est la conversation qui tourne en boucle et vire à la rumination.
@@ -537,6 +544,7 @@ export default function Chat() {
     sessionId: string | null;
     personalId: string;
     stepCount: number;
+    userMessageCount: number;
   }>({
     sessionActive: false,
     showEnded: false,
@@ -544,6 +552,7 @@ export default function Chat() {
     sessionId: null,
     personalId: "",
     stepCount: 0,
+    userMessageCount: 0,
   });
 
   useEffect(() => {
@@ -554,8 +563,16 @@ export default function Chat() {
       sessionId: currentSessionId.current,
       personalId,
       stepCount: validatedSteps.size,
+      userMessageCount: messages.filter((m) => m.role === "user").length,
     };
-  }, [sessionActive, showEnded, closingPhase, personalId, validatedSteps]);
+  }, [
+    sessionActive,
+    showEnded,
+    closingPhase,
+    personalId,
+    validatedSteps,
+    messages,
+  ]);
 
   useEffect(() => {
     const markAbandoned = () => {
@@ -577,6 +594,7 @@ export default function Chat() {
             personal_id: s.personalId,
             status: "abandoned",
             step_reached: s.stepCount,
+            user_message_count: s.userMessageCount,
           },
         },
       };
@@ -1364,17 +1382,30 @@ export default function Chat() {
   };
 
   // ── Sauvegarde session ────────────────────────────────────
-  const saveSession = useCallback(async () => {
-    if (!currentSessionId.current || !personalId) return;
-    try {
-      await sbUpdate("sessions", currentSessionId.current, {
+  // `ended_at` n'est posé qu'une fois la personne au-delà du seuil
+  // d'engagement : c'est ce champ que le plafond compte, donc une
+  // conversation de 3 messages ou moins ne décompte aucun crédit.
+  // `step_reached` est toujours écrit (info admin, sans effet sur le plafond).
+  const saveSession = useCallback(
+    async (convo?: Message[]) => {
+      if (!currentSessionId.current || !personalId) return;
+      const list = convo ?? messages;
+      const userMessages = list.filter((m) => m.role === "user").length;
+      const payload: Record<string, unknown> = {
         step_reached: validatedSteps.size,
-        ended_at: new Date().toISOString(),
-      });
-    } catch (e) {
-      console.error("saveSession failed", e);
-    }
-  }, [validatedSteps.size, personalId]);
+        user_message_count: userMessages,
+      };
+      if (userMessages > ENGAGEMENT_MIN_USER_MESSAGES) {
+        payload.ended_at = new Date().toISOString();
+      }
+      try {
+        await sbUpdate("sessions", currentSessionId.current, payload);
+      } catch (e) {
+        console.error("saveSession failed", e);
+      }
+    },
+    [validatedSteps.size, personalId, messages],
+  );
 
   // ── Streaming chat via Worker ─────────────────────────────
   const streamChat = useCallback(
@@ -1762,7 +1793,7 @@ export default function Chat() {
         setMessages(finalMessages);
         setFlowIntensity(flowRef.current.emotionalLevel);
         evalSteps(finalMessages);
-        saveSession();
+        saveSession(finalMessages);
       }
     } catch (e) {
       console.error("streamChat error:", e);
@@ -1952,7 +1983,7 @@ Fais un point en deux temps. Premier temps : une image tirée directement de ce 
   const startCardGeneration = (convo?: Message[]) => {
     if (cardGenStarted.current) return;
     cardGenStarted.current = true;
-    saveSession();
+    saveSession(convo);
     generateReflectionCard(convo);
   };
 

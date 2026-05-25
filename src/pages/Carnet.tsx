@@ -133,6 +133,29 @@ const CardReadTracker = ({ card }: { card: ReflectionCard }) => {
   return null;
 };
 
+// Chantier robustesse de la chaîne d'analyses : une analyse qui échoue est
+// retentée un nombre borné de fois, puis — si elle échoue toujours — la
+// section affiche une erreur sobre au lieu d'un spinner éternel.
+const MAX_RETRY = 3; // tentatives totales avant de poser un état d'erreur
+const RETRY_DELAY_MS = 4000; // délai entre deux tentatives
+
+// Affiché à la place du spinner quand une analyse a définitivement échoué.
+// Ton accordé à LockedBlock / au « pas encore métabolisée » — discret,
+// surtout pas un bandeau d'alerte.
+const AnalysisError = ({ onRetry }: { onRetry: () => void }) => (
+  <div className="text-center py-20">
+    <p className="font-serif italic text-beige-faint/70 leading-relaxed max-w-sm mx-auto mb-6">
+      L'analyse n'a pas abouti. Le calcul n'a pas pu être mené jusqu'au bout.
+    </p>
+    <button
+      onClick={onRetry}
+      className="py-2 px-6 rounded-full border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] font-mono text-[9px] uppercase tracking-widest text-white/50 hover:text-white/70 transition-colors"
+    >
+      Réessayer
+    </button>
+  </div>
+);
+
 export default function Carnet() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -248,6 +271,34 @@ export default function Carnet() {
   // Mémorise les analyses dont un calcul est en cours — évite de lancer deux
   // fois la même analyse en parallèle.
   const runningFor = useRef<Record<string, boolean>>({});
+  // Robustesse de la chaîne d'analyses :
+  // - attemptsRef : nb de tentatives par clé d'analyse (ref — ne déclenche
+  //   pas de rendu, c'est un simple compteur interne).
+  // - retryTimers : les setTimeout de relance en attente, par clé — gardés
+  //   pour pouvoir les annuler au démontage du composant.
+  // - analysisErrors : échec définitif par clé (state — lu par l'UI pour
+  //   remplacer le spinner par un message d'erreur).
+  // - retryTick : bumpé par un setTimeout pour relancer le useEffect
+  //   d'orchestration (qui, sinon, ne se relance que sur changement de deps).
+  const attemptsRef = useRef<Record<string, number>>({});
+  const retryTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [analysisErrors, setAnalysisErrors] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [retryTick, setRetryTick] = useState(0);
+
+  // « Réessayer » manuel : efface l'erreur de la section, remet son compteur
+  // de tentatives à zéro, et bump retryTick pour relancer l'orchestration.
+  const retryAnalysis = (key: string) => {
+    attemptsRef.current[key] = 0;
+    setAnalysisErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setRetryTick((t) => t + 1);
+  };
   const [lueurs, setLueurs] = useState<any[]>(
     JSON.parse(localStorage.getItem("collegue_lueurs") || "[]"),
   );
@@ -557,6 +608,14 @@ export default function Carnet() {
     loadCards();
   }, []);
 
+  // Nettoie les relances en attente au démontage — évite un setRetryTick
+  // sur un composant qui n'existe plus.
+  useEffect(() => {
+    return () => {
+      Object.values(retryTimers.current).forEach((id) => clearTimeout(id));
+    };
+  }, []);
+
   const runAnalysis = async (type: string, data: any) => {
     try {
       const res = await fetch("/api/worker", {
@@ -603,11 +662,45 @@ export default function Carnet() {
       runAnalysis(type, payload).then((data) => {
         runningFor.current[key] = false;
         if (data) {
+          // Succès : on estampille, on stocke — et on efface toute trace
+          // d'échec (compteur de tentatives remis à zéro, erreur levée si
+          // elle était posée). Sans ça, le message resterait collé alors
+          // que l'analyse est finalement passée.
           data._n = n;
           data._t = Date.now();
           setResult(data);
           localStorage.setItem(lsKey, JSON.stringify(data));
+          attemptsRef.current[key] = 0;
+          setAnalysisErrors((prev) => {
+            if (!prev[key]) return prev;
+            const next = { ...prev };
+            delete next[key];
+            return next;
+          });
           if (after) after(data);
+        } else {
+          // Échec explicite : runAnalysis renvoie null pour un échec réseau,
+          // un res.ok faux, ou un 200 au JSON vide/malformé. On le traite
+          // comme un événement, plus comme un non-événement silencieux.
+          const tries = (attemptsRef.current[key] || 0) + 1;
+          attemptsRef.current[key] = tries;
+          if (tries < MAX_RETRY) {
+            // Sous le plafond : on planifie UNE relance espacée. Le useEffect
+            // ne se relançant pas seul, le setTimeout bump retryTick — ajouté
+            // à ses deps — ce qui le relance et fait re-tenter ce maillon.
+            if (retryTimers.current[key]) clearTimeout(retryTimers.current[key]);
+            retryTimers.current[key] = setTimeout(() => {
+              delete retryTimers.current[key];
+              setRetryTick((t) => t + 1);
+            }, RETRY_DELAY_MS);
+          } else {
+            // Plafond atteint : on pose un état d'erreur visible pour la
+            // section. Plus de relance automatique — la main repasse à
+            // l'utilisateur via le bouton « Réessayer ».
+            setAnalysisErrors((prev) =>
+              prev[key] ? prev : { ...prev, [key]: true },
+            );
+          }
         }
       });
     };
@@ -848,6 +941,7 @@ export default function Carnet() {
     affectData,
     elanDataAnalysis,
     matriceDataAnalysis,
+    retryTick,
   ]);
 
   const radarData = useMemo(() => {
@@ -2747,6 +2841,8 @@ export default function Carnet() {
                   </div>
                 </div>
               </>
+            ) : analysisErrors["affect"] ? (
+              <AnalysisError onRetry={() => retryAnalysis("affect")} />
             ) : (
               <div className="text-center py-20 font-mono text-[11px] uppercase text-white/20 tracking-widest italic">
                 Analyse des affects en cours…
@@ -3222,6 +3318,8 @@ export default function Carnet() {
                               <div className="mt-4"><LockedBlock title="Validation des Songes" requirements="1 songe rempli (exploration des Liens)" /></div>
                             )}
                           </div>
+                       ) : analysisErrors["enrich_matrice"] ? (
+                          <AnalysisError onRetry={() => retryAnalysis("enrich_matrice")} />
                        ) : (
                           <div className="text-[11px] font-mono italic opacity-40 uppercase">Analyse en cours...</div>
                        )}
@@ -3572,6 +3670,8 @@ export default function Carnet() {
                       </div>
                     ),
                   )
+                ) : analysisErrors["network"] ? (
+                  <AnalysisError onRetry={() => retryAnalysis("network")} />
                 ) : (
                   <div className="py-20 text-center font-mono text-[11px] uppercase text-white/20 tracking-widest italic">
                     Analyse du climat collectif en cours…

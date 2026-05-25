@@ -57,7 +57,9 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     ended_at TIMESTAMPTZ,
     step_reached INTEGER,
     messages JSONB,
-    reflection_card JSONB
+    reflection_card JSONB,
+    status TEXT,                -- "abandoned" si l'onglet se ferme en pleine conversation
+    user_message_count INTEGER  -- nb de messages utilisateur ; distingue "ouvert sans rien dire" (0) d'un abandon
 );
 
 -- ── feedbacks : retours des personnes ──

@@ -39,7 +39,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL || "https://REDACTED.supabase.co";
 // Toute écriture est filtrée sur ces colonnes : un champ inconnu envoyé par
 // le front est ignoré au lieu de faire échouer la requête.
 const TABLE_COLUMNS: Record<string, string[]> = {
-  sessions:  ["id", "personal_id", "started_at", "ended_at", "step_reached", "messages", "reflection_card", "status"],
+  sessions:  ["id", "personal_id", "started_at", "ended_at", "step_reached", "messages", "reflection_card", "status", "user_message_count"],
   cartes:    ["id", "personal_id", "fragment", "deplacement", "direction", "texture_relationnelle", "sphere", "emotion", "prisme", "date", "image_url", "user_note", "created_at"],
   carnet:    ["id", "personal_id", "plan", "lien_data", "affect_data", "elan_data", "matrice_data", "lueurs", "songes", "serpentin_state", "prismes_unlocked", "last_sync", "created_at"],
   eclats:    ["id", "personal_id", "type", "request_text", "matrice_snapshot", "elan_snapshot", "affect_snapshot", "lien_snapshot", "created_at"],
@@ -108,9 +108,25 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 
+// Répare les défauts JSON les plus courants des LLM : texte parasite autour
+// du JSON, virgules traînantes avant } ou ]. N'est jamais appliquée à un JSON
+// déjà valide — la réparation n'est tentée qu'en repli, après un premier échec.
+function repairJSON(raw: string): string {
+  let s = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
+  // Ne garde que ce qui est entre le premier { ou [ et le dernier } ou ].
+  const candidates = [s.indexOf("{"), s.indexOf("[")].filter((i) => i !== -1);
+  const start = candidates.length ? Math.min(...candidates) : -1;
+  const end = Math.max(s.lastIndexOf("}"), s.lastIndexOf("]"));
+  if (start !== -1 && end > start) s = s.slice(start, end + 1);
+  // Supprime les virgules traînantes : ,} ou ,] (cause n°1 des parse errors).
+  return s.replace(/,(\s*[}\]])/g, "$1");
+}
+
 // Appelle Gemini en attendant un JSON. Gemini renvoie parfois un JSON malformé
-// ou tronqué : dans ce cas l'appel est relancé une fois. Si la réponse est
-// encore invalide, une erreur claire est levée — jamais un JSON.parse opaque.
+// ou tronqué : on tente d'abord un parse direct, puis un parse après réparation
+// des coquilles courantes, et l'appel entier est relancé une fois. Si la
+// réponse est encore invalide, une erreur claire est levée — jamais un
+// JSON.parse opaque.
 async function geminiJSON(args: any): Promise<any> {
   args.config = {
     maxOutputTokens: 1024,                 // défaut prudent ; un caller peut le surcharger via config
@@ -120,12 +136,25 @@ async function geminiJSON(args: any): Promise<any> {
   let lastErr: any;
   for (let attempt = 1; attempt <= 2; attempt++) {
     const result = await ai.models.generateContent(args);
-    const raw = (result.text || "").replace(/```json/g, "").replace(/```/g, "").trim();
+    const text = (result.text || "")
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
+    // 1) tentative directe — un JSON déjà valide n'est jamais altéré.
     try {
-      return JSON.parse(raw);
+      return JSON.parse(text);
     } catch (e: any) {
       lastErr = e;
-      console.warn(`geminiJSON: réponse non-JSON (tentative ${attempt}/2): ${e.message}`);
+    }
+    // 2) repli — on répare les coquilles LLM courantes puis on re-tente.
+    try {
+      return JSON.parse(repairJSON(text));
+    } catch (e: any) {
+      lastErr = e;
+      console.warn(
+        `geminiJSON: réponse non-JSON (tentative ${attempt}/2): ${e.message}\n` +
+          `--- brut (200 c.) ---\n${text.slice(0, 200)}`,
+      );
     }
   }
   throw new Error(`Gemini n'a pas renvoyé de JSON valide après 2 tentatives: ${lastErr?.message}`);
