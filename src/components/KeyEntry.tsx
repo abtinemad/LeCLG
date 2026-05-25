@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Fingerprint } from 'lucide-react';
 
 interface KeyEntryProps {
@@ -75,6 +75,15 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
       {open ? (
         hasKey ? (
           <div ref={containerRef} className="flex items-center gap-2 bg-bg/95 backdrop-blur-sm border border-border rounded-sm px-2.5 py-1" id="key-entry-logout-box">
+            <Link
+              to="/carnet"
+              onClick={() => setOpen(false)}
+              className="text-[11px] font-mono tracking-wider uppercase text-beige-faint hover:text-beige transition-colors"
+              id="key-entry-carnet-link"
+            >
+              Carnet
+            </Link>
+            <span className="text-white/10 text-[9px] font-mono select-none">|</span>
             <button
               onClick={logout}
               className="text-[11px] font-mono tracking-wider uppercase text-red-400 hover:text-red-300 transition-colors"

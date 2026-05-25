@@ -122,20 +122,60 @@ function repairJSON(raw: string): string {
   return s.replace(/,(\s*[}\]])/g, "$1");
 }
 
-// Appelle Gemini en attendant un JSON. Gemini renvoie parfois un JSON malformé
-// ou tronqué : on tente d'abord un parse direct, puis un parse après réparation
-// des coquilles courantes, et l'appel entier est relancé une fois. Si la
-// réponse est encore invalide, une erreur claire est levée — jamais un
-// JSON.parse opaque.
+// Distingue une erreur transitoire de l'API Gemini (surcharge 503, quota 429,
+// timeout — à retenter) d'une erreur dure (clé invalide, modèle introuvable,
+// requête malformée — inutile d'insister, on échoue vite).
+function isHardGeminiError(e: any): boolean {
+  const m = String(e?.message || e || "").toLowerCase();
+  return (
+    /\b(400|401|403|404)\b/.test(m) ||
+    m.includes("api key") ||
+    m.includes("api_key") ||
+    m.includes("unauthenticated") ||
+    m.includes("permission") ||
+    m.includes("invalid_argument") ||
+    m.includes("invalid argument") ||
+    m.includes("not_found") ||
+    m.includes("not found")
+  );
+}
+
+// Appelle Gemini en attendant un JSON. Deux familles d'échec sont gérées :
+//  - l'appel API lui-même échoue : si c'est transitoire (503 « high demand »,
+//    429), on attend un court délai croissant et on retente ; si c'est une
+//    erreur dure, on échoue immédiatement.
+//  - l'appel réussit mais le JSON est malformé : parse direct, puis parse
+//    après réparation des coquilles courantes, puis relance.
+// Après MAX_ATTEMPTS tentatives infructueuses, une erreur claire est levée —
+// jamais un JSON.parse opaque, jamais une exception API brute.
 async function geminiJSON(args: any): Promise<any> {
   args.config = {
     maxOutputTokens: 1024,                 // défaut prudent ; un caller peut le surcharger via config
     ...(args.config || {}),
     responseMimeType: "application/json",   // toujours imposé
   };
+  const MAX_ATTEMPTS = 3;
   let lastErr: any;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const result = await ai.models.generateContent(args);
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // --- Appel Gemini ---
+    let result: any;
+    try {
+      result = await ai.models.generateContent(args);
+    } catch (e: any) {
+      lastErr = e;
+      // Erreur dure (clé, modèle, requête) : inutile de retenter.
+      if (isHardGeminiError(e)) throw e;
+      // Erreur transitoire (surcharge, quota, timeout) : court délai
+      // croissant (1 s, 2 s), puis nouvelle tentative.
+      console.warn(
+        `geminiJSON: appel Gemini en échec transitoire (tentative ${attempt}/${MAX_ATTEMPTS}): ${e?.message}`,
+      );
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, attempt * 1000));
+      }
+      continue;
+    }
+    // --- Parse du JSON renvoyé ---
     const text = (result.text || "")
       .replace(/```json/gi, "")
       .replace(/```/g, "")
@@ -152,12 +192,16 @@ async function geminiJSON(args: any): Promise<any> {
     } catch (e: any) {
       lastErr = e;
       console.warn(
-        `geminiJSON: réponse non-JSON (tentative ${attempt}/2): ${e.message}\n` +
+        `geminiJSON: réponse non-JSON (tentative ${attempt}/${MAX_ATTEMPTS}): ${e.message}\n` +
           `--- brut (200 c.) ---\n${text.slice(0, 200)}`,
       );
+      // JSON malformé : on retente l'appel entier au tour suivant (sans
+      // délai — ce n'est pas une surcharge).
     }
   }
-  throw new Error(`Gemini n'a pas renvoyé de JSON valide après 2 tentatives: ${lastErr?.message}`);
+  throw new Error(
+    `Gemini a échoué après ${MAX_ATTEMPTS} tentatives: ${lastErr?.message}`,
+  );
 }
 
 // Supabase Helper

@@ -18,8 +18,6 @@ import {
   Zap,
   Download,
   Network,
-  Volume2,
-  VolumeX,
   Sparkles,
   X,
   Gem,
@@ -612,7 +610,7 @@ export default function Carnet() {
   // sur un composant qui n'existe plus.
   useEffect(() => {
     return () => {
-      Object.values(retryTimers.current).forEach((id) => clearTimeout(id));
+      Object.values(retryTimers.current).forEach((id) => clearTimeout(id as any));
     };
   }, []);
 
@@ -1415,21 +1413,6 @@ export default function Carnet() {
               <BookOpen size={10} strokeWidth={1.5} />
               <span>carnet</span>
             </Link>
-            <button
-              onClick={toggleSound}
-              className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-beige-faint hover:text-beige ml-1"
-              title={
-                isSoundEnabled
-                  ? "Désactiver la résonance"
-                  : "Activer la résonance"
-              }
-            >
-              {isSoundEnabled ? (
-                <Volume2 size={13} strokeWidth={1.5} />
-              ) : (
-                <VolumeX size={13} strokeWidth={1.5} />
-              )}
-            </button>
             <div className="relative">
               <button
                 onClick={() => setShowKey((v) => !v)}
