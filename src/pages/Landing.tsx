@@ -1,11 +1,10 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { motion, useInView } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { Heart, Fingerprint, History, Waves, Orbit, Sparkles, Gem } from 'lucide-react';
 import { ClarteSection } from '../components/SerpentinGuide';
 import { PaymentWrapper } from '../components/PaymentModal';
 import { LogoEmber } from '../components/LogoEmber';
-import { RetourModal } from '../components/RetourModal';
 
 
 const Step = ({ number, title, desc, note, index }: { number: string; title: string; desc: string; note: string; index: number }) => {
@@ -31,10 +30,6 @@ const Step = ({ number, title, desc, note, index }: { number: string; title: str
 };
 
 export default function Landing() {
-  // Retour : la modale partagée. Sur la Landing, la Clé peut ne pas exister
-  // encore — le retour part alors en anonyme, sans historique ni réponse.
-  const [isRetourModalOpen, setIsRetourModalOpen] = useState(false);
-  const personalId = localStorage.getItem("collegue_personal_id") || "";
   return (
     <div className="relative min-h-screen">
       {/* Grain Overlay */}
@@ -326,20 +321,9 @@ export default function Landing() {
 
         <footer className="border-t border-border/30 pt-16 pb-12 space-y-5">
           <div className="font-mono text-[8px] tracking-widest text-beige-faint uppercase">Le collègue n'est pas un outil de soin.<br />3114 disponible 24h/24 en cas de besoin.</div>
-          <button
-            onClick={() => setIsRetourModalOpen(true)}
-            className="font-mono text-[8px] tracking-widest uppercase text-beige-faint/50 hover:text-beige-faint transition-colors"
-          >
-            Un retour
-          </button>
         </footer>
       </main>
 
-      <RetourModal
-        open={isRetourModalOpen}
-        onClose={() => setIsRetourModalOpen(false)}
-        personalId={personalId}
-      />
     </div>
   );
 }
