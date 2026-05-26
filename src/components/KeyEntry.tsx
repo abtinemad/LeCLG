@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowRight, Fingerprint } from 'lucide-react';
+import { ArrowRight, Fingerprint, BookOpen, LogOut } from 'lucide-react';
 
 interface KeyEntryProps {
   className?: string;
@@ -78,18 +78,20 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
             <Link
               to="/carnet"
               onClick={() => setOpen(false)}
-              className="text-[11px] font-mono tracking-wider uppercase text-beige-faint hover:text-beige transition-colors"
+              className="p-1 flex items-center text-beige-faint hover:text-beige transition-colors"
               id="key-entry-carnet-link"
+              title="Carnet"
             >
-              Carnet
+              <BookOpen size={13} strokeWidth={1.5} />
             </Link>
             <span className="text-white/10 text-[9px] font-mono select-none">|</span>
             <button
               onClick={logout}
-              className="text-[11px] font-mono tracking-wider uppercase text-red-400 hover:text-red-300 transition-colors"
+              className="p-1 flex items-center text-red-400 hover:text-red-300 transition-colors"
               id="key-entry-logout-btn"
+              title="Déconnexion"
             >
-              Déconnecter
+              <LogOut size={13} strokeWidth={1.5} />
             </button>
           </div>
         ) : (

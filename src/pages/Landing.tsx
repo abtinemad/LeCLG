@@ -288,10 +288,10 @@ export default function Landing() {
                 <Heart size={24} className="text-red-400 opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
                 <PaymentWrapper
                   paypalUrl="https://www.paypal.com/donate/?business=REDACTED&no_recurring=0&currency_code=EUR"
-                  title="Don libre"
+                  title="Soutien"
                   color="text-red-400"
                 >
-                  <h3 className="font-mono text-[11px] tracking-widest uppercase text-beige hover:text-white transition-colors cursor-pointer">Don libre</h3>
+                  <h3 className="font-mono text-[11px] tracking-widest uppercase text-red-400 cursor-pointer">Soutien</h3>
                 </PaymentWrapper>
               </div>
               <p className="text-[15px] text-beige-faint antialiased leading-relaxed italic">

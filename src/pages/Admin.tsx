@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Gem } from 'lucide-react';
-import { sbGet } from '../lib/worker';
+import { sbGet, sbUpdate } from '../lib/worker';
 
 interface Session {
   id: string;
@@ -38,6 +38,10 @@ interface Eclat {
   lien_snapshot: any;
   created_at: string;
   personal_id: string;
+  response_text?: string | null;
+  answered_at?: string | null;
+  replies?: any[] | null;
+  replies_closed?: boolean | null;
 }
 
 export default function Admin() {
@@ -52,6 +56,11 @@ export default function Admin() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedEclatId, setSelectedEclatId] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'analyse' | 'eclats'>('list');
+  // Éditeur de réponse d'Éclat (vue détail).
+  const [eclatResponse, setEclatResponse] = useState("");
+  const [eclatSaving, setEclatSaving] = useState(false);
+  const [eclatSaveError, setEclatSaveError] = useState(false);
+  const [eclatClosing, setEclatClosing] = useState(false);
 
   const handleAuth = async () => {
     setLoading(true);
@@ -79,6 +88,57 @@ export default function Admin() {
   const selectedSession = sessions.find(s => s.id === selectedSessionId);
   const sessionFeedback = feedbacks.find(f => f.session_id === selectedSessionId);
   const selectedEclat = eclats.find(e => e.id === selectedEclatId);
+
+  // Quand on change d'Éclat sélectionné, on charge sa réponse existante dans
+  // le champ d'écriture — vide si la demande n'a pas encore été répondue.
+  useEffect(() => {
+    setEclatResponse(selectedEclat?.response_text || "");
+    setEclatSaveError(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEclatId]);
+
+  // Dépose la réponse humaine sur la ligne eclats (sb_update, protégé par le
+  // mot de passe admin côté serveur). answered_at marque la demande comme
+  // répondue : c'est ce que le Carnet de la personne ira lire.
+  const publishEclatResponse = async () => {
+    if (!selectedEclat || !eclatResponse.trim() || eclatSaving) return;
+    setEclatSaving(true);
+    setEclatSaveError(false);
+    const text = eclatResponse.trim();
+    const answered_at = new Date().toISOString();
+    try {
+      await sbUpdate("eclats", selectedEclat.id, { response_text: text, answered_at }, password);
+      // Reflète la publication localement, sans recharger toute la liste.
+      setEclats(prev => prev.map(e =>
+        e.id === selectedEclat.id ? { ...e, response_text: text, answered_at } : e
+      ));
+    } catch (e) {
+      setEclatSaveError(true);
+    } finally {
+      setEclatSaving(false);
+    }
+  };
+
+  // Clôture / réouverture de la possibilité de répondre. replies_closed est
+  // une colonne normale d'eclats : un sb_update admin suffit (déjà protégé
+  // par mot de passe côté serveur). Clôturer ne supprime rien — les réponses
+  // déjà déposées restent visibles ; seul l'ajout devient impossible.
+  const toggleEclatClosure = async () => {
+    if (!selectedEclat || eclatClosing) return;
+    setEclatClosing(true);
+    const next = !selectedEclat.replies_closed;
+    try {
+      await sbUpdate("eclats", selectedEclat.id, { replies_closed: next }, password);
+      setEclats(prev => prev.map(e =>
+        e.id === selectedEclat.id ? { ...e, replies_closed: next } : e
+      ));
+    } catch (e) {
+      // échec silencieux : l'état n'a pas changé, l'admin peut réessayer.
+      console.error("toggle closure failed", e);
+    } finally {
+      setEclatClosing(false);
+    }
+  };
 
   if (!isAuth) {
     return (
@@ -189,7 +249,9 @@ export default function Admin() {
                   >
                     <div className="text-[9px] text-yellow-400/60 tracking-wider mb-1.5 flex justify-between">
                       <span>{date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-                      <span className="text-[7px] uppercase opacity-40 italic">Éclat</span>
+                      {e.answered_at
+                        ? <span className="text-[7px] uppercase tracking-wider text-emerald-500/70 not-italic">✓ Répondu</span>
+                        : <span className="text-[7px] uppercase opacity-40 italic">En attente</span>}
                     </div>
                     <div className="font-serif text-xs text-[#8a8278] italic line-clamp-2">
                        "{e.request_text}"
@@ -261,9 +323,17 @@ export default function Admin() {
                     <div className="text-sm text-beige-dim">{selectedEclat.personal_id}</div>
                   </div>
                   <div className="ml-auto">
-                    <button className="bg-yellow-400 text-black px-4 py-2 font-mono text-[9px] uppercase tracking-widest rounded hover:bg-yellow-300 transition-colors">
-                      Générer Réponse PDF
-                    </button>
+                    {selectedEclat.answered_at ? (
+                      <>
+                        <div className="text-[8px] tracking-widest uppercase text-emerald-500/50 mb-1">Répondu le</div>
+                        <div className="text-sm text-emerald-500/80">{new Date(selectedEclat.answered_at).toLocaleString('fr-FR')}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Statut</div>
+                        <div className="text-sm text-yellow-400/70">En attente de réponse</div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -316,6 +386,86 @@ export default function Admin() {
                        </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Réponse — rédigée à la main, déposée sur la ligne eclats.
+                    answered_at marque la demande comme répondue ; le Carnet
+                    de la personne lit response_text et l'affiche. */}
+                <div className="mt-12 pt-8 border-t border-[#1e1d1a]">
+                  <div className="text-[8px] tracking-widest uppercase text-yellow-400/40 mb-3 ml-1">
+                    Réponse — métabolisation humaine
+                  </div>
+                  <textarea
+                    value={eclatResponse}
+                    onChange={(e) => setEclatResponse(e.target.value)}
+                    placeholder="Écrire la réponse à cette demande d'Éclat…"
+                    rows={12}
+                    className="w-full bg-[#141208] border border-yellow-400/10 rounded-lg p-6 font-serif text-base leading-relaxed text-beige outline-none resize-y focus:border-yellow-400/30 placeholder:text-[#5a5548] placeholder:italic"
+                  />
+                  <div className="flex items-center justify-between gap-6 mt-4">
+                    <div className="text-[9px] text-beige-faint leading-relaxed">
+                      {eclatSaveError ? (
+                        <span className="text-red animate-pulse">Échec de la publication — réessayer.</span>
+                      ) : selectedEclat.answered_at ? (
+                        <span className="italic">Cette réponse est visible dans le Carnet de la personne. La modifier la met à jour.</span>
+                      ) : (
+                        <span className="italic">La réponse apparaîtra dans le Carnet de la personne dès sa publication.</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={publishEclatResponse}
+                      disabled={!eclatResponse.trim() || eclatSaving}
+                      className="flex-shrink-0 bg-yellow-400 text-black px-5 py-2 font-mono text-[9px] uppercase tracking-widest rounded hover:bg-yellow-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      {eclatSaving
+                        ? 'Publication…'
+                        : selectedEclat.answered_at ? 'Mettre à jour la réponse' : 'Publier la réponse'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Réponses de la personne + clôture de l'échange.
+                    Clôturer ne supprime rien : empêche seulement d'ajouter. */}
+                <div className="mt-10 pt-8 border-t border-[#1e1d1a]">
+                  <div className="flex items-center justify-between gap-4 mb-4">
+                    <div className="text-[8px] tracking-widest uppercase text-beige-faint ml-1">
+                      Réponses de la personne
+                      {selectedEclat.replies_closed && (
+                        <span className="ml-2 text-emerald-500/50 normal-case tracking-normal">· clôturé</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={toggleEclatClosure}
+                      disabled={eclatClosing}
+                      className={`flex-shrink-0 px-4 py-1.5 border font-mono text-[8px] uppercase tracking-widest rounded transition-colors disabled:opacity-30 ${
+                        selectedEclat.replies_closed
+                          ? 'border-emerald-500/30 text-emerald-500/70 hover:bg-emerald-500/5'
+                          : 'border-white/10 text-beige-faint hover:bg-white/5'
+                      }`}
+                    >
+                      {eclatClosing
+                        ? '…'
+                        : selectedEclat.replies_closed ? 'Rouvrir les réponses' : 'Clôturer les réponses'}
+                    </button>
+                  </div>
+                  {selectedEclat.replies && selectedEclat.replies.length > 0 ? (
+                    <div className="space-y-3">
+                      {selectedEclat.replies.map((r: any, i: number) => (
+                        <div key={i} className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
+                          <div className="text-[7px] uppercase tracking-widest text-beige-faint mb-2">
+                            {r.at ? new Date(r.at).toLocaleString('fr-FR') : '—'}
+                          </div>
+                          <p className="text-sm font-serif italic text-beige leading-relaxed whitespace-pre-wrap">
+                            "{r.text}"
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs italic text-[#3a3830] py-2">
+                      Aucune réponse de la personne pour l'instant.
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

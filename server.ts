@@ -42,7 +42,7 @@ const TABLE_COLUMNS: Record<string, string[]> = {
   sessions:  ["id", "personal_id", "started_at", "ended_at", "step_reached", "messages", "reflection_card", "status", "user_message_count"],
   cartes:    ["id", "personal_id", "fragment", "deplacement", "direction", "texture_relationnelle", "sphere", "emotion", "prisme", "date", "image_url", "user_note", "created_at"],
   carnet:    ["id", "personal_id", "plan", "lien_data", "affect_data", "elan_data", "matrice_data", "lueurs", "songes", "serpentin_state", "prismes_unlocked", "last_sync", "created_at"],
-  eclats:    ["id", "personal_id", "type", "request_text", "matrice_snapshot", "elan_snapshot", "affect_snapshot", "lien_snapshot", "created_at"],
+  eclats:    ["id", "personal_id", "type", "request_text", "matrice_snapshot", "elan_snapshot", "affect_snapshot", "lien_snapshot", "response_text", "answered_at", "replies", "replies_closed", "created_at"],
   feedbacks: ["id", "personal_id", "content", "rating", "created_at"],
 };
 
@@ -150,9 +150,15 @@ function isHardGeminiError(e: any): boolean {
 // jamais un JSON.parse opaque, jamais une exception API brute.
 async function geminiJSON(args: any): Promise<any> {
   args.config = {
-    maxOutputTokens: 1024,                 // défaut prudent ; un caller peut le surcharger via config
+    maxOutputTokens: 8192,                  // défaut large ; surchargeable par un caller
     ...(args.config || {}),
-    responseMimeType: "application/json",   // toujours imposé
+    responseMimeType: "application/json",    // toujours imposé
+    // Tâches d'extraction JSON : aucun raisonnement interne n'est nécessaire.
+    // Sur les modèles « flash » récents, le « thinking » est actif par défaut
+    // et ses tokens sont décomptés de maxOutputTokens — il dévore le budget,
+    // et le JSON ressort tronqué (« Unterminated string », « Unexpected end
+    // of JSON input »). On le désactive : tout le budget va au JSON renvoyé.
+    thinkingConfig: { thinkingBudget: 0 },
   };
   const MAX_ATTEMPTS = 3;
   let lastErr: any;
@@ -174,6 +180,15 @@ async function geminiJSON(args: any): Promise<any> {
         await new Promise((r) => setTimeout(r, attempt * 1000));
       }
       continue;
+    }
+    // Diagnostic : si Gemini coupe sur la limite de tokens, le JSON sera
+    // forcément incomplet — on le signale explicitement, plutôt que de laisser
+    // un « Unterminated string » opaque surgir plus bas au parse.
+    if (result?.candidates?.[0]?.finishReason === "MAX_TOKENS") {
+      console.warn(
+        `geminiJSON: réponse tronquée par la limite de tokens ` +
+          `(tentative ${attempt}/${MAX_ATTEMPTS}) — augmenter maxOutputTokens pour ce caller.`,
+      );
     }
     // --- Parse du JSON renvoyé ---
     const text = (result.text || "")
@@ -291,6 +306,19 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
+  // --- Sécurité : response_text/answered_at/replies/replies_closed de la
+  // table eclats sont en écriture contrôlée — jamais via le chemin
+  // d'insertion (la demande d'Éclat envoyée par la personne). Sinon une
+  // insertion forgée déposerait un faux Éclat « répondu » ou pré-clôturé.
+  // La réponse passe par sb_update (admin) ; les réponses de la personne
+  // par le handler eclat_reply ; la clôture par sb_update (admin).
+  if (type === "sb_insert" && data.table === "eclats" && data.payload) {
+    delete data.payload.response_text;
+    delete data.payload.answered_at;
+    delete data.payload.replies;
+    delete data.payload.replies_closed;
+  }
+
   if (type === "sb_insert") {
     // --- Plafond : limite de conversations par jour (table sessions) ---
     // On compte les sessions du jour réellement engagées (ended_at renseigné,
@@ -333,6 +361,14 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (type === "sb_update") {
+    // La table eclats porte la réponse de l'Éclat : la déposer est un acte
+    // d'admin. Le filtre eclats?id=eq.X n'est borné par aucun personal_id
+    // (la ligne appartient à la personne, pas à l'admin) — sans ce contrôle,
+    // quiconque connaît un id pourrait injecter une réponse. On exige donc
+    // le mot de passe admin pour toute mise à jour d'un Éclat.
+    if (data.table === "eclats" && (!data.password || data.password !== adminPassword)) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
     // La mise à jour est bornée à l'id, et aussi au personal_id appelant
     // quand il est connu : on ne peut pas écraser la ligne d'un autre utilisateur.
     const payload = cleanPayload(data.table, data.payload);
@@ -358,6 +394,46 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
       console.error("READ ERROR:", e.message);
       return res.json([]);
     }
+  }
+
+  // --- eclat_reply : la personne ajoute une réponse à SON Éclat ---
+  // Chemin volontairement étroit. La personne ne peut pas passer par
+  // sb_update (verrouillé admin sur eclats) : elle ne pourrait sinon écrire
+  // response_text ou le drapeau de clôture. Ici elle ne peut QU'ajouter une
+  // entrée dans replies, et seulement si : l'Éclat existe, son personal_id
+  // correspond au sien, l'Éclat a été répondu, et il n'est pas clôturé.
+  if (type === "eclat_reply") {
+    const eclatId = data && data.eclat_id;
+    const pid = data && data.personal_id;
+    const text = data && typeof data.text === "string" ? data.text.trim() : "";
+    if (!eclatId || !pid || !text) {
+      return res.status(400).json({ error: "eclat_id, personal_id et text requis" });
+    }
+    const rows = await sbRequest(
+      "GET",
+      `eclats?id=eq.${encodeURIComponent(eclatId)}` +
+        `&select=personal_id,replies,replies_closed,answered_at`,
+      null,
+      serviceKey,
+    );
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) return res.status(404).json({ error: "Éclat introuvable" });
+    // La personne ne répond qu'à son propre Éclat.
+    if (row.personal_id !== pid) return res.status(403).json({ error: "Forbidden" });
+    // On ne répond qu'à un Éclat déjà répondu.
+    if (!row.answered_at) return res.status(409).json({ error: "Éclat sans réponse" });
+    // Clôturé : plus aucune réponse acceptée.
+    if (row.replies_closed === true) return res.status(409).json({ error: "closed" });
+
+    const replies = Array.isArray(row.replies) ? row.replies : [];
+    replies.push({ text, at: new Date().toISOString() });
+    await sbRequest(
+      "PATCH",
+      `eclats?id=eq.${encodeURIComponent(eclatId)}`,
+      { replies },
+      serviceKey,
+    );
+    return res.json({ replies });
   }
 
   // AI Workers
@@ -585,15 +661,6 @@ Retourne un JSON pur :
     return res.json(parsed);
   }
 
-  if (type === "eclat") {
-    const result = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
-      config: { systemInstruction: ECLAT_PROMPT, maxOutputTokens: 4096 }
-    });
-    return res.json({ text: result.text });
-  }
-
   res.status(400).json({ error: "Unknown worker type" });
 }));
 
@@ -648,12 +715,6 @@ Retourne un JSON pur : { "title": "Titre bref", "text": "Le texte de la Lueur g�
 const EVAL_NETWORK_PROMPT = `Tu es un analyste des dynamiques collectives. Analyse les fragments du vécu répartis par sphères (Familiale, Sociale, Amoureuse, Professionnelle) issus de la sédimentation des émotions (section Lien).
 Pour chaque sphère, décris brièvement (1-2 phrases) le "climat collectif" ou le sentiment de la communauté associée de manière anonymisée.
 Retourne un JSON pur : { "familiale": "", "sociale": "", "amoureuse": "", "professionnelle": "" }`;
-
-const ECLAT_PROMPT = `Tu es Claude, un analyste psychique d'une profondeur exceptionnelle.
-Tu réalises une lecture "Éclat" : un acte ponctuel, rare et structurant, qui synthétise tout le matériau accumulé.
-Prends en compte : cartes, Lien, Affect, Élan, Matrice, Prismes, Lueurs.
-Produis une lecture dense, visionnaire et poétique. C'est une vision de structure, pas un conseil.
-Retourne un texte libre, profond.`;
 
 app.post("/api/metacognition", asyncHandler(async (req: Request, res: Response) => {
   const { sessions, lien, affect, elan, songes, annotations, structure_invisible }: any = req.body;

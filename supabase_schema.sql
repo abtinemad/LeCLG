@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS public.cartes (
 );
 
 -- ── eclats : requêtes d'Éclat, avec instantanés des couches du Carnet ──
+-- response_text / answered_at portent la réponse humaine, écrite depuis
+-- l'Admin. answered_at nul = demande en attente, renseigné = Éclat répondu.
+-- replies : réponses de la personne (tableau {text, at}). replies_closed :
+-- l'admin a clôturé la possibilité de répondre.
 CREATE TABLE IF NOT EXISTS public.eclats (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     personal_id TEXT,
@@ -46,6 +50,10 @@ CREATE TABLE IF NOT EXISTS public.eclats (
     elan_snapshot JSONB,
     affect_snapshot JSONB,
     lien_snapshot JSONB,
+    response_text TEXT,
+    answered_at TIMESTAMPTZ,
+    replies JSONB DEFAULT '[]'::jsonb,
+    replies_closed BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 

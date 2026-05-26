@@ -38,7 +38,7 @@ import {
   Tooltip
 } from "recharts";
 import { AnimatePresence } from "motion/react";
-import { sbGet, sbInsert, sbUpdate } from "../lib/worker";
+import { sbGet, sbInsert, sbUpdate, sendEclatReply } from "../lib/worker";
 import { ClarteSection, PrismeExplainer } from "../components/SerpentinGuide";
 import { PaymentWrapper } from "../components/PaymentModal";
 import { LueurVisual } from "../components/LueurVisual";
@@ -202,9 +202,18 @@ export default function Carnet() {
   const [sessionsData, setSessionsData] = useState<any[]>(
     JSON.parse(localStorage.getItem("collegue_sessions") || "[]"),
   );
-  const [eclatAnalysis, setEclatAnalysis] = useState<string | null>(
-    localStorage.getItem("collegue_eclat") || null,
-  );
+  // Éclats répondus, du plus récent au plus ancien — ils s'empilent dans le
+  // Carnet. Cache localStorage en JSON ; parse défensif pour qu'une valeur
+  // héritée de l'ancienne clé string ne fasse pas planter l'initialisation.
+  const [eclatList, setEclatList] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem("collegue_eclats");
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
 
   const PRISME_DESCRIPTIONS: Record<string, string> = {
     joie: "L'énergie qui s'expand. La joie est un signal d'adéquation entre l'être et son acte. Elle marque une ouverture et une vitalité retrouvée.",
@@ -304,6 +313,12 @@ export default function Carnet() {
     JSON.parse(localStorage.getItem("collegue_sphere_songes") || "{}"),
   );
   const [isEclatModalOpen, setIsEclatModalOpen] = useState(false);
+  const [readingEclat, setReadingEclat] = useState<any | null>(null);
+  const [readingLueur, setReadingLueur] = useState<any | null>(null);
+  // Zone d'écriture de la réponse de la personne dans la modale Éclat.
+  const [replyDraft, setReplyDraft] = useState("");
+  const [replySending, setReplySending] = useState(false);
+  const [replyError, setReplyError] = useState(false);
   const [eclatRequest, setEclatRequest] = useState("");
   const [eclatStatus, setEclatStatus] = useState<"idle" | "sending" | "sent" | "error">(
     "idle",
@@ -444,6 +459,45 @@ export default function Carnet() {
     sendEclatRequest();
   };
 
+  // Envoi d'une réponse de la personne à un Éclat. Passe par le handler
+  // serveur dédié, qui vérifie l'appartenance et l'état de clôture.
+  const sendReply = async () => {
+    if (!readingEclat || !replyDraft.trim() || replySending) return;
+    setReplySending(true);
+    setReplyError(false);
+    try {
+      const result = await sendEclatReply(
+        readingEclat.id,
+        personalId,
+        replyDraft.trim(),
+      );
+      const newReplies =
+        result && Array.isArray(result.replies) ? result.replies : [];
+      // Met à jour la modale, la pile, et le cache localStorage.
+      setReadingEclat({ ...readingEclat, replies: newReplies });
+      setEclatList((prev) => {
+        const next = prev.map((e) =>
+          e.id === readingEclat.id ? { ...e, replies: newReplies } : e,
+        );
+        localStorage.setItem("collegue_eclats", JSON.stringify(next));
+        return next;
+      });
+      setReplyDraft("");
+    } catch (e) {
+      setReplyError(true);
+    } finally {
+      setReplySending(false);
+    }
+  };
+
+  // Vider la zone d'écriture quand la modale Éclat se ferme.
+  useEffect(() => {
+    if (!readingEclat) {
+      setReplyDraft("");
+      setReplyError(false);
+    }
+  }, [readingEclat]);
+
   // Normalise un prisme (minuscule, sans accent) pour le comparer aux clés
   // de EMOTIONS — les cartes stockent "Joie", "Colère", la clé est "joie".
   const prismeKey = (v?: string) =>
@@ -462,12 +516,17 @@ export default function Carnet() {
       (now.getTime() - firstCardDate.getTime()) / (1000 * 3600 * 24),
     );
 
+    const matriceUnlocked =
+      diffDays >= 21 && cards.length >= 5 && prismesCount >= 2;
+
     return {
       fragments: true,
       lien: true,
       elan: diffDays >= 7 && cards.length >= 3,
       affect: true,
-      matrice: diffDays >= 21 && cards.length >= 5 && prismesCount >= 2,
+      matrice: matriceUnlocked,
+      // Lueurs : la Matrice doit être active, et 30 jours de pratique.
+      lueurs: matriceUnlocked && diffDays >= 30,
     };
   }, [cards, prismesCount]);
 
@@ -797,8 +856,9 @@ export default function Carnet() {
         setMatriceDataAnalysis,
         "collegue_matrice_eval",
         (data) => {
-          // Lueur du mois — logique inchangée : déclenchée si aucune lueur
-          // n'existe encore pour le mois en cours.
+          // Lueur du mois — générée si la section Lueurs est débloquée
+          // (Matrice active + 30 jours) et qu'aucune lueur n'existe encore
+          // pour le mois en cours.
           const now = new Date();
           const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
           const existingLueurs = JSON.parse(
@@ -808,7 +868,7 @@ export default function Carnet() {
             const d = new Date(l.date);
             return `${d.getFullYear()}-${d.getMonth()}` === currentMonth;
           });
-          if (!hasCurrentMonthLueur) {
+          if (unlockedSections.lueurs && !hasCurrentMonthLueur) {
             runAnalysis("eval_lueur", {
               matrice: data,
               lien: lienData,
@@ -1028,6 +1088,28 @@ export default function Carnet() {
           allCards = cloudCards;
         } else {
           allCards = local;
+        }
+
+        // Éclats répondus — le retour humain à une demande d'Éclat.
+        // answered_at non nul = répondu. On récupère tous les Éclats répondus,
+        // du plus récent au plus ancien : ils s'empilent dans le Carnet.
+        const cloudEclats = await sbGet(
+          "eclats",
+          `personal_id=eq.${personalId}&answered_at=not.is.null&order=answered_at.desc`,
+        );
+        if (cloudEclats && Array.isArray(cloudEclats)) {
+          const answered = cloudEclats
+            .filter((e: any) => e.response_text)
+            .map((e: any) => ({
+              id: e.id,
+              request_text: e.request_text,
+              response_text: e.response_text,
+              answered_at: e.answered_at,
+              replies: Array.isArray(e.replies) ? e.replies : [],
+              replies_closed: e.replies_closed === true,
+            }));
+          setEclatList(answered);
+          localStorage.setItem("collegue_eclats", JSON.stringify(answered));
         }
       } catch (e) {
         console.error("Cloud load failed", e);
@@ -3527,58 +3609,84 @@ export default function Carnet() {
                     />
                   </div>
                   <div className="font-mono text-[9px] uppercase tracking-[0.4em] text-[#f59e0b]/40">
-                    Évolution · Lueurs
+                    Lueurs &amp; Éclats
                   </div>
                 </div>
                 <p className="text-[11px] text-beige-faint/60 italic leading-relaxed">
-                  Contenu mensuel généré pour éclairer votre Matrice. Inclus
-                  dans l'abonnement Évolution.
+                  Pour éclairer les vides de votre Matrice.
                 </p>
               </div>
 
-              <div className="space-y-12 overflow-y-auto pr-2 custom-scrollbar pb-6">
-                {lueurs.map((lueur, i) => (
-                  <div key={i} className="flex flex-col gap-6">
-                    <LueurVisual context={lueur.context} />
-                    <div className="p-5 rounded-lg border border-white/10 bg-white/5 transition-all text-center">
-                      <Sparkles className="w-5 h-5 text-white/40 mb-4 mx-auto" />
-                      <div className="font-serif text-lg text-white italic mb-2">
-                        {lueur.title}
-                      </div>
-                      <p className="text-[14px] leading-relaxed text-beige-faint">
-                        {lueur.text}
-                      </p>
-                      <div className="mt-4 font-mono text-[7px] uppercase tracking-widest text-white/20">
-                        {new Date(lueur.date).toLocaleDateString("fr-FR", {
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </div>
-                    </div>
+              <div className="overflow-y-auto pr-2 custom-scrollbar pb-6">
+                {lueurs.length > 0 ? (
+                  <div className="space-y-3">
+                    {lueurs.map((lueur, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setReadingLueur(lueur)}
+                        className="w-full text-left p-5 bg-white/5 hover:bg-white/[0.07] border border-white/10 rounded-lg transition-colors group"
+                      >
+                        <div className="font-mono text-[8px] uppercase tracking-widest text-white/40 mb-3 flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-2">
+                            <Sparkles className="w-3 h-3 text-white/20" />
+                            <span>{i === 0 ? "Dernière lueur" : "Lueur"}</span>
+                          </span>
+                          {lueur.date && (
+                            <span className="text-white/25 tracking-wider">
+                              {new Date(lueur.date).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })}
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-serif text-base text-white/90 italic mb-1.5">
+                          {lueur.title}
+                        </div>
+                        <p className="text-[13px] font-serif text-white/70 leading-relaxed line-clamp-3">
+                          {lueur.text}
+                        </p>
+                        <div className="mt-3 font-mono text-[7px] uppercase tracking-[0.25em] text-white/30 group-hover:text-white/50 transition-colors">
+                          Lire en entier →
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                ))}
-                {[...Array(3)].map((_, i) => (
-                  <div
-                    key={`latent-${i}`}
-                    className="p-4 rounded-lg border border-dashed border-white/5 bg-transparent opacity-40"
-                  >
-                    <div className="h-4 flex items-center justify-center font-mono text-[6px] uppercase tracking-[0.3em] text-white/40">
-                      Lueur latente
-                    </div>
+                ) : (
+                  <div className="w-full max-w-sm mx-auto">
+                    <LockedBlock
+                      title="Lueurs"
+                      requirements="30 jours + Matrice dévoilée"
+                    />
                   </div>
-                ))}
+                )}
               </div>
 
               <div className="mt-8 pt-8 border-t border-white/5 flex-shrink-0 space-y-6">
-                {eclatAnalysis ? (
-                  <div className="p-5 bg-white/5 border border-white/10 rounded-lg">
-                    <div className="font-mono text-[8px] uppercase tracking-widest text-white/40 mb-3 flex items-center gap-2">
-                      <Gem className="w-3 h-3 text-white/20" />
-                      <span>Dernier Éclat</span>
-                    </div>
-                    <p className="text-[13px] font-serif italic text-white/80 leading-relaxed line-clamp-3">
-                      "{eclatAnalysis}"
-                    </p>
+                {eclatList.length > 0 ? (
+                  <div className="space-y-3">
+                    {eclatList.map((e, i) => (
+                      <button
+                        key={e.id || i}
+                        onClick={() => setReadingEclat(e)}
+                        className="w-full text-left p-5 bg-white/5 hover:bg-white/[0.07] border border-white/10 rounded-lg transition-colors group"
+                      >
+                        <div className="font-mono text-[8px] uppercase tracking-widest text-white/40 mb-3 flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-2">
+                            <Gem className="w-3 h-3 text-white/20" />
+                            <span>{i === 0 ? "Dernier Éclat" : "Éclat"}</span>
+                          </span>
+                          {e.answered_at && (
+                            <span className="text-white/25 tracking-wider">
+                              {new Date(e.answered_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[13px] font-serif italic text-white/80 leading-relaxed line-clamp-3">
+                          "{e.response_text}"
+                        </p>
+                        <div className="mt-3 font-mono text-[7px] uppercase tracking-[0.25em] text-white/30 group-hover:text-white/50 transition-colors">
+                          Lire en entier →
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 ) : (
                   <div className="text-center">
@@ -3697,20 +3805,12 @@ export default function Carnet() {
               </button>
 
               <div className="text-center mb-8">
-                <PaymentWrapper
-                  paypalUrl="https://www.paypal.com/donate/?business=REDACTED&item_name=Eclat+du+Coll%C3%A8gue&currency_code=EUR"
-                  title="L'Éclat"
-                  color="text-yellow-400"
-                  className="group inline-block"
-                >
-                  <Zap className="w-8 h-8 text-yellow-400 mx-auto mb-4 group-hover:scale-110 transition-transform" />
-                  <h3 className="text-xl font-serif text-white mb-2 italic hover:text-yellow-400 transition-colors">
-                    L'Éclat
-                  </h3>
-                </PaymentWrapper>
+                <Zap className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+                <h3 className="text-xl font-serif text-white mb-2 italic">
+                  L'Éclat
+                </h3>
                 <p className="text-xs text-beige-faint/60 leading-relaxed max-w-sm mx-auto italic mt-4">
-                  Lecture en profondeur collaborative. Votre Matrice et votre
-                  demande seront transmises pour une métabolisation par
+                  Votre Matrice et votre demande seront métabolisées par
                   l'expérience humaine. Un acte ponctuel, rare et structurant.
                 </p>
               </div>
@@ -3772,26 +3872,6 @@ export default function Carnet() {
                     />
                   </div>
 
-                  <div className="bg-yellow-400/5 border border-yellow-400/10 p-4 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <Gem className="w-4 h-4 text-yellow-400/60 mt-0.5" />
-                      <div className="text-[11px] text-yellow-400/80 leading-relaxed font-serif italic">
-                        Cet acte nécessite un soin particulier. L'Éclat est un
-                        service ponctuel impliquant une lecture humaine
-                        approfondie et collaborative de votre structure
-                        psychique.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 p-4 rounded-lg bg-yellow-400/5 border border-yellow-400/10">
-                    <p className="text-[9px] font-mono leading-relaxed text-yellow-400/40 uppercase tracking-widest text-center">
-                      Attention : Cet acte requiert une intervention humaine
-                      spécifique. Un don libre pourra être fait après réception
-                      de votre lueur.
-                    </p>
-                  </div>
-
                   <button
                     onClick={handleEclatSubmit}
                     disabled={!eclatRequest.trim() || eclatStatus === "sending"}
@@ -3801,8 +3881,198 @@ export default function Carnet() {
                       ? "Transmission…"
                       : "Envoyer la demande"}
                   </button>
+
+                  {/* Don — discret, secondaire, sous l'action principale */}
+                  <div className="flex justify-center">
+                    <PaymentWrapper
+                      paypalUrl="https://www.paypal.com/donate/?business=REDACTED&item_name=Eclat+du+Coll%C3%A8gue&currency_code=EUR"
+                      title="Soutien"
+                      color="text-yellow-400"
+                      className="group inline-flex"
+                    >
+                      <div className="flex items-center gap-1.5 text-white/25 group-hover:text-yellow-400/70 transition-colors">
+                        <Heart className="w-3 h-3" />
+                        <span className="font-mono text-[8px] uppercase tracking-[0.25em]">
+                          Soutenir
+                        </span>
+                      </div>
+                    </PaymentWrapper>
+                  </div>
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+
+        {/* Lecture d'un Éclat — le retour humain s'affiche en entier, dans
+            le Carnet de la personne. Pas de fichier : la réponse vit ici. */}
+        {readingEclat && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setReadingEclat(null)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-[#0a0a0a] border border-yellow-400/20 rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="absolute top-0 inset-x-0 h-1 bg-yellow-400/40" />
+              <button
+                onClick={() => setReadingEclat(null)}
+                className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors z-10"
+              >
+                <X className="w-5 h-5 text-beige-faint/40" />
+              </button>
+              <div className="px-10 pt-10 pb-5 flex-shrink-0">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.3em] text-yellow-400/50">
+                    <Gem className="w-3.5 h-3.5 text-yellow-400/40" />
+                    <span>L'Éclat</span>
+                  </div>
+                  {readingEclat.answered_at && (
+                    <span className="font-mono text-[9px] tracking-wider text-white/30">
+                      {new Date(readingEclat.answered_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="px-10 pb-10 overflow-y-auto custom-scrollbar">
+                {readingEclat.request_text && (
+                  <div className="mb-6 pb-6 border-b border-white/5">
+                    <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-white/25 mb-2">
+                      Votre demande
+                    </div>
+                    <p className="text-[12px] font-serif italic text-white/45 leading-relaxed whitespace-pre-wrap">
+                      "{readingEclat.request_text}"
+                    </p>
+                  </div>
+                )}
+                <p className="text-[15px] font-serif italic text-white/85 leading-loose whitespace-pre-wrap">
+                  {readingEclat.response_text}
+                </p>
+
+                {/* Réponses de la personne — elle peut répondre tant que
+                    l'admin n'a pas clôturé. Ce n'est pas un fil symétrique :
+                    le collègue lit, et clôture quand il le décide. */}
+                {(((readingEclat.replies && readingEclat.replies.length > 0)) ||
+                  !readingEclat.replies_closed) && (
+                  <div className="mt-8 pt-6 border-t border-white/5 space-y-4">
+                    {readingEclat.replies && readingEclat.replies.length > 0 && (
+                      <div className="space-y-3">
+                        {readingEclat.replies.map((r: any, i: number) => (
+                          <div
+                            key={i}
+                            className="p-4 rounded-lg bg-white/[0.03] border border-white/5"
+                          >
+                            <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-white/25 mb-2">
+                              Votre réponse
+                              {r.at
+                                ? " · " +
+                                  new Date(r.at).toLocaleDateString("fr-FR", {
+                                    day: "2-digit",
+                                    month: "short",
+                                  })
+                                : ""}
+                            </div>
+                            <p className="text-[13px] font-serif text-white/70 leading-relaxed whitespace-pre-wrap">
+                              {r.text}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {readingEclat.replies_closed ? (
+                      <div className="text-center font-mono text-[7px] uppercase tracking-[0.3em] text-white/20 italic py-2">
+                        Échange clôturé
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <textarea
+                          value={replyDraft}
+                          onChange={(e) => setReplyDraft(e.target.value)}
+                          placeholder="Répondre à cet Éclat…"
+                          rows={4}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[13px] text-beige italic focus:border-yellow-400/30 outline-none transition-colors resize-none custom-scrollbar"
+                        />
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="font-mono text-[8px] text-white/25 italic leading-relaxed">
+                            {replyError ? (
+                              <span className="text-red-400">
+                                Échec de l'envoi — réessayer.
+                              </span>
+                            ) : (
+                              "Votre réponse sera lue par le collègue."
+                            )}
+                          </span>
+                          <button
+                            onClick={sendReply}
+                            disabled={!replyDraft.trim() || replySending}
+                            className="flex-shrink-0 px-5 py-2 bg-yellow-400/90 text-black font-mono text-[8px] uppercase tracking-[0.2em] rounded-full hover:bg-yellow-300 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                          >
+                            {replySending ? "Envoi…" : "Envoyer"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+        {/* Lecture d'une Lueur — la reconnaissance s'affiche en entier,
+            avec son visuel. Ouverte depuis la pile du modal Lueurs. */}
+        {readingLueur && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setReadingLueur(null)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-lg max-h-[85vh] flex flex-col bg-[#0a0a0a] border border-white/15 rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="absolute top-0 inset-x-0 h-1 bg-white/20" />
+              <button
+                onClick={() => setReadingLueur(null)}
+                className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors z-10"
+              >
+                <X className="w-5 h-5 text-beige-faint/40" />
+              </button>
+              <div className="px-10 pt-10 pb-5 flex-shrink-0">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.3em] text-white/40">
+                    <Sparkles className="w-3.5 h-3.5 text-white/30" />
+                    <span>Lueur</span>
+                  </div>
+                  {readingLueur.date && (
+                    <span className="font-mono text-[9px] tracking-wider text-white/30">
+                      {new Date(readingLueur.date).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="px-10 pb-10 overflow-y-auto custom-scrollbar">
+                <div className="mb-6">
+                  <LueurVisual context={readingLueur.context} />
+                </div>
+                <div className="font-serif text-xl text-white italic mb-3 text-center">
+                  {readingLueur.title}
+                </div>
+                <p className="text-[15px] font-serif text-beige-faint leading-loose whitespace-pre-wrap text-center">
+                  {readingLueur.text}
+                </p>
+              </div>
             </motion.div>
           </div>
         )}
