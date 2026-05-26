@@ -1544,7 +1544,18 @@ export default function Chat() {
           }),
         });
         const data = await res.json();
-        const raw = ((data.content && data.content[0]?.text) || "{}")
+        // Un échec côté worker (erreur Anthropic, 5xx, etc.) renvoie un objet
+        // sans `content`. Sans ce garde-fou, `raw` retombait sur "{}" et toutes
+        // les étapes passaient silencieusement à false — indiscernable d'une
+        // vraie éval « rien n'a encore émergé ». On le rend visible et on sort.
+        if (!data || !data.content || !data.content[0]?.text) {
+          console.warn(
+            "eval: réponse worker sans contenu exploitable — étapes non réévaluées",
+            data?.error || data,
+          );
+          return;
+        }
+        const raw = data.content[0].text
           .replace(/```json|```/g, "")
           .trim();
         const result: EvalResult = JSON.parse(raw);

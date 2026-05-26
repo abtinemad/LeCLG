@@ -288,8 +288,9 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   if (!serviceKey) throw new Error("SUPABASE_SERVICE_KEY is missing");
 
   // Extract personal_id from payload or params to forward it to Supabase as header
-  const personalId = (data?.payload && (data.payload.personal_id || data.payload.user_id)) ||
-                     (data?.params && ((data.params.match(/personal_id=eq\.([^&]+)/) || [])[1] || (data.params.match(/user_id=eq\.([^&]+)/) || [])[1]));
+  const personalId =
+    (data?.payload && data.payload.personal_id) ||
+    (data?.params && (data.params.match(/personal_id=eq\.([^&]+)/) || [])[1]);
 
   // --- Sécurité : seules les tables connues sont accessibles ---
   if (type === "sb_insert" || type === "sb_update" || type === "sb_read") {

@@ -81,8 +81,16 @@ CREATE TABLE IF NOT EXISTS public.feedbacks (
 );
 
 -- ── Row Level Security ──
--- Le proxy serveur utilise la Service Key, mais la RLS est activée sur les
--- 5 tables par défense en profondeur. L'isolation se fait par personal_id.
+-- ATTENTION : le proxy serveur utilise la Service Key, qui CONTOURNE la RLS.
+-- Tant qu'aucune policy n'est définie, la RLS activée ci-dessous ne protège
+-- donc PAS le chemin applicatif normal — ce n'est pas une « défense en
+-- profondeur » effective. L'isolation réelle des données repose entièrement
+-- sur le contrôle d'accès côté serveur (handler sb_read de server.ts) et sur
+-- l'imprévisibilité du personal_id.
+-- La RLS n'apporte une protection que si la clé `anon` venait à être exposée
+-- ET que des policies sont écrites. Si l'isolation par RLS est souhaitée,
+-- ajouter des policies explicites et ne plus tout faire transiter par la
+-- Service Key.
 
 ALTER TABLE public.carnet    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cartes    ENABLE ROW LEVEL SECURITY;
