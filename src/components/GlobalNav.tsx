@@ -37,13 +37,11 @@ export function GlobalNav() {
           <Link to="/climat" className={`transition-colors flex items-center p-1.5 ${location.pathname === '/climat' ? 'text-beige' : 'text-beige-faint hover:text-beige'}`} title="Climat collectif" id="nav-link-climat">
             <Cloud size={13} strokeWidth={1.5} />
           </Link>
-          <Link to="/chat" className={`font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${location.pathname === '/chat' ? 'text-beige bg-white/5 ring-1 ring-white/10' : 'text-beige-faint hover:text-beige'}`} id="nav-link-penser">
-            <Brain size={10} strokeWidth={1.5} />
-            <span>penser</span>
+          <Link to="/chat" className={`transition-colors flex items-center p-1.5 ${location.pathname === '/chat' ? 'text-beige' : 'text-beige-faint hover:text-beige'}`} title="Penser" id="nav-link-penser">
+            <Brain size={13} strokeWidth={1.5} />
           </Link>
-          <Link to="/carnet" className={`font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${location.pathname === '/carnet' ? 'text-beige bg-white/5 ring-1 ring-white/10' : 'text-beige-faint hover:text-beige'}`} id="nav-link-carnet">
-            <BookOpen size={10} strokeWidth={1.5} />
-            <span>carnet</span>
+          <Link to="/carnet" className={`transition-colors flex items-center p-1.5 ${location.pathname === '/carnet' ? 'text-beige' : 'text-beige-faint hover:text-beige'}`} title="Carnet" id="nav-link-carnet">
+            <BookOpen size={13} strokeWidth={1.5} />
           </Link>
         </div>
       )}

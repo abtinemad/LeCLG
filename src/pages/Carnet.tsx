@@ -23,6 +23,7 @@ import {
   Gem,
   Feather,
   Activity,
+  MessageCircle,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -42,6 +43,7 @@ import { sbGet, sbInsert, sbUpdate, sendEclatReply } from "../lib/worker";
 import { ClarteSection, PrismeExplainer } from "../components/SerpentinGuide";
 import { PaymentWrapper } from "../components/PaymentModal";
 import { LueurVisual } from "../components/LueurVisual";
+import { RetourModal } from "../components/RetourModal";
 export const EMOTIONS = {
   joie: {
     label: "Joie (Prisme)",
@@ -193,7 +195,7 @@ export default function Carnet() {
   );
   const [isPrismesModalOpen, setIsPrismesModalOpen] = useState(false);
   const [isLueursModalOpen, setIsLueursModalOpen] = useState(false);
-  const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
+
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [selectedPrisme, setSelectedPrisme] = useState<string | null>(null);
   const [networkData, setNetworkData] = useState<any>(
@@ -324,6 +326,10 @@ export default function Carnet() {
     "idle",
   );
   const [carnatCreatedAt, setCarnetCreatedAt] = useState<string | null>(null);
+
+  // Retour : ouverture de la modale partagée (état interne géré par le
+  // composant RetourModal).
+  const [isRetourModalOpen, setIsRetourModalOpen] = useState(false);
 
   // --- Synchronization logic ---
   const checkPermanentUnlock = async (
@@ -1483,17 +1489,17 @@ export default function Carnet() {
             </Link>
             <Link
               to="/chat"
-              className={`font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${location.pathname === "/chat" ? "text-beige bg-white/5 ring-1 ring-white/10" : "text-beige-faint hover:text-beige"}`}
+              className={`transition-colors flex items-center p-1.5 ${location.pathname === "/chat" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
+              title="Penser"
             >
-              <Brain size={10} strokeWidth={1.5} />
-              <span>penser</span>
+              <Brain size={13} strokeWidth={1.5} />
             </Link>
             <Link
               to="/carnet"
-              className={`font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${location.pathname === "/carnet" ? "text-beige bg-white/5 ring-1 ring-white/10" : "text-beige-faint hover:text-beige"}`}
+              className={`transition-colors flex items-center p-1.5 ${location.pathname === "/carnet" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
+              title="Carnet"
             >
-              <BookOpen size={10} strokeWidth={1.5} />
-              <span>carnet</span>
+              <BookOpen size={13} strokeWidth={1.5} />
             </Link>
             <div className="relative">
               <button
@@ -1644,12 +1650,12 @@ export default function Carnet() {
             </button>
 
             <button
-              onClick={() => setIsNetworkModalOpen(true)}
+              onClick={() => setIsRetourModalOpen(true)}
               className="group flex flex-col items-center gap-2 transition-all"
-              title="Climat de sphère"
+              title="Faire un retour"
             >
-              <div className="w-8 h-8 rounded-full border border-white/5 bg-white/[0.02] flex items-center justify-center group-hover:border-purple-500/30 transition-all">
-                <Network className="w-4 h-4 text-white/10 group-hover:text-purple-400/40 transition-all" />
+              <div className="w-8 h-8 rounded-full border border-white/5 bg-white/[0.02] flex items-center justify-center group-hover:border-white/30 transition-all">
+                <MessageCircle className="w-4 h-4 text-white/10 group-hover:text-white/60 transition-all" />
               </div>
             </button>
           </div>
@@ -2677,6 +2683,44 @@ export default function Carnet() {
                        <div className="w-full max-w-sm"><LockedBlock title="Points de fragilité & Ressources" requirements="5 fragments + 3 prismes" /></div>
                     </div>
                   )}
+
+                  {/* Climat de sphère — relogé depuis son ancienne fenêtre :
+                      le climat collectif appartient à la lecture du Lien. */}
+                  <div className="pt-8 border-t border-white/5">
+                    <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] mb-6 inline-flex items-center gap-2">
+                      <Network className="w-3 h-3" />
+                      Climat de sphère
+                    </div>
+                    {networkData ? (
+                      <>
+                        <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+                          {["Familiale", "Sociale", "Amoureuse", "Professionnelle"].map(
+                            (sphere) => (
+                              <div key={sphere} className="space-y-2">
+                                <div className="text-[9px] font-mono uppercase opacity-70 text-[#EA580C]">
+                                  {sphere}
+                                </div>
+                                <p className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
+                                  {networkData[sphere.toLowerCase()] ||
+                                    "Aucune sédimentation collective détectée dans cette sphère."}
+                                </p>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                        <p className="mt-6 text-[11px] font-mono leading-relaxed text-beige-faint/40 italic">
+                          Le climat de sphère reflète les sentiments qui
+                          habitent vos sphères de vie.
+                        </p>
+                      </>
+                    ) : analysisErrors["network"] ? (
+                      <AnalysisError onRetry={() => retryAnalysis("network")} />
+                    ) : (
+                      <div className="py-10 text-center font-mono text-[11px] uppercase text-white/20 tracking-widest italic">
+                        Analyse du climat collectif en cours…
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             ) : (
@@ -3705,81 +3749,6 @@ export default function Carnet() {
             </motion.div>
           </div>
         )}
-        {isNetworkModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsNetworkModalOpen(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-2xl p-10 shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
-            >
-              <div className="absolute top-0 inset-x-0 h-1 bg-purple-500/20" />
-              <button
-                onClick={() => setIsNetworkModalOpen(false)}
-                className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5 text-beige-faint/40" />
-              </button>
-
-              <div className="mb-10 flex-shrink-0">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-6 h-6 rounded-full border border-white/5 overflow-hidden opacity-20 hover:opacity-80 transition-opacity">
-                    <img
-                      src="/logo.png"
-                      alt="Logo"
-                      className="w-full h-full object-cover grayscale"
-                    />
-                  </div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.4em] text-purple-400/30">
-                    Climat de sphère
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-6 overflow-y-auto pr-2 custom-scrollbar">
-                {networkData ? (
-                  ["Familiale", "Sociale", "Amoureuse", "Professionnelle"].map(
-                    (sphere) => (
-                      <div
-                        key={sphere}
-                        className="p-5 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-purple-500/5 transition-colors group"
-                      >
-                        <div className="font-mono text-[8px] uppercase tracking-widest text-purple-400/40 mb-3 group-hover:text-purple-400/60 transition-colors">
-                          {sphere}
-                        </div>
-                        <p className="text-[14px] font-serif italic text-beige-faint/80 leading-relaxed">
-                          {networkData[sphere.toLowerCase()] ||
-                            "Aucune sédimentation collective détectée dans cette sphère."}
-                        </p>
-                      </div>
-                    ),
-                  )
-                ) : analysisErrors["network"] ? (
-                  <AnalysisError onRetry={() => retryAnalysis("network")} />
-                ) : (
-                  <div className="py-20 text-center font-mono text-[11px] uppercase text-white/20 tracking-widest italic">
-                    Analyse du climat collectif en cours…
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-white/5 text-center">
-                <p className="text-[11px] font-mono leading-relaxed text-beige-faint/40 italic">
-                  Ces textures sont le reflet anonymisé du sentiment des
-                  communautés qui habitent vos sphères de vie, issues de la
-                  sédimentation de vos vécus.
-                </p>
-              </div>
-            </motion.div>
-          </div>
-        )}
 
         {isEclatModalOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
@@ -4076,7 +4045,14 @@ export default function Carnet() {
             </motion.div>
           </div>
         )}
+
       </AnimatePresence>
+
+      <RetourModal
+        open={isRetourModalOpen}
+        onClose={() => setIsRetourModalOpen(false)}
+        personalId={personalId}
+      />
     </div>
   );
 }

@@ -43,7 +43,7 @@ const TABLE_COLUMNS: Record<string, string[]> = {
   cartes:    ["id", "personal_id", "fragment", "deplacement", "direction", "texture_relationnelle", "sphere", "emotion", "prisme", "date", "image_url", "user_note", "created_at"],
   carnet:    ["id", "personal_id", "plan", "lien_data", "affect_data", "elan_data", "matrice_data", "lueurs", "songes", "serpentin_state", "prismes_unlocked", "last_sync", "created_at"],
   eclats:    ["id", "personal_id", "type", "request_text", "matrice_snapshot", "elan_snapshot", "affect_snapshot", "lien_snapshot", "response_text", "answered_at", "replies", "replies_closed", "created_at"],
-  feedbacks: ["id", "personal_id", "content", "rating", "created_at"],
+  feedbacks: ["id", "personal_id", "message", "response_text", "answered_at", "created_at"],
 };
 
 // --- Plafond : nombre maximum de conversations réellement engagées par jour
@@ -306,17 +306,22 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  // --- Sécurité : response_text/answered_at/replies/replies_closed de la
-  // table eclats sont en écriture contrôlée — jamais via le chemin
-  // d'insertion (la demande d'Éclat envoyée par la personne). Sinon une
-  // insertion forgée déposerait un faux Éclat « répondu » ou pré-clôturé.
-  // La réponse passe par sb_update (admin) ; les réponses de la personne
-  // par le handler eclat_reply ; la clôture par sb_update (admin).
-  if (type === "sb_insert" && data.table === "eclats" && data.payload) {
-    delete data.payload.response_text;
-    delete data.payload.answered_at;
-    delete data.payload.replies;
-    delete data.payload.replies_closed;
+  // --- Sécurité : les champs de réponse (response_text / answered_at, plus
+  // replies / replies_closed pour les eclats) sont en écriture contrôlée —
+  // jamais via le chemin d'insertion (la demande d'Éclat ou le retour envoyé
+  // par la personne). Sinon une insertion forgée déposerait un faux Éclat ou
+  // un faux retour déjà « répondu » / pré-clôturé. La réponse passe par
+  // sb_update (admin) ; les réponses de la personne à un Éclat par le handler
+  // eclat_reply ; la clôture par sb_update (admin).
+  if (type === "sb_insert" && data.payload) {
+    if (data.table === "eclats" || data.table === "feedbacks") {
+      delete data.payload.response_text;
+      delete data.payload.answered_at;
+    }
+    if (data.table === "eclats") {
+      delete data.payload.replies;
+      delete data.payload.replies_closed;
+    }
   }
 
   if (type === "sb_insert") {
@@ -361,12 +366,15 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (type === "sb_update") {
-    // La table eclats porte la réponse de l'Éclat : la déposer est un acte
-    // d'admin. Le filtre eclats?id=eq.X n'est borné par aucun personal_id
-    // (la ligne appartient à la personne, pas à l'admin) — sans ce contrôle,
-    // quiconque connaît un id pourrait injecter une réponse. On exige donc
-    // le mot de passe admin pour toute mise à jour d'un Éclat.
-    if (data.table === "eclats" && (!data.password || data.password !== adminPassword)) {
+    // Les tables eclats et feedbacks portent la réponse de l'admin : la
+    // déposer est un acte d'admin. Le filtre ?id=eq.X n'est borné par aucun
+    // personal_id (la ligne appartient à la personne, pas à l'admin) — sans
+    // ce contrôle, quiconque connaît un id pourrait injecter une réponse. On
+    // exige donc le mot de passe admin pour toute mise à jour de ces tables.
+    if (
+      (data.table === "eclats" || data.table === "feedbacks") &&
+      (!data.password || data.password !== adminPassword)
+    ) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     // La mise à jour est bornée à l'id, et aussi au personal_id appelant

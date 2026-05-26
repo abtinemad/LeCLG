@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Gem } from 'lucide-react';
 import { sbGet, sbUpdate } from '../lib/worker';
@@ -17,16 +17,17 @@ interface Session {
     direction: string;
     texture_relationnelle?: string;
     sphere?: string;
+    prisme?: string;
   };
 }
 
 interface Feedback {
   id: string;
-  session_id: string;
-  utilite: number;
-  clarte: number;
-  posture_ok: boolean;
-  commentaire?: string;
+  personal_id: string;
+  message: string;
+  response_text?: string | null;
+  answered_at?: string | null;
+  created_at: string;
 }
 
 interface Eclat {
@@ -55,12 +56,17 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedEclatId, setSelectedEclatId] = useState<string | null>(null);
-  const [view, setView] = useState<'list' | 'analyse' | 'eclats'>('list');
+  const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'analyse' | 'eclats' | 'retours'>('list');
   // Éditeur de réponse d'Éclat (vue détail).
   const [eclatResponse, setEclatResponse] = useState("");
   const [eclatSaving, setEclatSaving] = useState(false);
   const [eclatSaveError, setEclatSaveError] = useState(false);
   const [eclatClosing, setEclatClosing] = useState(false);
+  // Éditeur de réponse de retour (vue détail).
+  const [feedbackResponse, setFeedbackResponse] = useState("");
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
+  const [feedbackSaveError, setFeedbackSaveError] = useState(false);
 
   const handleAuth = async () => {
     setLoading(true);
@@ -68,8 +74,13 @@ export default function Admin() {
     try {
       const data = await sbGet("sessions", "order=started_at.desc&limit=500", password);
       setSessions(data);
-      const fbData = await sbGet("feedbacks", "order=created_at.desc&limit=500", password);
-      setFeedbacks(fbData);
+      try {
+        const fbData = await sbGet("feedbacks", "order=created_at.desc&limit=200", password);
+        setFeedbacks(fbData);
+      } catch (e) {
+        console.warn("Table feedbacks: erreur de lecture", e);
+        setFeedbacks([]);
+      }
       try {
         const eclatData = await sbGet("eclats", "order=created_at.desc&limit=100", password);
         setEclats(eclatData);
@@ -86,8 +97,21 @@ export default function Admin() {
   };
 
   const selectedSession = sessions.find(s => s.id === selectedSessionId);
-  const sessionFeedback = feedbacks.find(f => f.session_id === selectedSessionId);
   const selectedEclat = eclats.find(e => e.id === selectedEclatId);
+  const selectedFeedback = feedbacks.find(f => f.id === selectedFeedbackId);
+
+  // Nombre de prismes distincts débloqués par une personne, sur 10 — calculé
+  // sur l'ensemble de ses sessions. Un prisme est une émotion débloquée sur
+  // une carte de réflexion quand l'équilibre est atteint.
+  const prismeCount = (pid?: string | null): number => {
+    if (!pid) return 0;
+    return new Set(
+      sessions
+        .filter(s => s.personal_id === pid)
+        .map(s => s.reflection_card?.prisme)
+        .filter(Boolean)
+    ).size;
+  };
 
   // Quand on change d'Éclat sélectionné, on charge sa réponse existante dans
   // le champ d'écriture — vide si la demande n'a pas encore été répondue.
@@ -96,6 +120,13 @@ export default function Admin() {
     setEclatSaveError(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEclatId]);
+
+  // Charge la réponse existante d'un retour dans le champ d'écriture.
+  useEffect(() => {
+    setFeedbackResponse(selectedFeedback?.response_text || "");
+    setFeedbackSaveError(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFeedbackId]);
 
   // Dépose la réponse humaine sur la ligne eclats (sb_update, protégé par le
   // mot de passe admin côté serveur). answered_at marque la demande comme
@@ -137,6 +168,28 @@ export default function Admin() {
       console.error("toggle closure failed", e);
     } finally {
       setEclatClosing(false);
+    }
+  };
+
+  // Dépose la réponse de l'admin sur un retour. sb_update sur feedbacks est
+  // protégé par le mot de passe admin côté serveur, comme pour les eclats.
+  // answered_at marque le retour comme répondu : c'est ce que le Carnet de
+  // la personne ira lire pour afficher la réponse.
+  const publishFeedbackResponse = async () => {
+    if (!selectedFeedback || !feedbackResponse.trim() || feedbackSaving) return;
+    setFeedbackSaving(true);
+    setFeedbackSaveError(false);
+    const text = feedbackResponse.trim();
+    const answered_at = new Date().toISOString();
+    try {
+      await sbUpdate("feedbacks", selectedFeedback.id, { response_text: text, answered_at }, password);
+      setFeedbacks(prev => prev.map(f =>
+        f.id === selectedFeedback.id ? { ...f, response_text: text, answered_at } : f
+      ));
+    } catch (e) {
+      setFeedbackSaveError(true);
+    } finally {
+      setFeedbackSaving(false);
     }
   };
 
@@ -236,6 +289,15 @@ export default function Admin() {
             {eclats.length > 0 && <span className="bg-yellow-400/20 text-yellow-500 px-1.5 py-0.5 rounded-full text-[7px]">{eclats.length}</span>}
           </button>
 
+          <button 
+            onClick={() => { setView('retours'); setSelectedFeedbackId(null); }}
+            className={`w-full text-left px-5 py-3 border-b border-[#1e1d1a] text-[9px] tracking-widest uppercase transition-colors flex items-center justify-between
+              ${view === 'retours' ? 'bg-[#141210] text-beige border-l-2 border-l-beige' : 'text-beige-faint hover:bg-[#0f0e0c]'}`}
+          >
+            <span>✉ Retours</span>
+            {feedbacks.length > 0 && <span className="bg-white/10 text-beige-dim px-1.5 py-0.5 rounded-full text-[7px]">{feedbacks.length}</span>}
+          </button>
+
           <div className="divide-y divide-[#1a1918]">
             {view === 'eclats' ? (
               eclats.map(e => {
@@ -255,6 +317,28 @@ export default function Admin() {
                     </div>
                     <div className="font-serif text-xs text-[#8a8278] italic line-clamp-2">
                        "{e.request_text}"
+                    </div>
+                  </div>
+                );
+              })
+            ) : view === 'retours' ? (
+              feedbacks.map(f => {
+                const date = new Date(f.created_at);
+                return (
+                  <div
+                    key={f.id}
+                    onClick={() => setSelectedFeedbackId(f.id)}
+                    className={`px-5 py-4 cursor-pointer transition-colors hover:bg-[#0f0e0c]
+                      ${selectedFeedbackId === f.id ? 'bg-[#141210] border-l-2 border-l-beige' : ''}`}
+                  >
+                    <div className="text-[9px] text-[#5a5548] tracking-wider mb-1.5 flex justify-between">
+                      <span>{date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      {f.answered_at
+                        ? <span className="text-[7px] uppercase tracking-wider text-emerald-500/70 not-italic">✓ Répondu</span>
+                        : <span className="text-[7px] uppercase opacity-40 italic">En attente</span>}
+                    </div>
+                    <div className="font-serif text-xs text-[#8a8278] italic line-clamp-2">
+                      {f.message}
                     </div>
                   </div>
                 );
@@ -281,7 +365,6 @@ export default function Admin() {
                   <div className="flex gap-2.5 items-center">
                     <span className="text-[8px] tracking-widest uppercase text-beige-faint">{s.step_reached}/5</span>
                     {s.step_reached >= 5 && <span className="text-[8px] text-green tracking-wider">✓ complète</span>}
-                    {feedbacks.some(f => f.session_id === s.id) && <span className="text-[8px] text-[#4a6a88] tracking-wider">feedback</span>}
                   </div>
                 </div>
               );
@@ -298,9 +381,8 @@ export default function Admin() {
                <div className="grid grid-cols-4 gap-4 mb-8">
                   {[
                     { label: "Sessions", val: sessions.length },
-                    { label: "Complétion", val: `${Math.round((sessions.filter(s => s.step_reached >= 5).length / sessions.length) * 100)}%` },
-                    { label: "Feedbacks", val: feedbacks.length },
-                    { label: "Utilité moyenne", val: feedbacks.length > 0 ? (feedbacks.reduce((a, b) => a + (b.utilite || 0), 0) / feedbacks.length).toFixed(1) : "—" },
+                    { label: "Complétion", val: sessions.length > 0 ? `${Math.round((sessions.filter(s => s.step_reached >= 5).length / sessions.length) * 100)}%` : "—" },
+                    { label: "Retours", val: feedbacks.length },
                     { label: "Éclats", val: eclats.length }
                   ].map((stat, i) => (
                     <div key={i} className="bg-[#0d0c0a] border border-[#1e1d1a] rounded p-5">
@@ -321,6 +403,10 @@ export default function Admin() {
                   <div>
                     <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">ID Client</div>
                     <div className="text-sm text-beige-dim">{selectedEclat.personal_id}</div>
+                  </div>
+                  <div>
+                    <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Prismes</div>
+                    <div className="text-sm text-beige-dim">{prismeCount(selectedEclat.personal_id)}/10</div>
                   </div>
                   <div className="ml-auto">
                     {selectedEclat.answered_at ? (
@@ -473,6 +559,85 @@ export default function Admin() {
                 Sélectionner un Éclat pour voir les données transmises
               </div>
             )
+          ) : view === 'retours' ? (
+            selectedFeedback ? (
+              <div className="p-8">
+                <div className="flex flex-wrap gap-8 mb-8 border-b border-[#1e1d1a] pb-6">
+                  <div>
+                    <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Reçu le</div>
+                    <div className="text-sm text-beige-dim">{new Date(selectedFeedback.created_at).toLocaleString('fr-FR')}</div>
+                  </div>
+                  <div>
+                    <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">ID Client</div>
+                    <div className="text-sm text-beige-dim">{selectedFeedback.personal_id || 'anonyme'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Prismes</div>
+                    <div className="text-sm text-beige-dim">{prismeCount(selectedFeedback.personal_id)}/10</div>
+                  </div>
+                  <div className="ml-auto">
+                    {selectedFeedback.answered_at ? (
+                      <>
+                        <div className="text-[8px] tracking-widest uppercase text-emerald-500/50 mb-1">Répondu le</div>
+                        <div className="text-sm text-emerald-500/80">{new Date(selectedFeedback.answered_at).toLocaleString('fr-FR')}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Statut</div>
+                        <div className="text-sm text-yellow-400/70">En attente de réponse</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mb-10">
+                  <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-3 ml-1">Le retour</div>
+                  <div className="bg-[#0d0c0a] border border-[#1e1d1a] rounded-lg p-6 font-serif text-base leading-relaxed text-beige whitespace-pre-wrap">
+                    {selectedFeedback.message}
+                  </div>
+                </div>
+
+                {/* Réponse — facultative. Déposée via sb_update (protégé par
+                    le mot de passe admin). Le Carnet de la personne la lit
+                    et l'affiche dans sa modale « Un retour ». */}
+                <div className="mt-12 pt-8 border-t border-[#1e1d1a]">
+                  <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-3 ml-1">
+                    Réponse — facultative
+                  </div>
+                  <textarea
+                    value={feedbackResponse}
+                    onChange={(e) => setFeedbackResponse(e.target.value)}
+                    placeholder="Répondre à ce retour, si une réponse est utile…"
+                    rows={8}
+                    className="w-full bg-[#0d0c0a] border border-[#1e1d1a] rounded-lg p-6 font-serif text-base leading-relaxed text-beige outline-none resize-y focus:border-beige-faint placeholder:text-[#5a5548] placeholder:italic"
+                  />
+                  <div className="flex items-center justify-between gap-6 mt-4">
+                    <div className="text-[9px] text-beige-faint leading-relaxed">
+                      {feedbackSaveError ? (
+                        <span className="text-red animate-pulse">Échec de la publication — réessayer.</span>
+                      ) : selectedFeedback.answered_at ? (
+                        <span className="italic">Cette réponse est visible par la personne dans « Un retour ». La modifier la met à jour.</span>
+                      ) : (
+                        <span className="italic">La réponse apparaîtra côté personne dès sa publication.</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={publishFeedbackResponse}
+                      disabled={!feedbackResponse.trim() || feedbackSaving}
+                      className="flex-shrink-0 bg-beige text-bg px-5 py-2 font-mono text-[9px] uppercase tracking-widest rounded hover:bg-[#f0e0c0] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      {feedbackSaving
+                        ? 'Publication…'
+                        : selectedFeedback.answered_at ? 'Mettre à jour la réponse' : 'Publier la réponse'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full font-serif italic text-sm text-[#2a2820]">
+                Sélectionner un retour
+              </div>
+            )
           ) : selectedSession ? (
             <div className="p-8">
               <div className="flex flex-wrap gap-6 mb-8 border-b border-[#1e1d1a] pb-6">
@@ -480,7 +645,8 @@ export default function Admin() {
                   { lbl: 'Date', val: new Date(selectedSession.started_at).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) },
                   { lbl: 'Messages', val: (selectedSession.messages || []).length },
                   { lbl: 'Étapes', val: `${selectedSession.step_reached}/5` },
-                  { lbl: 'ID Client', val: selectedSession.personal_id || 'anonyme' }
+                  { lbl: 'ID Client', val: selectedSession.personal_id || 'anonyme' },
+                  { lbl: 'Prismes', val: `${prismeCount(selectedSession.personal_id)}/10` }
                 ].map((m, i) => (
                   <div key={i}>
                     <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">{m.lbl}</div>
@@ -527,31 +693,6 @@ export default function Admin() {
                 </div>
               </div>
             )}
-
-              {sessionFeedback && (
-                <div className="bg-[#0d0c0a] border border-[#1e1d1a] rounded p-5 mb-8">
-                   <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-4">Feedback</div>
-                   <div className="flex gap-8 mb-4">
-                      <div>
-                        <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Utilité</div>
-                        <div className="text-lg text-green">{sessionFeedback.utilite}/5</div>
-                      </div>
-                      <div>
-                        <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Clarté</div>
-                        <div className="text-lg text-beige">{sessionFeedback.clarte}/5</div>
-                      </div>
-                      <div>
-                        <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Posture</div>
-                        <div className={`text-lg ${sessionFeedback.posture_ok ? 'text-green' : 'text-red'}`}>{sessionFeedback.posture_ok ? 'Oui' : 'Non'}</div>
-                      </div>
-                   </div>
-                   {sessionFeedback.commentaire && (
-                     <div className="font-serif italic text-xs text-[#8a8278] leading-relaxed border-t border-[#1e1d1a] pt-4">
-                       "{sessionFeedback.commentaire}"
-                     </div>
-                   )}
-                </div>
-              )}
 
               <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-5">Transcript</div>
               <div className="space-y-4">

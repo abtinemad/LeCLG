@@ -11,11 +11,13 @@ import {
   Cloud,
   X,
   Gem,
+  MessageCircle,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { sbInsert, sbUpdate, sbGet } from "../lib/worker";
 import { ClarteSection } from "../components/SerpentinGuide";
 import { LogoEmber } from "../components/LogoEmber";
+import { RetourModal } from "../components/RetourModal";
 
 // ============================================================
 // ICONS
@@ -302,6 +304,8 @@ export default function Chat() {
   const [pendingStep, setPendingStep] = useState<number | null>(null);
   const [sessionActive, setSessionActive] = useState(false);
   const [showEnded, setShowEnded] = useState(false);
+  // Modale de retour, accessible depuis l'écran de fin de séance.
+  const [isRetourModalOpen, setIsRetourModalOpen] = useState(false);
   // Phase de clôture : "none" tant que les 5 étapes ne sont pas validées,
   // "awaiting-reply" entre le message de validation et le miroir,
   // "closed" une fois le miroir envoyé.
@@ -2361,17 +2365,17 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
             </Link>
             <Link
               to="/chat"
-              className={`font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${location.pathname === "/chat" ? "text-beige bg-white/5 ring-1 ring-white/10" : "text-beige-faint hover:text-beige"}`}
+              className={`transition-colors flex items-center p-1.5 ${location.pathname === "/chat" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
+              title="Penser"
             >
-              <Brain size={10} strokeWidth={1.5} />
-              <span>penser</span>
+              <Brain size={13} strokeWidth={1.5} />
             </Link>
             <Link
               to="/carnet"
-              className={`font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${location.pathname === "/carnet" ? "text-beige bg-white/5 ring-1 ring-white/10" : "text-beige-faint hover:text-beige"}`}
+              className={`transition-colors flex items-center p-1.5 ${location.pathname === "/carnet" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
+              title="Carnet"
             >
-              <BookOpen size={10} strokeWidth={1.5} />
-              <span>carnet</span>
+              <BookOpen size={13} strokeWidth={1.5} />
             </Link>
             {sessionActive && !showEnded && (
               <button
@@ -2740,6 +2744,15 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                 </button>
               </div>
 
+              {/* Un mot sur l'outil — discret, après les actions de séance. */}
+              <button
+                onClick={() => setIsRetourModalOpen(true)}
+                className="flex items-center gap-2 font-mono text-[9px] tracking-widest uppercase text-beige-faint/50 hover:text-beige-faint transition-colors"
+              >
+                <MessageCircle className="w-3 h-3" />
+                Faire un retour
+              </button>
+
               {/* Mentions — pied de page */}
               <div className="w-full max-w-[560px] border-t border-border/30 pt-6 space-y-3 text-left">
                 <p className="text-[12px] leading-relaxed text-beige-faint italic">
@@ -3025,6 +3038,12 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
           </motion.div>
         )}
       </AnimatePresence>
+
+      <RetourModal
+        open={isRetourModalOpen}
+        onClose={() => setIsRetourModalOpen(false)}
+        personalId={personalId}
+      />
 
     </div>
   );

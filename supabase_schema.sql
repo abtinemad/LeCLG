@@ -70,12 +70,13 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     user_message_count INTEGER  -- nb de messages utilisateur ; distingue "ouvert sans rien dire" (0) d'un abandon
 );
 
--- ── feedbacks : retours des personnes ──
+-- ── feedbacks : retours libres des personnes (+ réponse éventuelle) ──
 CREATE TABLE IF NOT EXISTS public.feedbacks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     personal_id TEXT,
-    content TEXT,
-    rating INTEGER,
+    message TEXT,
+    response_text TEXT,
+    answered_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
