@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Brain, BookOpen, Cloud } from 'lucide-react';
+import { BookOpen, Brain, Cloud } from 'lucide-react';
 import { KeyEntry } from './KeyEntry';
 
 export function GlobalNav() {
@@ -18,7 +18,7 @@ export function GlobalNav() {
       
       {isLanding ? (
         <div className="flex items-center gap-3" id="global-nav-landing-links">
-          <Link to="/climat" className="transition-colors flex items-center p-1.5 text-beige-faint hover:text-beige" title="Climat collectif" id="nav-link-climat-landing">
+           <Link to="/climat" className="transition-colors flex items-center p-1.5 text-beige-faint hover:text-beige" title="Climat collectif" id="nav-link-climat-landing">
             <Cloud size={13} strokeWidth={1.5} />
           </Link>
           <Link to="/chat" className="transition-colors flex items-center p-1.5 text-beige-faint hover:text-beige" title="Converser" id="nav-link-penser-landing">

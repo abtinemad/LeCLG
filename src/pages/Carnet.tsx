@@ -1462,13 +1462,13 @@ export default function Carnet() {
       <header className="fixed top-0 left-0 right-0 border-b border-border bg-bg/90 backdrop-blur-md z-[9999]">
         <div className="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link
-              to="/"
+            <button
+              onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))}
               className="p-1 hover:bg-white/10 rounded-full transition-colors"
               title="Retour"
             >
               <ArrowLeft className="w-4 h-4 text-beige-faint" />
-            </Link>
+            </button>
             {currentPlan === "reconnaissance" && (
               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green/10 border border-green/20">
                 <div className="w-1 h-1 rounded-full bg-green animate-pulse" />

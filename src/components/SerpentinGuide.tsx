@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Brain, BookOpen, Gem, Heart, HelpCircle, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, BookOpen, Brain, Gem, Heart, HelpCircle, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight } from 'lucide-react';
 import { sbGet } from '../lib/worker';
 import { SECTION_GUIDE, CONCEPTS } from '../data/clarte-socle';
 import { SerpentinCanvas } from './SerpentinCanvas';

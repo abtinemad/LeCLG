@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft,
   Cloud, 
@@ -17,6 +17,7 @@ import { ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis } fro
 export default function Climat() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetch('/api/climate')
@@ -63,10 +64,10 @@ export default function Climat() {
         {/* Grain Overlay */}
         <div className="fixed inset-0 pointer-events-none z-[9999] opacity-60 mix-blend-soft-light" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")` }}></div>
         <main className="max-w-[720px] mx-auto px-6 md:px-8 pt-24 pb-32">
-          <Link to="/" className="inline-flex items-center gap-2 font-mono text-[9px] tracking-widest uppercase text-beige-faint hover:text-beige transition-colors mb-12">
+          <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))} className="inline-flex items-center gap-2 font-mono text-[9px] tracking-widest uppercase text-beige-faint hover:text-beige transition-colors mb-12">
             <ArrowLeft size={10} />
             <span>Retour</span>
-          </Link>
+          </button>
           <div className="text-center py-20">
             <h1 className="font-serif italic text-3xl font-medium text-beige mb-4">Climat en formation</h1>
             <p className="text-beige-dim text-sm max-w-md mx-auto leading-relaxed">
@@ -103,10 +104,10 @@ export default function Climat() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <Link to="/" className="inline-flex items-center gap-2 font-mono text-[9px] tracking-widest uppercase text-beige-faint hover:text-beige transition-colors mb-12">
+          <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))} className="inline-flex items-center gap-2 font-mono text-[9px] tracking-widest uppercase text-beige-faint hover:text-beige transition-colors mb-12">
             <ArrowLeft size={10} />
             <span>Retour</span>
-          </Link>
+          </button>
 
           {/* Page Title & description */}
           <div className="mb-16">

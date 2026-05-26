@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Download,
@@ -296,6 +296,7 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 // ============================================================
 export default function Chat() {
   const location = useLocation();
+  const navigate = useNavigate();
   // Session
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2347,13 +2348,13 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
       <header className="fixed top-0 left-0 right-0 border-b border-border bg-bg z-[9999]">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3 overflow-hidden">
-            <Link
-              to="/"
+            <button
+              onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))}
               className="p-1 hover:bg-white/10 rounded-full transition-colors"
               title="Retour"
             >
               <ArrowLeft className="w-4 h-4 text-beige-faint" />
-            </Link>
+            </button>
           </div>
           <div className="flex items-center gap-3">
             <Link
