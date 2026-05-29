@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     started_at TIMESTAMPTZ DEFAULT now(),
     ended_at TIMESTAMPTZ,
     step_reached INTEGER,
-    messages JSONB,
+    messages JSONB CHECK (messages IS NULL OR messages = '[]'::jsonb), -- garantie DB : jamais de contenu de conversation, seulement vide
     reflection_card JSONB,
     status TEXT,                -- "abandoned" si l'onglet se ferme en pleine conversation
     user_message_count INTEGER  -- nb de messages utilisateur ; distingue "ouvert sans rien dire" (0) d'un abandon
@@ -77,6 +77,19 @@ CREATE TABLE IF NOT EXISTS public.feedbacks (
     message TEXT,
     response_text TEXT,
     answered_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ── access : contrôle d'accès par personal_id (code à 6 chiffres) ──
+-- code_hash : HMAC(personal_id + code, ACCESS_PEPPER) — jamais le code en clair.
+-- failed_attempts / locked_until : verrou anti-brute-force, géré côté serveur.
+-- Cette table N'EST PAS dans TABLE_COLUMNS : inaccessible par le chemin sb_*
+-- du front, uniquement par les handlers serveur dédiés (account_create / verify).
+CREATE TABLE IF NOT EXISTS public.access (
+    personal_id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL,
+    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -97,3 +110,4 @@ ALTER TABLE public.cartes    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.eclats    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sessions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.feedbacks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.access    ENABLE ROW LEVEL SECURITY;

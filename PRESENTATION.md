@@ -20,8 +20,8 @@ Dans un monde saturé d'informations et d'immédiateté, l'application propose u
 Un dialogue structuré en 5 étapes non-intrusives :
 - **Situation** : Définition neutre du contexte.
 - **Ressenti** : Contact avec la charge émotionnelle/sensorielle.
-- **Diffraction** : Exploration des regards extérieurs.
 - **Demande** : Digestion et transformation du besoin.
+- **Diffraction** : Exploration des regards extérieurs.
 - **Équilibre** : Identification d'une direction ou d'un apaisement.
 
 ### Le Serpentin (Guide Visuel)
@@ -40,9 +40,9 @@ L'application apprend à "connaître" les patterns du sujet au fil des sessions 
 ## 3. Présentation Technique
 
 ### Architecture Stack
-- **Frontend** : React 18, Vite, Tailwind CSS, Motion (React) pour les animations.
+- **Frontend** : React 19, Vite, Tailwind CSS, Motion (React) pour les animations.
 - **Backend** : Node.js (Express) agissant comme proxy sécurisé.
-- **IA** : Gemini 3 Flash (Google) pour l'analyse sémantique, l'évaluation structurelle et la génération de contenu poétique.
+- **IA** : architecture hybride — Claude (Anthropic) pour le dialogue du collègue et l'évaluation des étapes ; Gemini 3.5 Flash (Google) pour les analyses du Carnet/Matrice, les cartes de réflexion et la génération de contenu poétique.
 - **Persistance** : Hybride LocalStorage (immédiat) et Supabase (optionnel, pour la continuité multi-appareils).
 
 ### Schéma de Données : La Matrice
@@ -63,9 +63,9 @@ L'anonymat n'est pas une option, c'est le socle du projet :
 - **Sans Compte** : Aucune adresse email, aucun nom, aucune donnée personnelle (PII) n'est demandée.
 - **Sans Tracé Publicitaire** : Aucun tracker tiers.
 - **Soumission Éphémère** : Les conversations elles-mêmes ne sont pas persistées sur nos serveurs. Seule la structure extraite (la carte de réflexion) est stockée pour nourrir le Carnet de l'utilisateur.
-- **Clé privative** : L'accès aux données cloud est protégé par la clé que seul l'utilisateur possède.
+- **Clé d'accès** : La clé identifie le Carnet, complétée par un code à 6 chiffres choisi par l'utilisateur. Les deux sont nécessaires pour accéder aux données, et le code est vérifié côté serveur (avec verrou anti-force-brute). Les données sensibles sont en outre chiffrées au repos : une fuite de la base de données ne révélerait que du contenu illisible. (À noter : l'exploitant du service peut techniquement déchiffrer les données côté serveur — le chiffrement protège contre un accès à la base, pas contre l'opérateur lui-même.)
 
 ---
 
 ## 4. Conclusion
-"Le Collègue" réinvente la relation homme-machine non pas comme une assistance à la tâche, mais comme un **miroir de structure**. C'est une technologie qui s'efface au profit de la pensée de l'utilisateur, garantissant un espace de liberté totale et de sécurité absolue pour explorer la complexité du vécu.
+"Le Collègue" réinvente la relation homme-machine non pas comme une assistance à la tâche, mais comme un **miroir de structure**. C'est une technologie qui s'efface au profit de la pensée de l'utilisateur, garantissant un espace de liberté et de confidentialité pour explorer la complexité du vécu.

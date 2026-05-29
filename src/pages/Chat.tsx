@@ -60,14 +60,17 @@ const ENGAGEMENT_MIN_USER_MESSAGES = 3;
 // de pose — faire émerger une direction depuis l'intérieur de la personne.
 // HARD_MESSAGE_LIMIT : limite finale. Le miroir se déclenche, équilibre
 // validé ou non — une conversation se referme toujours par le miroir.
-const LANDING_THRESHOLD = 50;
-const HARD_MESSAGE_LIMIT = 75;
+const LANDING_THRESHOLD = 28;
+const HARD_MESSAGE_LIMIT = 32;
 const LANDING_NOTE =
   "[Note interne (ne pas citer) : la conversation s'étire et risque de tourner en boucle. Sans la clore brutalement ni l'annoncer, oriente-la vers un point de pose — aide la personne à faire émerger une direction, une clarté, quelque chose depuis l'intérieur d'elle-même. N'ouvre pas de nouveaux territoires. Si ça tourne sans avancer, nomme-le doucement.]";
 
 // Nudge doux : au bout de NUDGE_THRESHOLD échanges sans progression (aucune
 // étape validée), le collègue propose en douceur d'ouvrir un autre angle.
 const NUDGE_THRESHOLD = 8;
+// Si la boucle persiste au-delà de ce non-progrès soutenu, on n'insiste plus
+// pour avancer : on oriente vers un point de pose (boucle = rumination).
+const STUCK_LANDING_THRESHOLD = 11;
 const NUDGE_NOTE =
   "[Note interne : l'échange creuse le même point depuis un moment. Si cela semble juste, propose à la personne, avec beaucoup de douceur, d'ouvrir un autre angle — sans le nommer, sans la presser. Si tu sens qu'elle a encore besoin de rester là, n'insiste pas et continue de l'accompagner.]";
 
@@ -351,6 +354,11 @@ export default function Chat() {
   const [hasStoredKey, setHasStoredKey] = useState(false);
   const [showIdentityModal, setShowIdentityModal] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
+  // Code d'accès à 6 chiffres (choisi à la création de la clé).
+  const [accessCode, setAccessCode] = useState("");
+  const [codeCreated, setCodeCreated] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [codeSubmitting, setCodeSubmitting] = useState(false);
   const currentSessionId = useRef<string | null>(null);
 
   // Voix
@@ -1205,6 +1213,45 @@ export default function Chat() {
     return key;
   };
 
+  // ── Création du compte : associe un code à 6 chiffres à la clé ──────
+  const createAccount = async () => {
+    if (!/^\d{6}$/.test(accessCode)) {
+      setCodeError("Le code doit comporter exactement 6 chiffres.");
+      return;
+    }
+    setCodeSubmitting(true);
+    setCodeError(null);
+    try {
+      let pid = personalId;
+      const send = (id: string) =>
+        fetch("/api/worker", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "account_create",
+            data: { personal_id: id, code: accessCode },
+          }),
+        });
+      let res = await send(pid);
+      // Collision improbable de clé : on en régénère une et on réessaie une fois.
+      if (res.status === 409) {
+        pid = generateNewKey();
+        res = await send(pid);
+      }
+      if (!res.ok) {
+        setCodeError("Impossible d'enregistrer le code. Réessayez.");
+        setCodeSubmitting(false);
+        return;
+      }
+      localStorage.setItem("collegue_personal_id", pid);
+      localStorage.setItem("collegue_access_code", accessCode);
+      setCodeCreated(true);
+    } catch (e) {
+      setCodeError("Erreur réseau. Réessayez.");
+    }
+    setCodeSubmitting(false);
+  };
+
   // ── Démarrage de session ──────────────────────────────────
   const startSessionFlow = () => {
     const localCardsStr = localStorage.getItem("collegue_cards");
@@ -1751,11 +1798,19 @@ export default function Chat() {
       payload = [payload[0], ...payload.slice(-MAX_CONTEXT)];
     }
 
-    // Phase d'atterrissage : au-delà de LANDING_THRESHOLD, si l'équilibre
-    // (étape 4) n'est pas validé, on oriente le collègue vers un point de
-    // pose. La crise prime — si une crise est en cours, pas d'atterrissage.
+    // Compteur de non-progrès : un échange de plus sans nouvelle étape
+    // validée (il se remet à zéro à chaque validation d'étape).
+    const exchangesNow = exchangesSinceProgress + 1;
+    setExchangesSinceProgress(exchangesNow);
+
+    // Atterrissage. Déclencheur principal : le NON-PROGRÈS soutenu — une
+    // conversation qui tourne en boucle (la frontière réflexion/rumination).
+    // Déclencheur secondaire : la longueur, simple garde-fou pour un
+    // cheminement qui avance mais s'éternise. Dans les deux cas, seulement si
+    // l'Équilibre (étape 4) n'est pas validé et hors crise (la crise prime).
     const inLanding =
-      updatedMessages.length >= LANDING_THRESHOLD &&
+      (exchangesNow >= STUCK_LANDING_THRESHOLD ||
+        updatedMessages.length >= LANDING_THRESHOLD) &&
       !validatedSteps.has(4) &&
       !crisisDetected;
     if (inLanding && payload.length > 0) {
@@ -1766,12 +1821,9 @@ export default function Chat() {
       };
     }
 
-    // Nudge doux : un échange de plus sans progression. Au seuil exact, on
-    // glisse une note interne pour que le collègue propose d'avancer — une
-    // seule fois, le compteur ne se réarmant qu'à la prochaine étape validée.
-    const exchangesNow = exchangesSinceProgress + 1;
-    setExchangesSinceProgress(exchangesNow);
-    if (exchangesNow === NUDGE_THRESHOLD && payload.length > 0) {
+    // Nudge doux (une seule fois) : premier signal de non-progrès, avant
+    // d'en arriver à l'atterrissage. On ne l'ajoute pas si on atterrit déjà.
+    if (!inLanding && exchangesNow === NUDGE_THRESHOLD && payload.length > 0) {
       const lastIdx = payload.length - 1;
       payload[lastIdx] = {
         ...payload[lastIdx],
@@ -2711,13 +2763,55 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                     continuité, leur cohérence d'une session à l'autre. Cette
                     clé en est la porte.
                   </p>
-                  <Link
-                    to="/carnet"
-                    className="inline-flex items-center gap-2 font-mono text-[10px] tracking-widest uppercase text-bg bg-beige px-5 py-2.5 rounded hover:opacity-90 transition-opacity"
-                  >
-                    <BookOpen size={12} strokeWidth={1.5} />
-                    Aller au carnet
-                  </Link>
+                  {!codeCreated ? (
+                    <div className="space-y-3">
+                      <p className="text-[13px] leading-relaxed text-beige-faint">
+                        Choisissez un code à 6 chiffres. Avec votre clé, il
+                        protège l'accès à votre carnet. Gardez-le précieusement —
+                        il vous sera demandé pour vous reconnecter.
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          maxLength={6}
+                          value={accessCode}
+                          onChange={(e) =>
+                            setAccessCode(
+                              e.target.value.replace(/\D/g, "").slice(0, 6),
+                            )
+                          }
+                          placeholder="••••••"
+                          className="flex-1 font-mono text-[15px] tracking-[0.4em] text-beige bg-[#161512] border border-[#3a3420] rounded px-4 py-3 placeholder:text-beige-faint focus:outline-none focus:border-beige-faint"
+                        />
+                        <button
+                          onClick={createAccount}
+                          disabled={codeSubmitting || accessCode.length !== 6}
+                          className="font-mono text-[9px] tracking-widest uppercase text-bg bg-beige px-5 py-3 rounded hover:opacity-90 transition-opacity shrink-0 disabled:opacity-40"
+                        >
+                          {codeSubmitting ? "..." : "Valider"}
+                        </button>
+                      </div>
+                      {codeError && (
+                        <p className="text-[12px] text-red-400/80">{codeError}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-[13px] leading-relaxed text-beige-faint">
+                        Code enregistré. Votre clé et votre code ouvrent
+                        désormais votre carnet.
+                      </p>
+                      <Link
+                        to="/carnet"
+                        className="inline-flex items-center gap-2 font-mono text-[10px] tracking-widest uppercase text-bg bg-beige px-5 py-2.5 rounded hover:opacity-90 transition-opacity"
+                      >
+                        <BookOpen size={12} strokeWidth={1.5} />
+                        Aller au carnet
+                      </Link>
+                    </div>
+                  )}
                 </div>
               )}
 

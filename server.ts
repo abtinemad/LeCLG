@@ -17,8 +17,32 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 
 dotenv.config();
+
+// --- Variables d'environnement obligatoires ---
+// On refuse de démarrer si l'une manque, plutôt que de se rabattre en silence
+// sur des valeurs de prod codées en dur (ce qui les ferait fuiter dans le
+// source et masquerait une mauvaise configuration).
+const REQUIRED_ENV = [
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_KEY",
+  "GEMINI_API_KEY",
+  "CF_WORKER_URL",
+  "INTERNAL_SECRET",
+  "ADMIN_PASSWORD",
+  "ACCESS_PEPPER",
+] as const;
+
+const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missingEnv.length > 0) {
+  console.error(
+    `[FATAL] Variables d'environnement manquantes : ${missingEnv.join(", ")}. ` +
+      `Renseignez-les (voir .env.example) avant de démarrer le serveur.`,
+  );
+  process.exit(1);
+}
 
 const app = express();
 app.set("trust proxy", 1);
@@ -32,8 +56,39 @@ const apiLimiter = rateLimit({
   message: { error: "Trop de requêtes, veuillez réessayer plus tard." }
 });
 
+// --- Limiteur plus strict : analyses IA coûteuses (Gemini) ---
+// Ne s'applique QU'aux analyses (enrich_*/eval_* du worker, et les routes
+// dédiées /api/reflection et /api/metacognition). Le chat et l'eval d'étape,
+// à fort volume légitime, ainsi que les opérations Supabase, n'y sont PAS
+// soumis. Basé sur l'IP : générer de nouvelles clés ne le contourne pas.
+const ANALYSIS_TYPES = new Set([
+  "enrich_fragments", "enrich_lien", "enrich_affect", "enrich_elan", "enrich_matrice",
+  "eval_lien", "eval_affect", "eval_elan", "eval_matrice", "eval_prisme", "eval_lueur", "eval_network",
+]);
+
+const costlyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,                 // par IP ; ajustable selon l'usage réel
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  skip: (req) => {
+    const t = (req.body && req.body.type) as string | undefined;
+    if (t === undefined) return false;   // routes dédiées d'analyse -> limitées
+    return !ANALYSIS_TYPES.has(t);        // worker : limité seulement si type d'analyse
+  },
+  message: { error: "Trop de requêtes d'analyse, patientez quelques minutes." }
+});
+
 const PORT = 3000;
-const SUPABASE_URL = process.env.SUPABASE_URL || "https://REDACTED.supabase.co";
+const SUPABASE_URL = process.env.SUPABASE_URL as string;
+
+// --- Contrôle d'accès par code à 6 chiffres ---
+// ACCESS_PEPPER : secret serveur mêlé au hachage du code. Sans lui, une fuite
+// de la table access ne permettrait pas de retrouver les codes par force brute.
+const ACCESS_PEPPER = process.env.ACCESS_PEPPER as string;
+const CODE_MAX_ATTEMPTS = 5;    // essais ratés tolérés avant blocage
+const CODE_LOCK_MINUTES = 15;   // durée du blocage une fois le seuil atteint
 
 // --- Schéma réel des tables (source de vérité, aligné sur Supabase) ---
 // Toute écriture est filtrée sur ces colonnes : un champ inconnu envoyé par
@@ -64,6 +119,11 @@ function cleanPayload(table: string, payload: any): any {
 
 app.use("/api/", apiLimiter);
 app.use(express.json());
+
+// Limiteur strict sur les routes d'analyse IA — APRÈS express.json() pour
+// pouvoir lire req.body.type dans le skip. Le chat et les opérations Supabase
+// passent au travers (voir le skip de costlyLimiter).
+app.use(["/api/worker", "/api/reflection", "/api/metacognition"], costlyLimiter);
 
 // Request Logger
 app.use((req, res, next) => {
@@ -266,6 +326,167 @@ async function sbRequest(method: string, tablePath: string, body: any, serviceKe
   return null;
 }
 
+// ── Contrôle d'accès : hachage du code + vérification avec verrou ──
+
+// HMAC(personal_id + code, ACCESS_PEPPER) — le code n'est jamais stocké en clair.
+function hashCode(personalId: string, code: string): string {
+  return crypto
+    .createHmac("sha256", ACCESS_PEPPER)
+    .update(`${personalId}:${code}`)
+    .digest("hex");
+}
+
+// Comparaison à temps constant de deux hashs hex.
+function safeEqualHex(a: string, b: string): boolean {
+  const ba = Buffer.from(a, "hex");
+  const bb = Buffer.from(b, "hex");
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+// Vérifie le couple (personal_id, code) contre la table access, en gérant le
+// verrou anti-brute-force. Statuts : 200 ok, 400 entrée invalide,
+// 401 inconnu/faux, 423 verrouillé temporairement.
+async function verifyAccess(
+  personalId: string,
+  code: string,
+  serviceKey: string,
+): Promise<{ ok: boolean; status: number; error?: string }> {
+  if (!personalId) return { ok: false, status: 400, error: "invalid" };
+  const rows = await sbRequest(
+    "GET",
+    `access?personal_id=eq.${encodeURIComponent(personalId)}&select=*`,
+    null,
+    serviceKey,
+  );
+  const row = Array.isArray(rows) ? rows[0] : null;
+  // Pas de compte réclamé pour cette clé : on le signale distinctement
+  // ("unknown") AVANT toute exigence sur le code — l'appelant décide quoi en
+  // faire (la lecture l'autorise, la connexion la refuse).
+  if (!row) return { ok: false, status: 401, error: "unknown" };
+  if (typeof code !== "string" || !/^\d{6}$/.test(code)) {
+    return { ok: false, status: 400, error: "invalid" };
+  }
+
+  // Verrou encore actif ?
+  if (row.locked_until && new Date(row.locked_until).getTime() > Date.now()) {
+    return { ok: false, status: 423, error: "locked" };
+  }
+
+  if (safeEqualHex(hashCode(personalId, code), row.code_hash)) {
+    // Succès : on remet le compteur à zéro si nécessaire.
+    if ((row.failed_attempts || 0) > 0 || row.locked_until) {
+      await sbRequest(
+        "PATCH",
+        `access?personal_id=eq.${encodeURIComponent(personalId)}`,
+        { failed_attempts: 0, locked_until: null },
+        serviceKey,
+      );
+    }
+    return { ok: true, status: 200 };
+  }
+
+  // Échec : on incrémente, et on pose le verrou au seuil.
+  const attempts = (row.failed_attempts || 0) + 1;
+  const patch: any = { failed_attempts: attempts };
+  if (attempts >= CODE_MAX_ATTEMPTS) {
+    patch.locked_until = new Date(
+      Date.now() + CODE_LOCK_MINUTES * 60 * 1000,
+    ).toISOString();
+    patch.failed_attempts = 0; // repart à zéro une fois le verrou posé
+  }
+  await sbRequest(
+    "PATCH",
+    `access?personal_id=eq.${encodeURIComponent(personalId)}`,
+    patch,
+    serviceKey,
+  );
+  return { ok: false, status: 401, error: "wrong" };
+}
+
+// ── Chiffrement au repos des champs sensibles (niveau 2A) ──────────
+// AES-256-GCM. La clé dérive du ACCESS_PEPPER (serveur, jamais en base) via
+// HKDF — une seule clé, pas de sel par utilisateur : ça suffit puisque le
+// pepper est l'unique secret, et ça évite tout risque de clé qui ne correspond
+// pas lors des mises à jour. Une fuite de base sans le pepper ne donne que du
+// chiffré. Le serveur peut déchiffrer (l'opérateur n'est donc PAS aveugle —
+// ce niveau protège contre une fuite de base, pas contre l'opérateur).
+const ENC_PREFIX = "enc:v1:";
+const FIELD_KEY = Buffer.from(
+  crypto.hkdfSync(
+    "sha256",
+    Buffer.from(ACCESS_PEPPER),
+    Buffer.from("lecollegue-enc-salt"),
+    Buffer.from("field-enc-v1"),
+    32,
+  ),
+);
+
+// Champs sensibles chiffrés au repos, par table.
+const ENCRYPTED_FIELDS: Record<string, string[]> = {
+  cartes:    ["fragment", "deplacement", "direction", "user_note", "texture_relationnelle"],
+  carnet:    ["lien_data", "affect_data", "elan_data", "matrice_data", "lueurs", "songes"],
+  eclats:    ["request_text", "matrice_snapshot", "elan_snapshot", "affect_snapshot", "lien_snapshot", "response_text", "replies"],
+  sessions:  ["reflection_card"],
+  feedbacks: ["message", "response_text"],
+};
+
+// Chiffre n'importe quelle valeur (texte ou objet) en une chaîne enc:v1:...
+function encField(value: any): string {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", FIELD_KEY, iv);
+  const pt = Buffer.from(JSON.stringify(value), "utf8");
+  const ct = Buffer.concat([cipher.update(pt), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return (
+    ENC_PREFIX +
+    iv.toString("base64") + ":" + ct.toString("base64") + ":" + tag.toString("base64")
+  );
+}
+
+// Déchiffre une valeur enc:v1:... ; renvoie tel quel si non chiffrée (legacy).
+function decField(stored: any): any {
+  if (typeof stored !== "string" || !stored.startsWith(ENC_PREFIX)) return stored;
+  try {
+    const [ivB, ctB, tagB] = stored.slice(ENC_PREFIX.length).split(":");
+    const decipher = crypto.createDecipheriv(
+      "aes-256-gcm",
+      FIELD_KEY,
+      Buffer.from(ivB, "base64"),
+    );
+    decipher.setAuthTag(Buffer.from(tagB, "base64"));
+    const pt = Buffer.concat([
+      decipher.update(Buffer.from(ctB, "base64")),
+      decipher.final(),
+    ]);
+    return JSON.parse(pt.toString("utf8"));
+  } catch (e: any) {
+    console.error("decField failed:", e?.message);
+    return null; // jamais renvoyer le chiffré brut
+  }
+}
+
+// Chiffre les champs sensibles d'un payload avant écriture.
+function encryptRow(table: string, payload: any): any {
+  const fields = ENCRYPTED_FIELDS[table];
+  if (!fields || !payload || typeof payload !== "object") return payload;
+  const out = { ...payload };
+  for (const f of fields) {
+    if (out[f] !== undefined && out[f] !== null) out[f] = encField(out[f]);
+  }
+  return out;
+}
+
+// Déchiffre les champs sensibles d'une ligne lue.
+function decryptRow(table: string, row: any): any {
+  const fields = ENCRYPTED_FIELDS[table];
+  if (!fields || !row || typeof row !== "object") return row;
+  for (const f of fields) {
+    if (row[f] !== undefined && row[f] !== null) row[f] = decField(row[f]);
+  }
+  return row;
+}
+
 app.post("/api/reflection", asyncHandler(async (req: Request, res: Response) => {
   const { prompt }: ReflectionRequest = req.body;
 
@@ -282,6 +503,12 @@ app.post("/api/reflection", asyncHandler(async (req: Request, res: Response) => 
 // Supabase Proxy Routes (Compatibility with worker logic)
 app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   const { type, data, messages, max_tokens }: ProxyRequest = req.body;
+  // Plafond coût : on borne max_tokens quoi que le client demande (l'app
+  // utilise 1000 ; 2048 laisse de la marge sans permettre d'abus).
+  const safeMaxTokens = Math.min(
+    typeof max_tokens === "number" && max_tokens > 0 ? max_tokens : 1000,
+    2048,
+  );
   const serviceKey = process.env.SUPABASE_SERVICE_KEY || "";
   const adminPassword = process.env.ADMIN_PASSWORD || "";
 
@@ -361,9 +588,9 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     // Le payload est filtré sur les vraies colonnes ; un champ inconnu est ignoré.
     // upsert : si une ligne avec le même id existe déjà, elle est mise à jour
     // au lieu de provoquer un conflit de clé primaire.
-    const payload = cleanPayload(data.table, data.payload);
+    const payload = encryptRow(data.table, cleanPayload(data.table, data.payload));
     const row = await sbRequest("POST", data.table, payload, serviceKey, true);
-    return res.json({ row: row ? row[0] : null });
+    return res.json({ row: row && row[0] ? decryptRow(data.table, row[0]) : null });
   }
 
   if (type === "sb_update") {
@@ -380,7 +607,7 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     }
     // La mise à jour est bornée à l'id, et aussi au personal_id appelant
     // quand il est connu : on ne peut pas écraser la ligne d'un autre utilisateur.
-    const payload = cleanPayload(data.table, data.payload);
+    const payload = encryptRow(data.table, cleanPayload(data.table, data.payload));
     const filter = personalId
       ? `${data.table}?id=eq.${encodeURIComponent(data.id)}&personal_id=eq.${encodeURIComponent(personalId)}`
       : `${data.table}?id=eq.${encodeURIComponent(data.id)}`;
@@ -389,16 +616,31 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (type === "sb_read") {
-    // Lecture autorisée si : mot de passe admin, ou requête filtrée par personal_id.
     const queryParams = data.params || "";
     const hasUserFilter = queryParams.includes("personal_id=eq.");
-    const authorized = (data.password && data.password === adminPassword) || hasUserFilter;
-    if (!authorized) return res.status(401).json({ error: "Unauthorized" });
+    const isAdmin = data.password && data.password === adminPassword;
+    if (!isAdmin && !hasUserFilter) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Lecture utilisateur : si la clé a un compte (ligne access), le code est
+    // exigé et vérifié (avec verrou anti-brute-force). Si la clé n'a pas encore
+    // de compte ("unknown"), on laisse passer — données vides/orphelines, et
+    // ça n'empêche pas la toute première session d'un nouvel utilisateur.
+    if (!isAdmin && hasUserFilter) {
+      const v = await verifyAccess(personalId, data.code || "", serviceKey);
+      if (!v.ok && v.error !== "unknown") {
+        return res.status(v.status).json({ error: v.error });
+      }
+    }
 
     const params = queryParams ? `select=*&${queryParams}` : "select=*";
     try {
       const result = await sbRequest("GET", `${data.table}?${params}`, null, serviceKey);
-      return res.json(result || []);
+      const out = Array.isArray(result)
+        ? result.map((r) => decryptRow(data.table, r))
+        : result;
+      return res.json(out || []);
     } catch (e: any) {
       console.error("READ ERROR:", e.message);
       return res.json([]);
@@ -434,20 +676,75 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     // Clôturé : plus aucune réponse acceptée.
     if (row.replies_closed === true) return res.status(409).json({ error: "closed" });
 
-    const replies = Array.isArray(row.replies) ? row.replies : [];
+    const existing = decField(row.replies);
+    const replies = Array.isArray(existing) ? existing : [];
     replies.push({ text, at: new Date().toISOString() });
     await sbRequest(
       "PATCH",
       `eclats?id=eq.${encodeURIComponent(eclatId)}`,
-      { replies },
+      { replies: encField(replies) },
       serviceKey,
     );
     return res.json({ replies });
   }
 
+  // --- account_create : crée le couple (personal_id, code) à l'ouverture ---
+  // Bootstrap d'un compte : n'exige pas de vérification (c'est la création).
+  // Refuse d'écraser un compte déjà existant pour ce personal_id.
+  if (type === "account_create") {
+    const pid = data && data.personal_id;
+    const code = data && data.code;
+    if (!pid || typeof code !== "string" || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ error: "personal_id et code à 6 chiffres requis" });
+    }
+    const existing = await sbRequest(
+      "GET",
+      `access?personal_id=eq.${encodeURIComponent(pid)}&select=personal_id`,
+      null,
+      serviceKey,
+    );
+    if (Array.isArray(existing) && existing.length > 0) {
+      return res.status(409).json({ error: "exists" });
+    }
+    await sbRequest(
+      "POST",
+      "access",
+      { personal_id: pid, code_hash: hashCode(pid, code) },
+      serviceKey,
+    );
+    return res.json({ ok: true });
+  }
+
+  // --- verify : confirme un couple (personal_id, code) sans rien lire d'autre ---
+  // Utilisé par l'écran de saisie pour valider la clé + le code à l'entrée.
+  if (type === "verify") {
+    const v = await verifyAccess(data && data.personal_id, data && data.code, serviceKey);
+    if (!v.ok) return res.status(v.status).json({ error: v.error });
+    return res.json({ ok: true });
+  }
+
   // AI Workers
-  const EXTERNAL_WORKER_URL = process.env.CF_WORKER_URL || "https://internal-worker.example";
-  const INTERNAL_SECRET = process.env.INTERNAL_SECRET || "";
+  const EXTERNAL_WORKER_URL = process.env.CF_WORKER_URL as string;
+  const INTERNAL_SECRET = process.env.INTERNAL_SECRET as string;
+
+  // Garde-fou coût : un appel légitime ne dépasse jamais ~41 messages (le
+  // front tronque le contexte à 40). Au-delà d'un large plafond, on refuse —
+  // c'est un payload anormal. Ne concerne que chat/eval (appels au modèle).
+  if (
+    (type === "chat" || type === "eval") &&
+    Array.isArray(messages) &&
+    messages.length > 80
+  ) {
+    if (type === "chat") {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.write(
+        `data: ${JSON.stringify({ delta: { text: "\n[Conversation trop longue.]" } })}\n\n`,
+      );
+      res.write("data: [DONE]\n\n");
+      return res.end();
+    }
+    return res.status(413).json({ error: "too_many_messages" });
+  }
 
   if (type === "chat") {
     // Proxy stream to external Cloudflare Worker
@@ -459,7 +756,7 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
       const response = await fetch(EXTERNAL_WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Internal-Secret": INTERNAL_SECRET },
-        body: JSON.stringify({ type: "chat", messages, max_tokens })
+        body: JSON.stringify({ type: "chat", messages, max_tokens: safeMaxTokens })
       });
 
       if (!response.ok) {
@@ -502,7 +799,7 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
       const response = await fetch(EXTERNAL_WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Internal-Secret": INTERNAL_SECRET },
-        body: JSON.stringify({ type: "eval", messages, max_tokens })
+        body: JSON.stringify({ type: "eval", messages, max_tokens: safeMaxTokens })
       });
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
@@ -774,7 +1071,8 @@ app.get("/api/climate", asyncHandler(async (req: Request, res: Response) => {
 
   if (result && Array.isArray(result)) {
     result.forEach((s: any) => {
-      const reflectionCard = s.reflection_card || (s.data && typeof s.data === 'object' ? s.data.reflection_card : null);
+      const decrypted = decField(s.reflection_card);
+      const reflectionCard = decrypted || (s.data && typeof s.data === 'object' ? s.data.reflection_card : null);
       if (reflectionCard) {
         const emotion = (reflectionCard.prisme || reflectionCard.rune || reflectionCard.emotion || "").toLowerCase();
         const sphere = reflectionCard.sphere;
