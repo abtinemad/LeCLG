@@ -3157,31 +3157,48 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
             </motion.div>
           ) : (
             // ── Conversation ──
+            // L'œil (LogoEmber) est une présence unique : il n'apparaît qu'au
+            // niveau du DERNIER message du collègue — comme si c'était lui qui
+            // venait de parler. Pas de répétition à chaque bulle (perf + sens) :
+            // un seul œil monté, qui « suit » la conversation vers le bas.
+            (() => {
+              const lastAssistantIdx = messages.reduce(
+                (acc, m, idx) => (m.role === "assistant" ? idx : acc),
+                -1,
+              );
+              return (
             <div className="space-y-8 pb-32">
               {messages.map((m, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start items-start"}`}
+                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  {m.role === "assistant" && (
-                    <div className="w-7 h-7 rounded-full bg-bg border border-beige-faint flex items-center justify-center mr-3 mt-1 shrink-0 overflow-hidden">
-                      <img
-                        src="/logo.png"
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
                   <div
                     className={`max-w-[85%] text-sm leading-[1.85] relative
                     ${
                       m.role === "user"
                         ? "bg-[#161512] border border-[#2a2820] rounded-[16px_16px_4px_16px] px-4 py-2.5 text-green italic"
                         : "text-beige-dim"
-                    }`}
+                    }
+                    ${m.role === "assistant" && i === lastAssistantIdx ? "overflow-hidden" : ""}`}
                   >
+                    {/* L'œil flotte en tête du dernier message du collègue :
+                        le texte s'écoule autour de lui, puis reprend toute la
+                        largeur en dessous. Quand l'œil « descend » vers une
+                        nouvelle réponse, le texte de l'ancienne se réajuste seul. */}
+                    {m.role === "assistant" && i === lastAssistantIdx && (
+                      <motion.span
+                        initial={{ opacity: 0, scale: 0.85 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.5 }}
+                        className="float-left w-14 h-14 mr-3 mb-1 -mt-1"
+                        aria-label="Le collègue"
+                      >
+                        <LogoEmber className="w-full h-full" />
+                      </motion.span>
+                    )}
                     {m.isDictated && (
                       <div className="absolute -top-3 -right-2 bg-[#161512] px-1.5 py-0.5 rounded-full border border-green/20 flex items-center gap-1 z-10 shadow-sm">
                         <Lips className="w-2.5 h-2.5 text-green" />
@@ -3254,6 +3271,8 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
 
               <div ref={messagesEndRef} />
             </div>
+              );
+            })()
           )}
         </div>
       </main>

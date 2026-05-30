@@ -272,7 +272,7 @@ export function LogoEmber({ className = "" }: { className?: string }) {
   return (
     <svg
       ref={svgRef}
-      viewBox="0 0 595.28 841.89"
+      viewBox="-20 104 635 635"
       className={className}
       preserveAspectRatio="xMidYMid meet"
       role="img"
