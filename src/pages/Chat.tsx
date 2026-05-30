@@ -453,6 +453,13 @@ export default function Chat() {
   const [showRecentrageSuggestion, setShowRecentrageSuggestion] = useState(false);
   const [recentrageStep, setRecentrageStep] = useState(0);
   const [surchargeCount, setSurchargeCount] = useState(0);
+  // Mode du recentrage : "crise" (charge max, filet de contenance) ou
+  // "sceau" (clôture, dernière prise de hauteur sur l'arc avant la carte).
+  const [recentrageMode, setRecentrageMode] = useState<"crise" | "sceau">(
+    "crise",
+  );
+  const sealInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sealPlayed = useRef(false);
   const RECENTRAGE_PROMPTS = [
     "Considérez la masse de ce qui vous occupe en ce moment.",
     "Inutile de chercher une logique immédiate. Laissez-la au repos.",
@@ -1162,87 +1169,6 @@ export default function Chat() {
     };
   }, [sessionActive, showEnded]);
 
-  // ── Recentrage ───────────────────────────────────────
-  // Génère des paradoxes de recentrage accrochés à la conversation : des
-  // retournements doux qui desserrent la prise, dans la voix du collègue.
-  // Repli silencieux sur les prompts statiques si la génération échoue.
-  const generateRecentragePrompts = useCallback(async (): Promise<
-    string[]
-  > => {
-    const recent = messages
-      .filter((m) => m.content && m.content.trim().length > 0)
-      .slice(-12)
-      .map(
-        (m) => `${m.role === "user" ? "Personne" : "Collègue"} : ${m.content}`,
-      )
-      .join("\n");
-    const motsLine =
-      motsCles.length > 0
-        ? `\nMots qui sont revenus : ${motsCles.join(", ")}.`
-        : "";
-    const instruction = `Voici un extrait de la conversation que tu viens d'avoir avec cette personne :\n\n${recent}\n${motsLine}\n\n[CONSIGNE INTERNE — ne réponds qu'avec le résultat, rien d'autre.]\nElle entre dans un court temps de recentrage. Écris 6 phrases brèves — des paradoxes, des retournements doux — qui desserrent la prise sur ce qui la submerge maintenant.\n\nRègle absolue : AUCUNE sagesse générique. Aucun proverbe, aucun aphorisme, aucune formule de méditation, de pleine conscience ou de développement personnel, rien qui pourrait s'écrire sans l'avoir écoutée. Chaque phrase doit être impossible à formuler pour quelqu'un qui n'aurait pas lu CETTE conversation : ancre-la dans sa situation précise, reprends ses propres mots et ses images, retourne-les.\n\nReste dans ta voix — celle de tout ce que tu viens de lui dire, pas une voix de méditation. Pas de conseil, pas de question, pas d'injonction. Une phrase par ligne, rien d'autre — aucun numéro, aucun tiret, aucun préambule.`;
-
-    const raw = await streamChat(
-      [{ role: "user", content: instruction, ts: new Date().toISOString() }],
-      400,
-      () => {},
-      true,
-    );
-    const lines = raw
-      .split("\n")
-      .map((l) => l.replace(/^\s*(?:[-•*–]|\d+[.)])\s*/, "").trim())
-      .filter((l) => l.length >= 10 && l.length < 200 && !l.endsWith(":"));
-    return lines.slice(0, 7);
-  }, [messages, motsCles, streamChat]);
-
-  const triggerRecentrage = useCallback(async () => {
-    setIsRecentrage(true);
-    setShowRecentrageSuggestion(false);
-    setSurchargeCount((prev) => prev + 1);
-    setRecentrageStep(0);
-
-    // Serpentin : quasi-plat, apaisant
-    flowRef.current.isCalming = true;
-    flowRef.current.target = {
-      amplitude: 0.1,
-      speed: 0.001,
-      opacity: 0.05,
-      color: [80, 80, 80],
-      thickness: 0.8,
-    };
-
-    // Paradoxes accrochés à la conversation ; repli sur les statiques.
-    let prompts = RECENTRAGE_PROMPTS;
-    try {
-      const generated = await generateRecentragePrompts();
-      if (generated && generated.length >= 3) prompts = generated;
-    } catch (e) {}
-    setActiveRecentragePrompts(prompts);
-
-    let current = 0;
-    const interval = setInterval(() => {
-      current++;
-      if (current >= prompts.length) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsRecentrage(false);
-          flowRef.current.isCalming = false;
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content:
-                "Nous revenons ici. Maintenant que cette sensation a une forme et une place… qu'avez-vous envie d'en faire ? Comment voulez-vous vous positionner face à elle ?",
-              ts: new Date().toISOString(),
-            },
-          ]);
-        }, 5000);
-      } else {
-        setRecentrageStep(current);
-        flowRef.current.dampExtra = 1.0;
-      }
-    }, 6000);
-  }, [RECENTRAGE_PROMPTS, generateRecentragePrompts]);
 
   // ── setFlowIntensity ──────────────────────────────────────
   const setFlowIntensity = useCallback(
@@ -1434,6 +1360,8 @@ export default function Chat() {
     setSessionActive(true);
     setMessages([]);
     setLastActivity(Date.now());
+    setRecentrageMode("crise");
+    sealPlayed.current = false;
 
     let pastCards: any[] = [];
     if (finalId) {
@@ -1699,6 +1627,91 @@ export default function Chat() {
     [validatedSteps, motsCles, activeResumeContext, pastReflections],
   );
 
+  // ── Recentrage ───────────────────────────────────────
+  // Génère des paradoxes de recentrage accrochés à la conversation : des
+  // retournements doux qui desserrent la prise, dans la voix du collègue.
+  // Repli silencieux sur les prompts statiques si la génération échoue.
+  const generateRecentragePrompts = useCallback(
+    async (mode: "crise" | "sceau"): Promise<string[]> => {
+    const recent = messages
+      .filter((m) => m.content && m.content.trim().length > 0)
+      .slice(-12)
+      .map(
+        (m) => `${m.role === "user" ? "Personne" : "Collègue"} : ${m.content}`,
+      )
+      .join("\n");
+    const motsLine =
+      motsCles.length > 0
+        ? `\nMots qui sont revenus : ${motsCles.join(", ")}.`
+        : "";
+    const cadre =
+      mode === "sceau"
+        ? "L'échange se referme. Elle a traversé tout un cheminement et vient de le sceller. Écris 4 phrases brèves — des paradoxes, des retournements doux — qui prennent de la hauteur sur l'ensemble de l'arc parcouru, juste avant que tout se cristallise. Pas un résumé : un dernier desserrement, une image qui reste et continue de travailler en elle après la fermeture."
+        : "Elle entre dans un court temps de recentrage. Écris 6 phrases brèves — des paradoxes, des retournements doux — qui desserrent la prise sur ce qui la submerge maintenant.";
+    const instruction = `Voici un extrait de la conversation que tu viens d'avoir avec cette personne :\n\n${recent}\n${motsLine}\n\n[CONSIGNE INTERNE — ne réponds qu'avec le résultat, rien d'autre.]\n${cadre}\n\nRègle absolue : AUCUNE sagesse générique. Aucun proverbe, aucun aphorisme, aucune formule de méditation, de pleine conscience ou de développement personnel, rien qui pourrait s'écrire sans l'avoir écoutée. Chaque phrase doit être impossible à formuler pour quelqu'un qui n'aurait pas lu CETTE conversation : ancre-la dans sa situation précise, reprends ses propres mots et ses images, retourne-les.\n\nReste dans ta voix — celle de tout ce que tu viens de lui dire, pas une voix de méditation. Pas de conseil, pas de question, pas d'injonction. Une phrase par ligne, rien d'autre — aucun numéro, aucun tiret, aucun préambule.`;
+
+    const raw = await streamChat(
+      [{ role: "user", content: instruction, ts: new Date().toISOString() }],
+      400,
+      () => {},
+      true,
+    );
+    const lines = raw
+      .split("\n")
+      .map((l) => l.replace(/^\s*(?:[-•*–]|\d+[.)])\s*/, "").trim())
+      .filter((l) => l.length >= 10 && l.length < 200 && !l.endsWith(":"));
+    return lines.slice(0, 7);
+  }, [messages, motsCles, streamChat]);
+
+  const triggerRecentrage = useCallback(async () => {
+    setIsRecentrage(true);
+    setShowRecentrageSuggestion(false);
+    setSurchargeCount((prev) => prev + 1);
+    setRecentrageStep(0);
+
+    // Serpentin : quasi-plat, apaisant
+    flowRef.current.isCalming = true;
+    flowRef.current.target = {
+      amplitude: 0.1,
+      speed: 0.001,
+      opacity: 0.05,
+      color: [80, 80, 80],
+      thickness: 0.8,
+    };
+
+    // Paradoxes accrochés à la conversation ; repli sur les statiques.
+    let prompts = RECENTRAGE_PROMPTS;
+    try {
+      const generated = await generateRecentragePrompts(recentrageMode);
+      if (generated && generated.length >= 3) prompts = generated;
+    } catch (e) {}
+    setActiveRecentragePrompts(prompts);
+
+    let current = 0;
+    const interval = setInterval(() => {
+      current++;
+      if (current >= prompts.length) {
+        clearInterval(interval);
+        setTimeout(() => {
+          setIsRecentrage(false);
+          flowRef.current.isCalming = false;
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content:
+                "Nous revenons ici. Maintenant que cette sensation a une forme et une place… qu'avez-vous envie d'en faire ? Comment voulez-vous vous positionner face à elle ?",
+              ts: new Date().toISOString(),
+            },
+          ]);
+        }, 5000);
+      } else {
+        setRecentrageStep(current);
+        flowRef.current.dampExtra = 1.0;
+      }
+    }, 6000);
+  }, [RECENTRAGE_PROMPTS, generateRecentragePrompts, recentrageMode]);
+
   // ── Eval via Worker ───────────────────────────────────────
   const evalSteps = useCallback(
     async (currentMessages: Message[]) => {
@@ -1778,6 +1791,7 @@ export default function Chat() {
         // Recentrage — se déclenche à la 2ème surcharge émotionnelle max (3)
         if (result.emotional_charge >= 3) {
           if (surchargeCount === 0) {
+            setRecentrageMode("crise");
             setShowRecentrageSuggestion(true);
             setSurchargeCount(1);
           } else if (surchargeCount === 1) {
@@ -2321,6 +2335,55 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
   };
 
   // ── Terminer session ──────────────────────────────────────
+  // ── Sceau de clôture ──────────────────────────────────────
+  // Au moment de révéler la carte (arc complet, Équilibre atteint), un dernier
+  // temps de hauteur : l'overlay joue quelques paradoxes sur tout l'arc, puis
+  // la carte se révèle. Passable d'un tap — on ne retient jamais la personne.
+  const triggerSeal = async () => {
+    setRecentrageMode("sceau");
+    setIsRecentrage(true);
+    setRecentrageStep(0);
+    flowRef.current.isCalming = true;
+    flowRef.current.target = {
+      amplitude: 0.1,
+      speed: 0.001,
+      opacity: 0.05,
+      color: [80, 80, 80],
+      thickness: 0.8,
+    };
+
+    let prompts = RECENTRAGE_PROMPTS.slice(0, 4);
+    try {
+      const generated = await generateRecentragePrompts("sceau");
+      if (generated && generated.length >= 3) prompts = generated.slice(0, 4);
+    } catch (e) {}
+    setActiveRecentragePrompts(prompts);
+
+    let current = 0;
+    sealInterval.current = setInterval(() => {
+      current++;
+      if (current >= prompts.length) {
+        if (sealInterval.current) clearInterval(sealInterval.current);
+        setTimeout(() => {
+          setIsRecentrage(false);
+          flowRef.current.isCalming = false;
+          finalizeClose();
+        }, 3000);
+      } else {
+        setRecentrageStep(current);
+        flowRef.current.dampExtra = 1.0;
+      }
+    }, 5000);
+  };
+
+  // Passer le sceau : la carte se révèle tout de suite.
+  const skipSeal = () => {
+    if (sealInterval.current) clearInterval(sealInterval.current);
+    setIsRecentrage(false);
+    flowRef.current.isCalming = false;
+    finalizeClose();
+  };
+
   const endSession = async () => {
     // On bloque le double-clic en cours de conversation — mais PAS en phase
     // de clôture : si "loading" est resté coincé (miroir qui traîne), le
@@ -2331,6 +2394,13 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
     // on joue quand même le miroir avant de clore.
     if (closingPhase === "awaiting-reply") {
       await triggerMirror(messages);
+      return;
+    }
+    // Sceau de clôture : seulement pour un arc complet (Équilibre atteint),
+    // une seule fois. Sinon (sortie anticipée), clôture directe.
+    if (validatedSteps.has(4) && !sealPlayed.current) {
+      sealPlayed.current = true;
+      await triggerSeal();
       return;
     }
     finalizeClose();
@@ -3289,6 +3359,14 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                   />
                 ))}
               </div>
+              {recentrageMode === "sceau" && (
+                <button
+                  onClick={skipSeal}
+                  className="mt-12 font-mono text-[9px] tracking-[0.2em] uppercase text-beige-faint/50 hover:text-beige-faint transition-colors"
+                >
+                  Voir ma carte
+                </button>
+              )}
             </div>
           </motion.div>
         )}
