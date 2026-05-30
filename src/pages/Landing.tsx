@@ -105,7 +105,7 @@ export default function Landing() {
             transition={{ duration: 1.2, delay: 0.1, ease: "easeOut" }}
             className="w-32 h-32 md:w-40 md:h-40 mb-12 flex items-center justify-center"
           >
-            <LogoEmber className="w-full h-full" />
+            <LogoEmber className="w-full h-full" autonomous />
           </motion.div>
           <motion.h1 
             initial={{ opacity: 0, y: 16 }}

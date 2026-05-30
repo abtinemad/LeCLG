@@ -16,7 +16,7 @@ import {
 import confetti from "canvas-confetti";
 import { sbInsert, sbUpdate, sbGet } from "../lib/worker";
 import { ClarteSection } from "../components/SerpentinGuide";
-import { LogoEmber } from "../components/LogoEmber";
+import { LogoEmber, type EyeExpression } from "../components/LogoEmber";
 import { RetourModal } from "../components/RetourModal";
 
 // ============================================================
@@ -418,6 +418,10 @@ export default function Chat() {
   const [keyJustRevealed, setKeyJustRevealed] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
   const [crisisDetected, setCrisisDetected] = useState(false);
+  // Expression du regard du collègue — RÉACTION dérivée des signaux de l'éval
+  // (aucun token supplémentaire). Revient à "neutre" après un court moment.
+  const [eyeExpression, setEyeExpression] = useState<EyeExpression>("neutre");
+  const eyeResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [diffractionSansPartage, setDiffractionSansPartage] = useState(false);
   const [motsCles, setMotsCles] = useState<string[]>([]);
   const [reflectionCard, setReflectionCard] = useState<ReflectionCard | null>(
@@ -1841,6 +1845,34 @@ export default function Chat() {
           const tension = Math.max(0, Math.min(3, result.tension || 0));
           const alliance = Math.max(0, Math.min(3, result.alliance || 0));
 
+          // ── Regard du collègue : réaction dérivée des signaux ───────────
+          // Pas un miroir de l'émotion de la personne — une réaction de qqn
+          // qui écoute. Priorité du plus marquant au plus discret.
+          let nextEye: EyeExpression = "pensif";
+          if (result.crisis === true || userCharge >= 3) {
+            nextEye = "alerte"; // une bascule, qqch surgit : « je l'ai entendu »
+          } else if (aiPosture >= 2) {
+            nextEye = "interrogateur"; // le collègue pousse : « regarde en toi »
+          } else if (userCharge >= 2 && alliance >= 2) {
+            nextEye = "triste"; // peine reçue, le collègue est en lien avec elle
+          } else if (userCharge >= 2) {
+            nextEye = "grave"; // point sensible : « je suis pleinement là »
+          } else if (alliance >= 2 && userCharge <= 1) {
+            nextEye = "adouci"; // ça se dénoue, ça respire
+          }
+          setEyeExpression(nextEye);
+          if (eyeResetRef.current) clearTimeout(eyeResetRef.current);
+          // L'expression marquée tient un moment puis se relâche, pour rester
+          // lisible (un regard qui veut dire qqch, pas un état permanent).
+          eyeResetRef.current = setTimeout(
+            () => setEyeExpression("neutre"),
+            nextEye === "interrogateur" ||
+              nextEye === "grave" ||
+              nextEye === "triste"
+              ? 7000
+              : 4500,
+          );
+
           flowRef.current.emotionalLevel = userCharge;
           flowRef.current.color2Target = [...POSTURE_COLORS[aiPosture]];
           flowRef.current.target = {
@@ -3196,7 +3228,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                         className="float-left w-14 h-14 mr-3 mb-1 -mt-1"
                         aria-label="Le collègue"
                       >
-                        <LogoEmber className="w-full h-full" />
+                        <LogoEmber className="w-full h-full" expression={eyeExpression} />
                       </motion.span>
                     )}
                     {m.isDictated && (

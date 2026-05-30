@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useSpring } from "motion/react";
+import { motion, useMotionValue, useSpring, useTransform, animate } from "motion/react";
 import { useEffect, useState, useRef } from "react";
 
 /**
@@ -27,8 +27,9 @@ const CENTER_Y = 421;
 const PUPIL_R = 76;
 const IRIS_R = 215; // Rayon proportionnel et réaliste permettant d'exposer la sclère
 
-// Génération optimisée des fibres d'arrière-plan (36 au lieu de 180 pour la fluidité)
-const BG_FIBER_COUNT = 36;
+// Fibres d'arrière-plan (18 : à la taille d'affichage, inutile d'en mettre plus,
+// et moins de traits sub-pixel = beaucoup moins d'aliasing + meilleure perf).
+const BG_FIBER_COUNT = 18;
 const BACKGROUND_FIBERS = Array.from({ length: BG_FIBER_COUNT }).map((_, i) => {
   const angle = (i * 2 * Math.PI) / BG_FIBER_COUNT;
   const cos = Math.cos(angle);
@@ -37,7 +38,8 @@ const BACKGROUND_FIBERS = Array.from({ length: BG_FIBER_COUNT }).map((_, i) => {
   const rStart = PUPIL_R + (Math.sin(i * 3) * 3);
   const rEnd = IRIS_R - 5 + (Math.cos(i * 1.8) * 5);
   const opacity = 0.22 + Math.abs(Math.sin(i * 1.1)) * 0.35;
-  const strokeWidth = 0.6 + Math.abs(Math.cos(i * 1.3)) * 0.7;
+  // Traits un peu plus épais : nets à l'affichage au lieu de scintiller.
+  const strokeWidth = 1.4 + Math.abs(Math.cos(i * 1.3)) * 0.9;
 
   const colors = ["#fdf5e6", "#8f9da8", "#b48446", "#a3b299", "#8b7355"];
   const color = colors[i % colors.length];
@@ -53,8 +55,8 @@ const BACKGROUND_FIBERS = Array.from({ length: BG_FIBER_COUNT }).map((_, i) => {
   };
 });
 
-// Génération optimisée des fibres de premier plan courbées (24 au lieu de 90 pour la fluidité)
-const FG_FIBER_COUNT = 24;
+// Fibres de premier plan courbées (12 : idem, moins de traits sub-pixel).
+const FG_FIBER_COUNT = 12;
 const FOREGROUND_FIBERS = Array.from({ length: FG_FIBER_COUNT }).map((_, i) => {
   const angle = (i * 2 * Math.PI) / FG_FIBER_COUNT;
   const cos = Math.cos(angle);
@@ -75,7 +77,7 @@ const FOREGROUND_FIBERS = Array.from({ length: FG_FIBER_COUNT }).map((_, i) => {
   const yMid = CENTER_Y + sin * rMid + perpSin * wiggle;
   
   const opacity = 0.32 + Math.abs(Math.sin(i * 1.4)) * 0.45;
-  const strokeWidth = 1.1 + Math.abs(Math.cos(i * 1.1)) * 1.1;
+  const strokeWidth = 1.6 + Math.abs(Math.cos(i * 1.1)) * 1.2;
   const colors = ["#fdf5e6", "#8f9da8", "#b48446", "#a3b299", "#8b7355"];
   const color = colors[(i + 2) % colors.length];
 
@@ -139,10 +141,66 @@ const generateVessels = (): Vessel[] => {
 
 const BLOOD_VESSELS = generateVessels();
 
-export function LogoEmber({ className = "" }: { className?: string }) {
-  const [isInteracting, setIsInteracting] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+// Vocabulaire du regard. Chaque expression est une RÉACTION du collègue à ce
+// qui se dit (pas un miroir de l'état de la personne) :
+//   - pupille    : échelle de la pupille (1 = repos ; <1 focus ; >1 ouverture)
+//   - lid        : plissement (0 = ouvert ; ~0.3 = diaphragme resserré)
+//   - fixed      : true = le regard se fixe (présence soutenue)
+//   - blinkMs    : durée d'une obturation (court = vif/sec ; long = lent/posé)
+//   - gazeYBias  : décalage vertical du regard au repos (>0 = baissé, comme un
+//     regard qui se voile ; <0 = relevé). Donne la direction d'une émotion.
+// Une expression marquée se joue un court moment puis revient à "neutre".
+export type EyeExpression =
+  | "neutre"
+  | "interrogateur"
+  | "grave"
+  | "alerte"
+  | "adouci"
+  | "pensif"
+  | "triste";
+
+const EXPRESSIONS: Record<
+  EyeExpression,
+  {
+    pupille: number;
+    lid: number;
+    fixed: boolean;
+    blinkMs: number;
+    gazeYBias: number;
+  }
+> = {
+  // Repos : mélancolie permanente de fond.
+  neutre: { pupille: 1.04, lid: 0.1, fixed: false, blinkMs: 420, gazeYBias: 10 },
+  // Focus serré sur la personne.
+  interrogateur: { pupille: 0.82, lid: 0.28, fixed: true, blinkMs: 300, gazeYBias: 0 },
+  // Concentration dense.
+  grave: { pupille: 0.8, lid: 0.1, fixed: true, blinkMs: 520, gazeYBias: 8 },
+  // Bascule, éveil.
+  alerte: { pupille: 1.25, lid: 0, fixed: true, blinkMs: 180, gazeYBias: -6 },
+  // Apaisement.
+  adouci: { pupille: 1.05, lid: 0.08, fixed: false, blinkMs: 560, gazeYBias: 0 },
+  // Réflexion.
+  pensif: { pupille: 0.95, lid: 0.05, fixed: false, blinkMs: 360, gazeYBias: 4 },
+  // Tristesse : paupières tombantes, regard baissé, clin lent et lourd.
+  triste: { pupille: 1.08, lid: 0.2, fixed: false, blinkMs: 620, gazeYBias: 26 },
+};
+
+export function LogoEmber({
+  className = "",
+  expression = "neutre",
+  autonomous = false,
+}: {
+  className?: string;
+  expression?: EyeExpression;
+  /** true (ex: landing) : l'œil dérive entre ses états de lui-même, comme une
+   *  présence qui vit. false (ex: chat) : il ne fait que réagir à `expression`,
+   *  car là chaque expression a un sens lié à l'échange. */
+  autonomous?: boolean;
+}) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+
+  // Expression jouée d'elle-même en mode autonome (landing).
+  const [autoExpression, setAutoExpression] = useState<EyeExpression>("neutre");
 
   // Détection d'onglet et de visibilité pour suspendre les animations hors de l'écran
   const [isVisible, setIsVisible] = useState(true);
@@ -182,6 +240,11 @@ export function LogoEmber({ className = "" }: { className?: string }) {
 
   const isSleeping = !isVisible || !isTabActive;
 
+  // En mode autonome, l'œil suit son expression interne (il vit) ; sinon il
+  // suit la prop `expression` (il réagit à l'échange).
+  const activeExpression = autonomous ? autoExpression : expression;
+  const expr = EXPRESSIONS[activeExpression] ?? EXPRESSIONS.neutre;
+
   // Valeurs du regard (mouvements fluides)
   const gazeX = useMotionValue(0);
   const gazeY = useMotionValue(0);
@@ -194,6 +257,13 @@ export function LogoEmber({ className = "" }: { className?: string }) {
   const logoX = useMotionValue(0);
   const logoY = useMotionValue(0);
 
+  // Rayon du diaphragme (obturateur). Au repos 1010 : le bord intérieur du
+  // trait (épais de 900) tombe à 560, donc au-delà du contour du logo (~554) →
+  // tout est dégagé, rien n'est masqué. Fermé ≈ 400 → centre couvert.
+  // Le plissement (expr.lid) resserre partiellement l'anneau vers l'intérieur.
+  const lidOpen = 1010 - expr.lid * 400;
+  const lidR = useMotionValue(1010);
+
   const springConfig = { damping: 30, stiffness: 180, mass: 0.9 };
   const smoothX = useSpring(gazeX, springConfig);
   const smoothY = useSpring(gazeY, springConfig);
@@ -202,7 +272,29 @@ export function LogoEmber({ className = "" }: { className?: string }) {
   const smoothLogoX = useSpring(logoX, springConfig);
   const smoothLogoY = useSpring(logoY, springConfig);
 
-  // Suivi exclusif de la souris sur Ordinateur (aucun scroll ni tactile lourd sur téléphone)
+  // Profondeur de l'œil derrière le judas : il s'approche (grand) ou s'éloigne
+  // (petit) — un mouvement de profondeur, SANS aucun changement de luminosité
+  // (pas d'opacité). La fermeture/disparition, c'est l'obturateur qui s'en charge.
+  const depth = useMotionValue(1);
+  const smoothDepth = useSpring(depth, { damping: 24, stiffness: 55, mass: 1.1 });
+  // L'œil reste assez grand pour TOUJOURS couvrir le judas (pas de croissant
+  // noir au bord), tout en gardant une variation de profondeur perceptible.
+  const eyeScale = useTransform(smoothDepth, [0, 1], [0.92, 1.0]);
+
+  // Dérive de la « tête » : tout l'œil se décale lentement et amplement, pour
+  // qu'il ne soit jamais figé pile sur l'axe du judas (quelqu'un qui regarde
+  // par un judas n'est pas parfaitement centré et bouge un peu). Distinct du
+  // regard de l'iris (qui, lui, explore dans la sclère).
+  const headX = useMotionValue(0);
+  const headY = useMotionValue(0);
+  const smoothHeadX = useSpring(headX, { damping: 28, stiffness: 18, mass: 1.4 });
+  const smoothHeadY = useSpring(headY, { damping: 28, stiffness: 18, mass: 1.4 });
+
+  // Vie oculaire autonome — pensée pour le tactile (pas de souris sur téléphone).
+  // L'œil regarde autour de lui de façon organique : des saccades à intervalles
+  // irréguliers (un vrai œil ne bouge jamais à rythme régulier), parfois un long
+  // regard posé, parfois un retour franc au centre. Aucune interaction à gérer :
+  // c'est une présence qu'on regarde, qui vit d'elle-même.
   useEffect(() => {
     if (isSleeping) {
       gazeX.set(0);
@@ -214,65 +306,233 @@ export function LogoEmber({ className = "" }: { className?: string }) {
       return;
     }
 
-    const registerInteraction = (targetX: number, targetY: number) => {
-      gazeX.set(targetX);
-      gazeY.set(targetY);
-      reflectX.set(targetX * -0.22);
-      reflectY.set(targetY * -0.22);
-      logoX.set(targetX * 0.12);
-      logoY.set(targetY * 0.12);
-      setIsInteracting(true);
+    let timeout: ReturnType<typeof setTimeout>;
 
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-        setIsInteracting(false);
-      }, 2500); // 2.5s avant retour au repos
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const xRatio = (e.clientX / window.innerWidth) - 0.5;
-      const yRatio = (e.clientY / window.innerHeight) - 0.5;
-      registerInteraction(xRatio * 75, yRatio * 75);
-    };
-
-    window.addEventListener("mousemove", handleMouseMove, { passive: true });
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [gazeX, gazeY, reflectX, reflectY, logoX, logoY, isSleeping]);
-
-  // Saccades autonomes périodiques de respiration oculaire
-  useEffect(() => {
-    if (isSleeping || isInteracting) return;
-
-    const performSaccade = () => {
-      const r = Math.random() * 30; // Amplitude adoucie
-      const angle = Math.random() * 2 * Math.PI;
-      const tx = Math.cos(angle) * r;
-      const ty = Math.sin(angle) * r;
-      
+    // Le biais vertical de l'expression (gazeYBias) décale tout le regard :
+    // un regard triste/grave se baisse, comme voilé.
+    const yb = expr.gazeYBias;
+    const lookAt = (tx: number, ty: number) => {
       gazeX.set(tx);
-      gazeY.set(ty);
+      gazeY.set(ty + yb);
       reflectX.set(tx * -0.22);
-      reflectY.set(ty * -0.22);
+      reflectY.set((ty + yb) * -0.22);
       logoX.set(tx * 0.12);
-      logoY.set(ty * 0.12);
+      logoY.set((ty + yb) * 0.12);
     };
 
-    performSaccade();
+    // Regard soutenu : pendant une expression "fixed", l'œil se pose (au centre,
+    // éventuellement baissé du biais) et y reste — il fixe au lieu de vagabonder.
+    if (expr.fixed) {
+      lookAt(0, 0);
+      return;
+    }
 
-    const interval = setInterval(() => {
-      performSaccade();
-    }, 4000 + Math.random() * 4000); // Entre 4 et 8 secondes
+    const tick = () => {
+      const roll = Math.random();
+      if (roll < 0.18) {
+        // Parfois : l'œil revient se poser au centre.
+        lookAt(0, 0);
+      } else {
+        // Sinon : un regard ailleurs, amplitude et direction variables.
+        // Amplitude bornée bien en deçà de la marge du viewBox → jamais de crop.
+        const r = 40 + Math.random() * 70;
+        const angle = Math.random() * 2 * Math.PI;
+        lookAt(Math.cos(angle) * r, Math.sin(angle) * r);
+      }
+      // Intervalle irrégulier : tantôt un coup d'œil vif, tantôt un arrêt posé.
+      const next =
+        Math.random() < 0.45
+          ? 1200 + Math.random() * 1300 // regard bref (1,2–2,5 s)
+          : 2800 + Math.random() * 3000; // regard posé (2,8–5,8 s)
+      timeout = setTimeout(tick, next);
+    };
 
-    return () => clearInterval(interval);
-  }, [isInteracting, gazeX, gazeY, reflectX, reflectY, logoX, logoY, isSleeping]);
+    tick();
+    return () => clearTimeout(timeout);
+  }, [gazeX, gazeY, reflectX, reflectY, logoX, logoY, isSleeping, expr.fixed, expr.gazeYBias]);
+
+  // Clignement (obturation) — piloté en JS pour être IRRÉGULIER (intervalles
+  // variables) et à VITESSE pilotée par l'expression (expr.blinkMs : alerte =
+  // vif et sec, grave/adouci = lent et posé). Au repos, le rayon suit le
+  // plissement de l'expression (lidOpen) ; un clin le fait plonger à 295 (fermé)
+  // puis revenir, comme une prise de vue avec un temps d'obturation propre.
+  useEffect(() => {
+    if (isSleeping) {
+      lidR.set(lidOpen);
+      return;
+    }
+    lidR.set(lidOpen);
+    let timeout: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+    let burstLeft = 0; // clins restants dans une rafale (poussière)
+
+    // Un battement : fermeture → instant fermé (variable) → réouverture.
+    // `hold` = temps porte fermée (clin appuyé/long si grand), `speed` module
+    // la vitesse de fermeture (rafale = clins plus secs).
+    const beat = (hold: number, speed: number) => {
+      const dur = (expr.blinkMs / 1000) * speed;
+      animate(lidR, 400, { duration: dur * 0.45, ease: "easeIn" }).then(() => {
+        if (cancelled) return;
+        animate(lidR, lidOpen, {
+          duration: dur * 0.55,
+          delay: hold,
+          ease: "easeOut",
+        });
+      });
+      // temps total de ce battement (pour enchaîner une rafale proprement)
+      return dur * 1000 + hold * 1000;
+    };
+
+    const blink = () => {
+      if (cancelled) return;
+
+      let beatTime: number;
+      let next: number;
+
+      if (burstLeft > 0) {
+        // — au milieu d'une rafale « poussière » : clins secs et rapprochés
+        beatTime = beat(0, 0.7);
+        burstLeft--;
+        next = beatTime + 90 + Math.random() * 90;
+      } else {
+        const roll = Math.random();
+        if (roll < 0.07) {
+          // — fermeture LONGUE : l'œil se ferme et reste clos un moment (1,5–3,5 s)
+          //   avant de rouvrir doucement. Un repos, sans changement de lumière.
+          beatTime = beat(1.5 + Math.random() * 2, 1.4);
+          next = 3500 + Math.random() * 4500;
+        } else if (roll < 0.17) {
+          // — clin appuyé / long : l'œil reste fermé un instant (lassitude)
+          beatTime = beat(0.25 + Math.random() * 0.3, 1.15);
+          next = 2800 + Math.random() * 4200;
+        } else if (roll < 0.29) {
+          // — rafale « poussière » : 2 à 4 clins rapprochés
+          burstLeft = 1 + Math.floor(Math.random() * 3);
+          beatTime = beat(0, 0.7);
+          next = beatTime + 90 + Math.random() * 90;
+        } else {
+          // — clin simple ordinaire
+          beatTime = beat(0.04, 1);
+          next = 2500 + Math.random() * 4500;
+        }
+      }
+      timeout = setTimeout(blink, next);
+    };
+
+    // premier clin un peu différé
+    timeout = setTimeout(blink, 1500 + Math.random() * 2500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [lidR, lidOpen, isSleeping, expr.blinkMs]);
+
+  // Vie autonome des états (mode `autonomous`, ex: landing). L'œil dérive de
+  // lui-même entre ses expressions — il ne fait pas que réagir, il « rumine ».
+  // Vivant et visible : changements assez fréquents. On privilégie les états
+  // doux/contemplatifs et on écarte "alerte" (qui n'a de sens qu'en réaction).
+  useEffect(() => {
+    if (!autonomous || isSleeping) return;
+
+    // Palette pondérée : neutre et pensif reviennent souvent (respiration de
+    // fond), interrogateur/grave/adouci ponctuent. Pas d'alerte ici.
+    const palette: EyeExpression[] = [
+      "neutre",
+      "neutre",
+      "pensif",
+      "pensif",
+      "pensif",
+      "triste",
+      "triste",
+      "grave",
+      "adouci",
+      "adouci",
+      "interrogateur",
+    ];
+    let timeout: ReturnType<typeof setTimeout>;
+
+    const drift = () => {
+      const next = palette[Math.floor(Math.random() * palette.length)];
+      setAutoExpression(next);
+      // Un état marqué tient un moment ; le neutre passe plus vite (respiration).
+      const hold =
+        next === "neutre"
+          ? 2200 + Math.random() * 2600 // 2,2–4,8 s
+          : 3500 + Math.random() * 4000; // 3,5–7,5 s
+      timeout = setTimeout(drift, hold);
+    };
+
+    timeout = setTimeout(drift, 1200 + Math.random() * 1500);
+    return () => clearTimeout(timeout);
+  }, [autonomous, isSleeping]);
+
+  // Profondeur de l'œil — il s'approche et s'éloigne derrière le judas, de façon
+  // autonome (plus ample sur la landing). Uniquement une variation de TAILLE,
+  // aucune luminosité. Reste toujours bien visible (ne descend pas sous 0.55).
+  useEffect(() => {
+    if (isSleeping) {
+      depth.set(1);
+      return;
+    }
+    let timeout: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+
+    const move = () => {
+      if (cancelled) return;
+      const wander = autonomous
+        ? (Math.random() - 0.4) * 0.7 // landing : amplitude large
+        : (Math.random() - 0.5) * 0.3; // chat : reste plus proche
+      const target = Math.max(0.55, Math.min(1, 0.85 + wander));
+      const dur = 2 + Math.random() * 2;
+      animate(depth, target, { duration: dur, ease: "easeInOut" });
+      const next = autonomous
+        ? 2800 + Math.random() * 4000
+        : 4500 + Math.random() * 4000;
+      timeout = setTimeout(move, next + dur * 1000);
+    };
+
+    move();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [depth, autonomous, isSleeping]);
+
+  // Dérive de la « tête » — tout l'œil se décale lentement, amplement, et ne
+  // revient quasi jamais pile au centre : la personne derrière le judas bouge,
+  // se penche, n'est pas alignée sur l'axe du trou.
+  useEffect(() => {
+    if (isSleeping) {
+      headX.set(0);
+      headY.set(0);
+      return;
+    }
+    let timeout: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+
+    const drift = () => {
+      if (cancelled) return;
+      // décalage subtil : assez pour casser l'axe rigide, pas assez pour
+      // découvrir le bord du judas (sinon croissant noir).
+      const r = 14 + Math.random() * 24;
+      const angle = Math.random() * 2 * Math.PI;
+      headX.set(Math.cos(angle) * r);
+      headY.set(Math.sin(angle) * r);
+      // déplacements lents et espacés (la tête bouge doucement)
+      timeout = setTimeout(drift, 3500 + Math.random() * 4000);
+    };
+
+    drift();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [headX, headY, isSleeping]);
 
   return (
     <svg
       ref={svgRef}
-      viewBox="-20 104 635 635"
+      viewBox="-143 -19 880 880"
       className={className}
       preserveAspectRatio="xMidYMid meet"
       role="img"
@@ -288,10 +548,6 @@ export function LogoEmber({ className = "" }: { className?: string }) {
             opacity: 0.85;
           }
         }
-        @keyframes slow-rotate-opt {
-          from { transform: rotate(360deg); }
-          to { transform: rotate(0deg); }
-        }
         @keyframes hippus-opt {
           0%, 100% {
             transform: scale(0.92);
@@ -302,10 +558,6 @@ export function LogoEmber({ className = "" }: { className?: string }) {
         }
         .animate-vessels-opt {
           animation: pulse-vessels-opt 2s infinite ease-in-out;
-        }
-        .animate-rotate-opt {
-          animation: slow-rotate-opt 140s infinite linear;
-          transform-origin: 297px 421px;
         }
         .animate-hippus-opt {
           animation: hippus-opt 15s infinite ease-in-out;
@@ -399,15 +651,24 @@ export function LogoEmber({ className = "" }: { className?: string }) {
       >
         {/* Rendu principal de l'œil, clippé par le logo (Sans les filtres de distorsion lourds) */}
         <g clipPath="url(#logo-letters-clip)">
-          <rect width="595.28" height="841.89" fill="#000000" />
+          <rect width="595.28" height="841.89" fill="#0a0a0a" />
 
-          {/* Corps de l'oeil inséré sous la forme du Judas */}
-          
-            {/* Respiration globale simplifiée du regard */}
+          {/* Corps de l'oeil inséré sous la forme du Judas.
+              Groupe de PROFONDEUR : l'œil grandit/rétrécit (s'approche/s'éloigne
+              du judas). Uniquement une taille, aucune luminosité. */}
+          <motion.g
+            style={{
+              scale: eyeScale,
+              x: smoothHeadX,
+              y: smoothHeadY,
+              transformOrigin: `${CENTER_X}px ${CENTER_Y}px`,
+              willChange: "transform",
+            }}
+          >
+            {/* Respiration globale (scale doux). Le REGARD n'agit plus ici :
+                la sclère reste fixe, seul l'iris se déplace (plus bas). */}
             <motion.g
               style={{ 
-                x: smoothX, 
-                y: smoothY, 
                 transformOrigin: `${CENTER_X}px ${CENTER_Y}px`,
                 willChange: "transform"
               }}
@@ -445,11 +706,13 @@ export function LogoEmber({ className = "" }: { className?: string }) {
                 <circle cx={CENTER_X} cy={CENTER_Y} r="380" fill="url(#lower-eyelid-shadow-grad)" opacity="0.8" />
                 <circle cx={CENTER_X} cy={CENTER_Y} r="380" fill="url(#eyeball-3d-shading)" opacity="0.8" />
 
-                {/* rotation lente de l'iris */}
-                <g
-                  className={isSleeping ? "" : "animate-rotate-opt"}
-                  style={{ transformOrigin: `${CENTER_X}px ${CENTER_Y}px`, willChange: "transform" }}
-                >
+                {/* Groupe MOBILE du regard : seuls l'iris, la pupille et les
+                    reflets se déplacent → l'iris se balade dans la sclère (qui,
+                    elle, reste fixe), comme un vrai œil qui regarde sur les côtés. */}
+                <motion.g style={{ x: smoothX, y: smoothY, willChange: "transform" }}>
+                {/* Iris (statique — la rotation a été retirée : invisible à 140s
+                    et coûteuse car elle faisait tourner toutes les fibres). */}
+                <g>
                   {/* Iris couleur changeante multicouche (Marron, Vert, Bleu) ultra fluide */}
                   <circle cx={CENTER_X} cy={CENTER_Y} r={IRIS_R} fill="url(#iris-brown)" />
                   <motion.circle
@@ -498,8 +761,8 @@ export function LogoEmber({ className = "" }: { className?: string }) {
                   ))}
 
                   {/* Anneaux de contraction de l'iris */}
-                  <circle cx={CENTER_X} cy={CENTER_Y} r={IRIS_R * 0.88} fill="none" stroke="#6e5c4a" strokeWidth="0.8" strokeDasharray="3 16" opacity="0.25" />
-                  <circle cx={CENTER_X} cy={CENTER_Y} r={IRIS_R * 0.58} fill="none" stroke="#a89575" strokeWidth="1.0" strokeDasharray="4 12" opacity="0.3" />
+                  <circle cx={CENTER_X} cy={CENTER_Y} r={IRIS_R * 0.88} fill="none" stroke="#6e5c4a" strokeWidth="1.6" strokeDasharray="3 16" opacity="0.25" />
+                  <circle cx={CENTER_X} cy={CENTER_Y} r={IRIS_R * 0.58} fill="none" stroke="#a89575" strokeWidth="1.8" strokeDasharray="4 12" opacity="0.3" />
 
                   {/* Fibres de premier plan */}
                   {FOREGROUND_FIBERS.map((f, i) => (
@@ -513,18 +776,35 @@ export function LogoEmber({ className = "" }: { className?: string }) {
                     />
                   ))}
 
-                  {/* Ombre d'iris */}
-                  <circle cx={CENTER_X} cy={CENTER_Y} r={IRIS_R} fill="url(#iris-depth-shading)" opacity="0.8" />
+                  {/* Ombre d'iris — réagit légèrement à la pupille : plus la
+                      pupille se dilate, plus l'iris se creuse (profondeur). */}
+                  <motion.circle
+                    cx={CENTER_X}
+                    cy={CENTER_Y}
+                    r={IRIS_R}
+                    fill="url(#iris-depth-shading)"
+                    animate={{ opacity: isSleeping ? 0.8 : 0.8 + (expr.pupille - 1) * 0.4 }}
+                    transition={{ duration: 0.9, ease: "easeInOut" }}
+                  />
 
-                  {/* Pupille noire et micro-oscillations physiologiques (Hippus) */}
-                  <g
-                    className={isSleeping ? "" : "animate-hippus-opt"}
+                  {/* Pupille — sa taille réagit à l'expression (focus = contractée,
+                      alerte = dilatée), avec par-dessus les micro-oscillations
+                      physiologiques (Hippus). */}
+                  <motion.g
+                    animate={{ scale: isSleeping ? 1 : expr.pupille }}
+                    transition={{ duration: 0.9, ease: "easeInOut" }}
                     style={{ transformOrigin: `${CENTER_X}px ${CENTER_Y}px`, willChange: "transform" }}
                   >
-                    <circle cx={CENTER_X} cy={CENTER_Y} r={PUPIL_R + 2} fill="none" stroke="#0f0905" strokeWidth="2.5" opacity="0.85" />
-                    <circle cx={CENTER_X} cy={CENTER_Y} r={PUPIL_R} fill="#020202" />
-                  </g>
+                    <g
+                      className={isSleeping ? "" : "animate-hippus-opt"}
+                      style={{ transformOrigin: `${CENTER_X}px ${CENTER_Y}px`, willChange: "transform" }}
+                    >
+                      <circle cx={CENTER_X} cy={CENTER_Y} r={PUPIL_R + 2} fill="none" stroke="#0f0905" strokeWidth="2.5" opacity="0.85" />
+                      <circle cx={CENTER_X} cy={CENTER_Y} r={PUPIL_R} fill="#020202" />
+                    </g>
+                  </motion.g>
                 </g>
+                </motion.g>
               </g>
             </motion.g>
 
@@ -576,10 +856,12 @@ export function LogoEmber({ className = "" }: { className?: string }) {
                 opacity="0.5"
               />
             </motion.g>
+          </motion.g>
           
         </g>
 
-        {/* Silhouette extérieure délicate de la marque */}
+        {/* Silhouette extérieure délicate de la marque — placée AVANT le
+            diaphragme pour qu'elle soit recouverte quand l'œil se ferme. */}
         <motion.g
           fill="none"
           stroke="#fdf5e6"
@@ -604,6 +886,23 @@ export function LogoEmber({ className = "" }: { className?: string }) {
           <path d={D1} />
           <path d={D2} />
         </motion.g>
+
+        {/* Diaphragme — l'œil se ferme comme l'obturateur d'un objectif : un
+            anneau (trait épais couleur fond) dont le rayon se contracte vers le
+            centre. Rayon grand = iris dégagé (invisible) ; rayon petit = fermé.
+            Le rayon (lidR) est piloté en JS : clins irréguliers, à vitesse
+            propre à chaque expression. Centré → aucun coin qui dépasse. */}
+        {!isSleeping && (
+          <motion.circle
+            cx={CENTER_X}
+            cy={CENTER_Y}
+            fill="none"
+            stroke="#0a0a0a"
+            strokeWidth={900}
+            r={lidR}
+          />
+        )}
+
       </motion.g>
     </svg>
   );
