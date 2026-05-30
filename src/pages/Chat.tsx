@@ -62,6 +62,89 @@ const ENGAGEMENT_MIN_USER_MESSAGES = 3;
 // validé ou non — une conversation se referme toujours par le miroir.
 const LANDING_THRESHOLD = 28;
 const HARD_MESSAGE_LIMIT = 32;
+// Premier message à froid (primo-visite ou pas de reprise) : ton intuitif,
+// invitation ouverte. La personnalisation tissée (phase 2) viendra par-dessus.
+const COLD_OPENER =
+  "Bonjour. Posez-vous un instant. Ce qui vous amène n'a pas besoin d'être clair ni bien formulé — juste présent. Dites-le comme ça vient ; on cheminera à partir de là.";
+
+// Tap d'état du jour : la personne dit comment elle arrive, et l'ouverture
+// rencontre cet état d'emblée. Comme l'opener nomme l'état et reste dans
+// l'historique, le modèle calibre le ton du reste de la session tout seul.
+// Libellés et phrases = la voix de l'app, à réécrire librement.
+const DAY_PROMPT = "Comment arrivez-vous, aujourd'hui ?";
+const DAY_STATES: { key: string; label: string; opener: string }[] = [
+  {
+    key: "lourd",
+    label: "lourd",
+    opener:
+      "Bonjour. Il y a quelque chose de lourd aujourd'hui, on dirait. Pas besoin de le soulever d'un coup — posez-le ici, comme il est, et on le regardera ensemble.",
+  },
+  {
+    key: "agite",
+    label: "agité",
+    opener:
+      "Bonjour. Ça s'agite à l'intérieur. On va ralentir un peu. Dites ce qui tourne, même en désordre — on verra l'ordre après, ou pas.",
+  },
+  {
+    key: "flou",
+    label: "flou",
+    opener:
+      "Bonjour. Quelque chose est là sans être net. C'est un très bon point de départ. Dites-le flou ; le flou se laisse penser, lui aussi.",
+  },
+  {
+    key: "pose",
+    label: "posé",
+    opener:
+      "Bonjour. Vous arrivez plutôt posé — bien. On peut prendre de la hauteur tranquillement. Qu'est-ce que vous auriez envie de regarder de plus près ?",
+  },
+  {
+    key: "nsp",
+    label: "je ne sais pas",
+    opener:
+      "Bonjour. Pas besoin de savoir d'où vous arrivez. Posez-vous un instant, et dites ce qui vient en premier — on cheminera à partir de là.",
+  },
+];
+// Phase 2 — personnalisation tissée : à partir de ce nombre de cartes passées,
+// l'opener à froid laisse place à une ouverture générée qui fait un écho sobre
+// au cheminement de la personne (jamais une récitation, jamais une présomption
+// de son état du jour).
+const WOVEN_THRESHOLD = 1;
+
+// Distille un « fil de mémoire » court à partir des dernières cartes : la sphère
+// récurrente et un ou deux fragments récents. Renvoie null s'il n'y a pas de
+// quoi tisser quelque chose de juste.
+function buildWovenContext(cards: any[]): string | null {
+  const valid = (cards || []).filter((c) => c && (c.fragment || c.sphere));
+  if (valid.length < WOVEN_THRESHOLD) return null;
+  const sphereCounts: Record<string, number> = {};
+  valid.forEach((c) => {
+    if (c.sphere) sphereCounts[c.sphere] = (sphereCounts[c.sphere] || 0) + 1;
+  });
+  const topSphere =
+    Object.entries(sphereCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const fragments = valid
+    .map((c) => c.fragment)
+    .filter(Boolean)
+    .slice(0, 2);
+  const single = valid.length === 1;
+  const parts: string[] = [];
+  if (topSphere)
+    parts.push(
+      single
+        ? `la dernière fois, sa réflexion touchait à la sphère « ${topSphere} »`
+        : `au fil de ses passages, ses réflexions ont souvent tourné autour de la sphère « ${topSphere} »`,
+    );
+  if (fragments.length) {
+    const lead = single
+      ? "elle avait laissé ce fragment"
+      : fragments.length > 1
+        ? "elle a récemment laissé ces fragments"
+        : "elle a récemment laissé ce fragment";
+    parts.push(`${lead} : ${fragments.map((f) => `« ${f} »`).join(" ; ")}`);
+  }
+  if (parts.length === 0) return null;
+  return "Mémoire de la personne (ne pas réciter) : " + parts.join(" ; ") + ".";
+}
 const LANDING_NOTE =
   "[Note interne (ne pas citer) : la conversation s'étire et risque de tourner en boucle. Sans la clore brutalement ni l'annoncer, oriente-la vers un point de pose — aide la personne à faire émerger une direction, une clarté, quelque chose depuis l'intérieur d'elle-même. N'ouvre pas de nouveaux territoires. Si ça tourne sans avancer, nomme-le doucement.]";
 
@@ -365,17 +448,12 @@ export default function Chat() {
   const [isListening, setIsListening] = useState(false);
   const recognition = useRef<any>(null);
 
-  // Mode hypnotique
-  const [isHypnotic, setIsHypnotic] = useState(false);
-  const [showHypnoticSuggestion, setShowHypnoticSuggestion] = useState(false);
-  const [hypnoticStep, setHypnoticStep] = useState(0);
+  // Recentrage
+  const [isRecentrage, setIsRecentrage] = useState(false);
+  const [showRecentrageSuggestion, setShowRecentrageSuggestion] = useState(false);
+  const [recentrageStep, setRecentrageStep] = useState(0);
   const [surchargeCount, setSurchargeCount] = useState(0);
-  const [subliminal, setSubliminal] = useState<{
-    content: string;
-    type: "symbol" | "phrase";
-  } | null>(null);
-
-  const HYPNOTIC_PROMPTS = [
+  const RECENTRAGE_PROMPTS = [
     "Considérez la masse de ce qui vous occupe en ce moment.",
     "Inutile de chercher une logique immédiate. Laissez-la au repos.",
     "Observez le mouvement de vos pensées, comme un écho lointain.",
@@ -384,6 +462,12 @@ export default function Chat() {
     "Laissez l'équilibre stable se manifester, au-delà des mots.",
     "Revenez doucement, avec un regard légèrement décentré.",
   ];
+
+  // Prompts effectivement affichés pendant le recentrage : par défaut les
+  // statiques (repli), remplacés par des paradoxes générés à la volée,
+  // accrochés à ce qui vient d'être dit.
+  const [activeRecentragePrompts, setActiveRecentragePrompts] =
+    useState<string[]>(RECENTRAGE_PROMPTS);
 
   // Eval
   const lastEvalAt = useRef<number>(0);
@@ -1078,24 +1162,44 @@ export default function Chat() {
     };
   }, [sessionActive, showEnded]);
 
-  // ── Mode hypnotique ───────────────────────────────────────
-  const triggerHypnoticBreak = useCallback(() => {
-    setIsHypnotic(true);
-    setShowHypnoticSuggestion(false);
-    setSurchargeCount((prev) => prev + 1);
-    setHypnoticStep(0);
+  // ── Recentrage ───────────────────────────────────────
+  // Génère des paradoxes de recentrage accrochés à la conversation : des
+  // retournements doux qui desserrent la prise, dans la voix du collègue.
+  // Repli silencieux sur les prompts statiques si la génération échoue.
+  const generateRecentragePrompts = useCallback(async (): Promise<
+    string[]
+  > => {
+    const recent = messages
+      .filter((m) => m.content && m.content.trim().length > 0)
+      .slice(-12)
+      .map(
+        (m) => `${m.role === "user" ? "Personne" : "Collègue"} : ${m.content}`,
+      )
+      .join("\n");
+    const motsLine =
+      motsCles.length > 0
+        ? `\nMots qui sont revenus : ${motsCles.join(", ")}.`
+        : "";
+    const instruction = `Voici un extrait de la conversation que tu viens d'avoir avec cette personne :\n\n${recent}\n${motsLine}\n\n[CONSIGNE INTERNE — ne réponds qu'avec le résultat, rien d'autre.]\nElle entre dans un court temps de recentrage. Écris 6 phrases brèves — des paradoxes, des retournements doux — qui desserrent la prise sur ce qui la submerge maintenant.\n\nRègle absolue : AUCUNE sagesse générique. Aucun proverbe, aucun aphorisme, aucune formule de méditation, de pleine conscience ou de développement personnel, rien qui pourrait s'écrire sans l'avoir écoutée. Chaque phrase doit être impossible à formuler pour quelqu'un qui n'aurait pas lu CETTE conversation : ancre-la dans sa situation précise, reprends ses propres mots et ses images, retourne-les.\n\nReste dans ta voix — celle de tout ce que tu viens de lui dire, pas une voix de méditation. Pas de conseil, pas de question, pas d'injonction. Une phrase par ligne, rien d'autre — aucun numéro, aucun tiret, aucun préambule.`;
 
-    // Subliminal — tiré des mots-clés ou des derniers mots de la personne
-    const symbol = motsCles[0] || "ψ";
-    const phrase =
-      motsCles[1] ||
-      messages
-        .slice(-2)
-        .find((m) => m.role === "user")
-        ?.content.split(" ")
-        .slice(0, 3)
-        .join(" ") ||
-      "Lâcher prise";
+    const raw = await streamChat(
+      [{ role: "user", content: instruction, ts: new Date().toISOString() }],
+      400,
+      () => {},
+      true,
+    );
+    const lines = raw
+      .split("\n")
+      .map((l) => l.replace(/^\s*(?:[-•*–]|\d+[.)])\s*/, "").trim())
+      .filter((l) => l.length >= 10 && l.length < 200 && !l.endsWith(":"));
+    return lines.slice(0, 7);
+  }, [messages, motsCles, streamChat]);
+
+  const triggerRecentrage = useCallback(async () => {
+    setIsRecentrage(true);
+    setShowRecentrageSuggestion(false);
+    setSurchargeCount((prev) => prev + 1);
+    setRecentrageStep(0);
 
     // Serpentin : quasi-plat, apaisant
     flowRef.current.isCalming = true;
@@ -1107,24 +1211,21 @@ export default function Chat() {
       thickness: 0.8,
     };
 
-    // Flash subliminal d'ouverture
-    setTimeout(() => {
-      setSubliminal({ content: symbol, type: "symbol" });
-      setTimeout(() => setSubliminal(null), 180);
-    }, 1200);
+    // Paradoxes accrochés à la conversation ; repli sur les statiques.
+    let prompts = RECENTRAGE_PROMPTS;
+    try {
+      const generated = await generateRecentragePrompts();
+      if (generated && generated.length >= 3) prompts = generated;
+    } catch (e) {}
+    setActiveRecentragePrompts(prompts);
 
     let current = 0;
     const interval = setInterval(() => {
       current++;
-      if (current >= HYPNOTIC_PROMPTS.length) {
+      if (current >= prompts.length) {
         clearInterval(interval);
-        // Flash subliminal de clôture
         setTimeout(() => {
-          setSubliminal({ content: phrase, type: "phrase" });
-          setTimeout(() => setSubliminal(null), 350);
-        }, 1000);
-        setTimeout(() => {
-          setIsHypnotic(false);
+          setIsRecentrage(false);
           flowRef.current.isCalming = false;
           setMessages((prev) => [
             ...prev,
@@ -1137,11 +1238,11 @@ export default function Chat() {
           ]);
         }, 5000);
       } else {
-        setHypnoticStep(current);
+        setRecentrageStep(current);
         flowRef.current.dampExtra = 1.0;
       }
     }, 6000);
-  }, [motsCles, messages, HYPNOTIC_PROMPTS]);
+  }, [RECENTRAGE_PROMPTS, generateRecentragePrompts]);
 
   // ── setFlowIntensity ──────────────────────────────────────
   const setFlowIntensity = useCallback(
@@ -1253,7 +1354,7 @@ export default function Chat() {
   };
 
   // ── Démarrage de session ──────────────────────────────────
-  const startSessionFlow = () => {
+  const startSessionFlow = (dayStateKey?: string) => {
     const localCardsStr = localStorage.getItem("collegue_cards");
     if (localCardsStr) {
       try {
@@ -1264,11 +1365,11 @@ export default function Chat() {
         }
       } catch (e) {}
     }
-    
+
     if (hasStoredKey && personalId) {
-      confirmStart(personalId);
+      confirmStart(personalId, null, dayStateKey);
     } else {
-      confirmStart(generateNewKey());
+      confirmStart(generateNewKey(), null, dayStateKey);
     }
   };
 
@@ -1293,6 +1394,7 @@ export default function Chat() {
   const confirmStart = async (
     providedId?: string,
     resumeContextArg?: string | null,
+    dayStateKey?: string,
   ) => {
     const finalId = providedId || personalId;
     // Le contexte de reprise est passé en argument quand l'appelant vient de
@@ -1333,6 +1435,7 @@ export default function Chat() {
     setMessages([]);
     setLastActivity(Date.now());
 
+    let pastCards: any[] = [];
     if (finalId) {
       localStorage.setItem("collegue_personal_id", finalId);
       setHasStoredKey(true);
@@ -1354,8 +1457,8 @@ export default function Chat() {
           `personal_id=eq.${finalId}&limit=5&order=started_at.desc`,
         );
         if (past && Array.isArray(past)) {
-          const cards = past.map((s: any) => s.reflection_card).filter(Boolean);
-          setPastReflections(cards);
+          pastCards = past.map((s: any) => s.reflection_card).filter(Boolean);
+          setPastReflections(pastCards);
         }
       } catch (e) {
         console.error("Session cloud failed", e);
@@ -1401,19 +1504,78 @@ export default function Chat() {
         setMessages([
           {
             role: "assistant",
-            content: "Bonjour. Je suis là.",
+            content: COLD_OPENER,
             ts: new Date().toISOString(),
           },
         ]);
       }
     } else {
-      setMessages([
-        {
-          role: "assistant",
-          content: "Bonjour. Je suis là.",
-          ts: new Date().toISOString(),
-        },
-      ]);
+      // Opener à froid : si la personne a indiqué un état du jour, l'ouverture
+      // le rencontre ; sinon, le COLD_OPENER neutre.
+      const dayState = DAY_STATES.find((s) => s.key === dayStateKey);
+      const coldText = dayState ? dayState.opener : COLD_OPENER;
+
+      // Pas de reprise de fil ouvert. Si la personne a un historique suffisant,
+      // on génère un opener tissé (écho sobre à son cheminement) ; sinon, le
+      // coldText instantané (primo-visite ou trop peu de matière).
+      const woven =
+        pastCards.length >= WOVEN_THRESHOLD
+          ? buildWovenContext(pastCards)
+          : null;
+      if (woven) {
+        const stateNote = dayState
+          ? ` Elle vient d'indiquer qu'elle arrive aujourd'hui plutôt « ${dayState.label} » : accorde ton ouverture à cet état, sans le répéter mécaniquement.`
+          : " Ne présume pas de son état du jour : invite-la à dire d'où elle arrive aujourd'hui.";
+        setMessages([
+          { role: "assistant", content: "", ts: new Date().toISOString() },
+        ]);
+        try {
+          let accumulated = "";
+          await streamChat(
+            [
+              {
+                role: "user",
+                content: `${woven}\n\n(La personne revient — ce n'est PAS la reprise d'un fil resté ouvert. Ouvre toi-même la conversation : accueille son retour et glisse un écho sobre à ce qui précède — une image, un mot — sans tout dérouler ni laisser entendre que tu « sais tout » d'elle.${stateNote} Deux ou trois phrases.)`,
+                ts: new Date().toISOString(),
+              },
+            ],
+            700,
+            (chunk) => {
+              accumulated += chunk;
+              setMessages((prev) => {
+                const next = [...prev];
+                if (
+                  next.length > 0 &&
+                  next[next.length - 1].role === "assistant"
+                ) {
+                  next[next.length - 1] = {
+                    ...next[next.length - 1],
+                    content: accumulated,
+                  };
+                }
+                return next;
+              });
+            },
+            true,
+          );
+        } catch (e) {
+          setMessages([
+            {
+              role: "assistant",
+              content: coldText,
+              ts: new Date().toISOString(),
+            },
+          ]);
+        }
+      } else {
+        setMessages([
+          {
+            role: "assistant",
+            content: coldText,
+            ts: new Date().toISOString(),
+          },
+        ]);
+      }
     }
 
     setLoading(false);
@@ -1613,10 +1775,10 @@ export default function Chat() {
           setFlowIntensity("chaos");
         }
 
-        // Mode hypnotique — se déclenche à la 2ème surcharge émotionnelle max (3)
+        // Recentrage — se déclenche à la 2ème surcharge émotionnelle max (3)
         if (result.emotional_charge >= 3) {
           if (surchargeCount === 0) {
-            setShowHypnoticSuggestion(true);
+            setShowRecentrageSuggestion(true);
             setSurchargeCount(1);
           } else if (surchargeCount === 1) {
             setSurchargeCount(2);
@@ -2594,12 +2756,22 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                       </div>
                     </>
                   ) : (
-                    <button
-                      onClick={startSessionFlow}
-                      className="bg-beige text-bg font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity"
-                    >
-                      Commencer
-                    </button>
+                    <div className="flex flex-col items-center gap-4 w-full max-w-xs">
+                      <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-beige-faint">
+                        {DAY_PROMPT}
+                      </div>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        {DAY_STATES.map((s) => (
+                          <button
+                            key={s.key}
+                            onClick={() => startSessionFlow(s.key)}
+                            className="bg-transparent text-beige border border-beige/20 font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-sm hover:bg-beige hover:text-bg transition-colors"
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </>
               )}
@@ -3017,16 +3189,16 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                disabled={loading || isHypnotic}
+                disabled={loading || isRecentrage}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();
                     handleSend();
                   }
                 }}
-                placeholder={isHypnotic ? "Phase de recentrage…" : "..."}
+                placeholder={isRecentrage ? "Phase de recentrage…" : "..."}
                 rows={Math.min(15, Math.max(3, inputText.split("\n").length))}
-                className={`flex-1 bg-[#161512] border border-[#2a2820] rounded-lg px-4 py-3 font-serif text-[16px] text-beige leading-relaxed focus:border-beige-faint outline-none transition-all resize-none ${isHypnotic ? "opacity-20" : ""}`}
+                className={`flex-1 bg-[#161512] border border-[#2a2820] rounded-lg px-4 py-3 font-serif text-[16px] text-beige leading-relaxed focus:border-beige-faint outline-none transition-all resize-none ${isRecentrage ? "opacity-20" : ""}`}
               />
 
               {/* Actions Column */}
@@ -3050,10 +3222,10 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                   </motion.span>
                 </button>
 
-                {/* Suggestion hypnotique (if active) */}
-                {showHypnoticSuggestion && (
+                {/* Suggestion recentrage (if active) */}
+                {showRecentrageSuggestion && (
                   <button
-                    onClick={triggerHypnoticBreak}
+                    onClick={triggerRecentrage}
                     title="Phase de recentrage suggérée"
                     className="w-11 h-11 rounded-lg border border-green-dim/40 bg-green-dim/10 flex items-center justify-center text-green font-mono text-sm animate-pulse flex-shrink-0"
                   >
@@ -3079,61 +3251,38 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
         )}
       </footer>
 
-      {/* ── Overlay hypnotique ── */}
+      {/* ── Overlay recentrage ── */}
       <AnimatePresence>
-        {isHypnotic && (
+        {isRecentrage && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[300] bg-bg/80 backdrop-blur-[35px] flex items-center justify-center p-12 text-center"
           >
-            {/* Flash subliminal */}
-            <AnimatePresence>
-              {subliminal && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9, filter: "blur(10px)" }}
-                  animate={{ opacity: 0.8, scale: 1.1, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, scale: 1.2, filter: "blur(5px)" }}
-                  transition={{ duration: 0.1 }}
-                  className="fixed inset-0 flex items-center justify-center z-[400] pointer-events-none"
-                >
-                  {subliminal.type === "symbol" ? (
-                    <div className="text-[120px] font-serif italic text-beige/40 mix-blend-overlay">
-                      {subliminal.content}
-                    </div>
-                  ) : (
-                    <div className="font-mono text-[11px] tracking-[0.3em] uppercase text-beige/50 bg-bg/40 px-8 py-4 backdrop-blur-sm">
-                      {subliminal.content}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             <div className="max-w-md">
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={hypnoticStep}
+                  key={recentrageStep}
                   initial={{ opacity: 0, y: 20, filter: "blur(15px)" }}
                   animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                   exit={{ opacity: 0, y: -20, filter: "blur(15px)" }}
                   transition={{ duration: 2.5, ease: "easeInOut" }}
                   className="text-beige md:text-lg font-serif italic leading-relaxed"
                 >
-                  {HYPNOTIC_PROMPTS[hypnoticStep]}
+                  {activeRecentragePrompts[recentrageStep]}
                 </motion.div>
               </AnimatePresence>
               <div className="mt-20 flex justify-center gap-2">
-                {HYPNOTIC_PROMPTS.map((_, i) => (
+                {activeRecentragePrompts.map((_, i) => (
                   <motion.div
                     key={i}
                     animate={{
-                      scale: i === hypnoticStep ? [1, 1.4, 1] : 1,
-                      opacity: i <= hypnoticStep ? 0.7 : 0.1,
+                      scale: i === recentrageStep ? [1, 1.4, 1] : 1,
+                      opacity: i <= recentrageStep ? 0.7 : 0.1,
                     }}
                     transition={{
-                      repeat: i === hypnoticStep ? Infinity : 0,
+                      repeat: i === recentrageStep ? Infinity : 0,
                       duration: 4,
                     }}
                     className="w-1 h-1 rounded-full bg-beige"
