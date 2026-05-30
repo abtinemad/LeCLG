@@ -25,6 +25,17 @@ export async function sbGet(table: string, params: string = "", password?: strin
       toast.error("Non autorisé (Accès admin requis ou clé manquante)");
       throw new Error("Unauthorized");
     }
+    // 400 "invalid" = clé réclamée mais code absent/incorrect en local sur cet
+    // appareil. On invite à se reconnecter avec le code plutôt que d'afficher
+    // une erreur réseau opaque. (Un nouvel utilisateur non réclamé ne déclenche
+    // jamais ce 400 : sa lecture passe via la règle « allow-if-unclaimed ».)
+    let errBody: any = null;
+    try { errBody = await res.json(); } catch {}
+    if (res.status === 400 && errBody && errBody.error === "invalid") {
+      window.dispatchEvent(new CustomEvent("collegue:code-required"));
+      toast.error("Entre ton code pour accéder à ton carnet sur cet appareil.");
+      throw new Error("CodeRequired");
+    }
     toast.error(`Erreur réseau (${res.status}) lors de la lecture`);
     throw new Error("Worker request failed");
   }

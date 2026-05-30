@@ -450,9 +450,9 @@ export default function Chat() {
 
   // Recentrage
   const [isRecentrage, setIsRecentrage] = useState(false);
-  const [showRecentrageSuggestion, setShowRecentrageSuggestion] = useState(false);
   const [recentrageStep, setRecentrageStep] = useState(0);
-  const [surchargeCount, setSurchargeCount] = useState(0);
+  // Rupture de cadre (charge max) montrée une fois par session.
+  const ruptureShown = useRef(false);
   // Mode du recentrage : "crise" (charge max, filet de contenance) ou
   // "sceau" (clôture, dernière prise de hauteur sur l'arc avant la carte).
   const [recentrageMode, setRecentrageMode] = useState<"crise" | "sceau">(
@@ -1362,6 +1362,7 @@ export default function Chat() {
     setLastActivity(Date.now());
     setRecentrageMode("crise");
     sealPlayed.current = false;
+    ruptureShown.current = false;
 
     let pastCards: any[] = [];
     if (finalId) {
@@ -1632,7 +1633,7 @@ export default function Chat() {
   // retournements doux qui desserrent la prise, dans la voix du collègue.
   // Repli silencieux sur les prompts statiques si la génération échoue.
   const generateRecentragePrompts = useCallback(
-    async (mode: "crise" | "sceau"): Promise<string[]> => {
+    async (resolved: boolean): Promise<string[]> => {
     const recent = messages
       .filter((m) => m.content && m.content.trim().length > 0)
       .slice(-12)
@@ -1644,10 +1645,9 @@ export default function Chat() {
       motsCles.length > 0
         ? `\nMots qui sont revenus : ${motsCles.join(", ")}.`
         : "";
-    const cadre =
-      mode === "sceau"
-        ? "L'échange se referme. Elle a traversé tout un cheminement et vient de le sceller. Écris 4 phrases brèves — des paradoxes, des retournements doux — qui prennent de la hauteur sur l'ensemble de l'arc parcouru, juste avant que tout se cristallise. Pas un résumé : un dernier desserrement, une image qui reste et continue de travailler en elle après la fermeture."
-        : "Elle entre dans un court temps de recentrage. Écris 6 phrases brèves — des paradoxes, des retournements doux — qui desserrent la prise sur ce qui la submerge maintenant.";
+    const cadre = resolved
+      ? "L'échange se referme, et les cinq dimensions ont été traversées : le nœud se défait. Écris 4 phrases brèves — des paradoxes, des retournements doux — qui accompagnent ce dénouement sur l'ensemble de l'arc parcouru. Pas un résumé : une image qui reste et continue de travailler en elle après la fermeture."
+      : "L'échange se referme sans que tout ait été dénoué : le nœud tient encore, peut-être plus serré qu'au début. Écris 4 phrases brèves — des paradoxes, des retournements doux — qui nomment cela avec justesse et douceur, sans le moindre reproche ni constat d'échec : un nœud qu'on voit déjà mieux. Une image qui reste et continue de travailler en elle.";
     const instruction = `Voici un extrait de la conversation que tu viens d'avoir avec cette personne :\n\n${recent}\n${motsLine}\n\n[CONSIGNE INTERNE — ne réponds qu'avec le résultat, rien d'autre.]\n${cadre}\n\nRègle absolue : AUCUNE sagesse générique. Aucun proverbe, aucun aphorisme, aucune formule de méditation, de pleine conscience ou de développement personnel, rien qui pourrait s'écrire sans l'avoir écoutée. Chaque phrase doit être impossible à formuler pour quelqu'un qui n'aurait pas lu CETTE conversation : ancre-la dans sa situation précise, reprends ses propres mots et ses images, retourne-les.\n\nReste dans ta voix — celle de tout ce que tu viens de lui dire, pas une voix de méditation. Pas de conseil, pas de question, pas d'injonction. Une phrase par ligne, rien d'autre — aucun numéro, aucun tiret, aucun préambule.`;
 
     const raw = await streamChat(
@@ -1663,54 +1663,6 @@ export default function Chat() {
     return lines.slice(0, 7);
   }, [messages, motsCles, streamChat]);
 
-  const triggerRecentrage = useCallback(async () => {
-    setIsRecentrage(true);
-    setShowRecentrageSuggestion(false);
-    setSurchargeCount((prev) => prev + 1);
-    setRecentrageStep(0);
-
-    // Serpentin : quasi-plat, apaisant
-    flowRef.current.isCalming = true;
-    flowRef.current.target = {
-      amplitude: 0.1,
-      speed: 0.001,
-      opacity: 0.05,
-      color: [80, 80, 80],
-      thickness: 0.8,
-    };
-
-    // Paradoxes accrochés à la conversation ; repli sur les statiques.
-    let prompts = RECENTRAGE_PROMPTS;
-    try {
-      const generated = await generateRecentragePrompts(recentrageMode);
-      if (generated && generated.length >= 3) prompts = generated;
-    } catch (e) {}
-    setActiveRecentragePrompts(prompts);
-
-    let current = 0;
-    const interval = setInterval(() => {
-      current++;
-      if (current >= prompts.length) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsRecentrage(false);
-          flowRef.current.isCalming = false;
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content:
-                "Nous revenons ici. Maintenant que cette sensation a une forme et une place… qu'avez-vous envie d'en faire ? Comment voulez-vous vous positionner face à elle ?",
-              ts: new Date().toISOString(),
-            },
-          ]);
-        }, 5000);
-      } else {
-        setRecentrageStep(current);
-        flowRef.current.dampExtra = 1.0;
-      }
-    }, 6000);
-  }, [RECENTRAGE_PROMPTS, generateRecentragePrompts, recentrageMode]);
 
   // ── Eval via Worker ───────────────────────────────────────
   const evalSteps = useCallback(
@@ -1788,27 +1740,22 @@ export default function Chat() {
           setFlowIntensity("chaos");
         }
 
-        // Recentrage — se déclenche à la 2ème surcharge émotionnelle max (3)
-        if (result.emotional_charge >= 3) {
-          if (surchargeCount === 0) {
-            setRecentrageMode("crise");
-            setShowRecentrageSuggestion(true);
-            setSurchargeCount(1);
-          } else if (surchargeCount === 1) {
-            setSurchargeCount(2);
-            // 2ème surcharge : message de rupture de cadre
-            setTimeout(() => {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: "assistant",
-                  content:
-                    "L'intensité dépasse ce que cet espace peut sereinement contenir en ce moment. Ma suggestion la plus juste serait de fermer cet écran, d'aller passer de l'eau sur votre visage, et de laisser la place au silence physique. Je reste là, mais le rythme demande maintenant une vraie rupture de cadre.",
-                  ts: new Date().toISOString(),
-                },
-              ]);
-            }, 2000);
-          }
+        // Charge émotionnelle maximale : pas de mode contemplatif (le
+        // recentrage est réservé à la clôture). On invite à une vraie rupture
+        // de cadre, une seule fois par session.
+        if (result.emotional_charge >= 3 && !ruptureShown.current) {
+          ruptureShown.current = true;
+          setTimeout(() => {
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content:
+                  "L'intensité dépasse ce que cet espace peut sereinement contenir en ce moment. Ma suggestion la plus juste serait de fermer cet écran, d'aller passer de l'eau sur votre visage, et de laisser la place au silence physique. Je reste là, mais le rythme demande maintenant une vraie rupture de cadre.",
+                ts: new Date().toISOString(),
+              },
+            ]);
+          }, 2000);
         }
 
         // Diffraction sans partage
@@ -2352,9 +2299,10 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
       thickness: 0.8,
     };
 
+    const resolved = validatedSteps.size === 5;
     let prompts = RECENTRAGE_PROMPTS.slice(0, 4);
     try {
-      const generated = await generateRecentragePrompts("sceau");
+      const generated = await generateRecentragePrompts(resolved);
       if (generated && generated.length >= 3) prompts = generated.slice(0, 4);
     } catch (e) {}
     setActiveRecentragePrompts(prompts);
@@ -2396,9 +2344,15 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
       await triggerMirror(messages);
       return;
     }
-    // Sceau de clôture : seulement pour un arc complet (Équilibre atteint),
-    // une seule fois. Sinon (sortie anticipée), clôture directe.
-    if (validatedSteps.has(4) && !sealPlayed.current) {
+    // Sceau de clôture : à chaque fin (une fois), tant qu'il y a de la matière.
+    // Son contenu reflète l'état du nœud — défait si les 5 étapes sont
+    // validées, encore noué sinon.
+    const realMsgs = messages.filter(
+      (m) =>
+        m.role === "user" &&
+        m.content !== "Bonjour, j'ai une situation à vous soumettre.",
+    ).length;
+    if (!sealPlayed.current && realMsgs >= 2) {
       sealPlayed.current = true;
       await triggerSeal();
       return;
@@ -3291,17 +3245,6 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                     {isListening ? "●" : <Lips className="w-5 h-5" />}
                   </motion.span>
                 </button>
-
-                {/* Suggestion recentrage (if active) */}
-                {showRecentrageSuggestion && (
-                  <button
-                    onClick={triggerRecentrage}
-                    title="Phase de recentrage suggérée"
-                    className="w-11 h-11 rounded-lg border border-green-dim/40 bg-green-dim/10 flex items-center justify-center text-green font-mono text-sm animate-pulse flex-shrink-0"
-                  >
-                    ...
-                  </button>
-                )}
 
                 {/* Envoyer */}
                 <button

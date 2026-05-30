@@ -12,6 +12,7 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
   const [key, setKey] = useState('');
   const [hasKey, setHasKey] = useState(false);
   const [code, setCode] = useState('');
+  const [forceReconnect, setForceReconnect] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -26,6 +27,19 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
     checkKey();
     window.addEventListener('storage', checkKey);
     return () => window.removeEventListener('storage', checkKey);
+  }, []);
+
+  // Une lecture a été refusée (clé réclamée, mais code absent sur cet appareil) :
+  // on ouvre l'entrée en forçant la saisie du code, la clé déjà pré-remplie.
+  useEffect(() => {
+    const onCodeRequired = () => {
+      const k = localStorage.getItem('collegue_personal_id') || '';
+      setKey(k);
+      setForceReconnect(true);
+      setOpen(true);
+    };
+    window.addEventListener('collegue:code-required', onCodeRequired);
+    return () => window.removeEventListener('collegue:code-required', onCodeRequired);
   }, []);
 
   const restore = async () => {
@@ -48,6 +62,10 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
         localStorage.setItem('collegue_access_code', code);
         setHasKey(true);
         setSubmitting(false);
+        if (forceReconnect) {
+          window.location.reload();
+          return;
+        }
         navigate('/carnet');
         return;
       }
@@ -91,7 +109,7 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
 
   // Robust programmatic focus for mobile soft keyboard activation
   useEffect(() => {
-    if (open && !hasKey) {
+    if (open && (!hasKey || forceReconnect)) {
       const timer = setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
@@ -105,7 +123,7 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
   return (
     <div className={className} id="key-entry-container">
       {open ? (
-        hasKey ? (
+        (hasKey && !forceReconnect) ? (
           <div ref={containerRef} className="flex items-center gap-2 bg-bg/95 backdrop-blur-sm border border-border rounded-sm px-2.5 py-1" id="key-entry-logout-box">
             <Link
               to="/carnet"
