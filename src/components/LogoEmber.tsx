@@ -100,33 +100,35 @@ interface Vessel {
 // Génération de 4 structures de capillaires sanguins (au lieu de 9 pour soulager le viewport)
 const generateVessels = (): Vessel[] => {
   const vessels: Vessel[] = [];
-  const count = 4;
+  const count = 5;
   
+  // Angles volontairement IRRÉGULIERS : des vaisseaux groupés par endroits,
+  // de larges vides ailleurs — comme un vrai œil, pas une répartition en étoile.
+  const angles = [0.35, 0.75, 2.4, 3.9, 4.25];
   for (let i = 0; i < count; i++) {
-    const angle = (i * 2 * Math.PI) / count + 0.1;
-    const cosBy = Math.cos(angle);
-    const sinBy = Math.sin(angle);
-    const rStart = 370;
-    const rEnd = 225;
+    const angle = angles[i % angles.length];
+    const rStart = 378;
+    const rEnd = 218;
+
+    // point de départ du vaisseau (au bord de l'iris)
+    const startX = CENTER_X + Math.cos(angle) * rStart;
+    const startY = CENTER_Y + Math.sin(angle) * rStart;
+    let pathD = `M ${startX.toFixed(1)} ${startY.toFixed(1)}`;
     
-    let currentX = CENTER_X + cosBy * rStart;
-    let currentY = CENTER_Y + sinBy * rStart;
-    let pathD = `M ${currentX.toFixed(1)} ${currentY.toFixed(1)}`;
-    
-    const stepCount = 4;
+    const stepCount = 3;
     for (let j = 1; j <= stepCount; j++) {
       const t = j / stepCount;
       const r = rStart - (rStart - rEnd) * t;
       const wiggleAngle = angle + Math.PI / 2;
-      const wiggleAmplitude = 10 * Math.sin(t * Math.PI) * (i % 2 === 0 ? 1 : -1);
+      const wiggleAmplitude = 12 * Math.sin(t * Math.PI) * (i % 2 === 0 ? 1 : -1);
       const x = CENTER_X + Math.cos(angle) * r + Math.cos(wiggleAngle) * wiggleAmplitude;
       const y = CENTER_Y + Math.sin(angle) * r + Math.sin(wiggleAngle) * wiggleAmplitude;
       pathD += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
     }
     
-    const opacity = 0.55 + (i % 2) * 0.1;
-    const strokeWidth = 2.5 + (i % 2) * 1.2;
-    const color = i % 2 === 0 ? "#800505" : "#990606";
+    const opacity = 0.82 + (i % 2) * 0.12;
+    const strokeWidth = 7 + (i % 2) * 3;
+    const color = i % 2 === 0 ? "#b00d0d" : "#d11616";
     
     vessels.push({
       id: `vessel-opt-${i}`,
@@ -532,7 +534,7 @@ export function LogoEmber({
   return (
     <svg
       ref={svgRef}
-      viewBox="-143 -19 880 880"
+      viewBox="-203 -79 1000 1000"
       className={className}
       preserveAspectRatio="xMidYMid meet"
       role="img"

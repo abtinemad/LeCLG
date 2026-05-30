@@ -98,12 +98,16 @@ export default function Landing() {
 
       <main className="max-w-[720px] mx-auto px-6 md:px-8">
         {/* Hero */}
-        <section className="min-h-screen flex flex-col items-center justify-center text-center pt-32 pb-12 md:pt-40">
+        <section className="min-h-screen flex flex-col items-center text-center pt-32 pb-12 md:pt-40">
+          {/* Cluster d'adresse centré (regard + question + promesse + action).
+              `my-auto` le centre dans l'espace disponible et repousse le
+              garde-fou 3114 en pied de premier écran. */}
+          <div className="my-auto flex flex-col items-center">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1.2, delay: 0.1, ease: "easeOut" }}
-            className="w-32 h-32 md:w-40 md:h-40 mb-12 flex items-center justify-center"
+            className="w-40 h-40 md:w-44 md:h-44 mb-10 flex items-center justify-center"
           >
             <LogoEmber className="w-full h-full" autonomous />
           </motion.div>
@@ -132,11 +136,12 @@ export default function Landing() {
             <Link to="/chat" className="font-mono text-[11px] tracking-widest uppercase text-bg bg-beige px-10 py-4 rounded-sm hover:opacity-85 transition-opacity">Penser maintenant</Link>
             <span className="font-mono text-[8px] tracking-widest text-beige-faint italic">Anonyme et confidentiel</span>
           </motion.div>
+          </div>
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.95 }}
-            className="mt-16 font-mono text-[8px] tracking-widest text-beige-faint/60 uppercase leading-[1.9] max-w-[320px]"
+            className="font-mono text-[8px] tracking-widest text-beige-faint/60 uppercase leading-[1.9] max-w-[320px]"
           >
             Le collègue n'est pas un outil de soin.<br />3114 disponible 24h/24 en cas de besoin.
           </motion.p>

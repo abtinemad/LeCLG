@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -36,6 +36,62 @@ const Lips = ({ className }: { className?: string }) => (
     <path d="M3 13c3 1.5 6 2 9 2s6-.5 9-2" />
   </svg>
 );
+
+// ============================================================
+// RENDU DU TEXTE DU COLLÈGUE — markdown léger
+// ============================================================
+// Le modèle pose de l'emphase en markdown (*…*, **…**). En texte brut, les
+// astérisques s'affichaient telles quelles et cassaient la voix. On rend donc
+// l'emphase, les paragraphes (lignes vides) et les retours simples — et rien
+// d'autre, volontairement. Tout est construit en nœuds React (jamais de HTML
+// injecté) : aucun risque d'injection, et un marqueur non refermé pendant le
+// streaming reste affiché littéralement jusqu'à l'arrivée de sa fermeture.
+function renderInline(text: string, keyPrefix: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  // **gras** d'abord (plus spécifique), puis *italique* et _italique_.
+  const regex = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|_[^_\n]+_)/g;
+  let last = 0;
+  let k = 0;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    const tok = m[0];
+    if (tok.startsWith("**")) {
+      nodes.push(
+        <strong key={`${keyPrefix}-${k++}`} className="font-medium text-beige">
+          {tok.slice(2, -2)}
+        </strong>,
+      );
+    } else {
+      nodes.push(<em key={`${keyPrefix}-${k++}`}>{tok.slice(1, -1)}</em>);
+    }
+    last = regex.lastIndex;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
+function RichText({ content }: { content: string }) {
+  // Une ligne vide sépare des paragraphes ; un simple retour devient un <br>.
+  const paragraphs = content.split(/\n{2,}/);
+  return (
+    <>
+      {paragraphs.map((para, pi) => {
+        const lines = para.split("\n");
+        return (
+          <p key={pi} className={pi > 0 ? "mt-3" : ""}>
+            {lines.map((line, li) => (
+              <span key={li}>
+                {renderInline(line, `${pi}-${li}`)}
+                {li < lines.length - 1 && <br />}
+              </span>
+            ))}
+          </p>
+        );
+      })}
+    </>
+  );
+}
 
 // ============================================================
 // WORKER — seul point d'entrée pour tous les appels IA
@@ -3208,13 +3264,14 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                   className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[85%] text-sm leading-[1.85] relative
+                    className={`text-sm leading-[1.85] relative
                     ${
                       m.role === "user"
-                        ? "bg-[#161512] border border-[#2a2820] rounded-[16px_16px_4px_16px] px-4 py-2.5 text-green italic"
-                        : "text-beige-dim"
-                    }
-                    ${m.role === "assistant" && i === lastAssistantIdx ? "overflow-hidden" : ""}`}
+                        ? "max-w-[85%] bg-[#161512] border border-[#2a2820] rounded-[16px_16px_4px_16px] px-4 py-2.5 text-green italic"
+                        : i === lastAssistantIdx
+                          ? "w-full text-beige-dim overflow-hidden"
+                          : "max-w-[85%] text-beige-dim"
+                    }`}
                   >
                     {/* L'œil flotte en tête du dernier message du collègue :
                         le texte s'écoule autour de lui, puis reprend toute la
@@ -3225,10 +3282,10 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                         initial={{ opacity: 0, scale: 0.85 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.5 }}
-                        className="float-left w-14 h-14 mr-3 mb-1 -mt-1"
+                        className="float-left w-14 h-14 mr-2 mb-1 -mt-1 overflow-hidden"
                         aria-label="Le collègue"
                       >
-                        <LogoEmber className="w-full h-full" expression={eyeExpression} />
+                        <LogoEmber className="w-full h-full scale-[1.6]" expression={eyeExpression} />
                       </motion.span>
                     )}
                     {m.isDictated && (
@@ -3239,20 +3296,25 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                         </span>
                       </div>
                     )}
-                    {m.content ||
-                      (loading && i === messages.length - 1 ? (
-                        <span className="flex gap-1.5 h-5 items-center">
-                          {[0, 1, 2].map((j) => (
-                            <span
-                              key={j}
-                              className="w-1.5 h-1.5 bg-[#6a6258] rounded-full animate-pulse"
-                              style={{ animationDelay: `${j * 0.2}s` }}
-                            />
-                          ))}
-                        </span>
+                    {m.content ? (
+                      m.role === "assistant" ? (
+                        <RichText content={m.content} />
                       ) : (
-                        ""
-                      ))}
+                        m.content
+                      )
+                    ) : loading && i === messages.length - 1 ? (
+                      <span className="flex gap-1.5 h-5 items-center">
+                        {[0, 1, 2].map((j) => (
+                          <span
+                            key={j}
+                            className="w-1.5 h-1.5 bg-[#6a6258] rounded-full animate-pulse"
+                            style={{ animationDelay: `${j * 0.2}s` }}
+                          />
+                        ))}
+                      </span>
+                    ) : (
+                      ""
+                    )}
                   </div>
                 </motion.div>
               ))}
