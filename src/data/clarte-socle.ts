@@ -9,9 +9,9 @@
  *  - fiable    : la même explication, juste, à chaque fois (fini le « n'importe quoi »)
  *  - gratuit   : zéro token consommé
  *  - instantané: aucun aller-retour réseau
- *  - tien      : tu écris la voix du Serpentin toi-même, tu la contrôles
+ *  - tien      : tu écris la voix du Collègue toi-même, tu la contrôles
  *
- * Voix : le Serpentin de Clarté. Sobre, claire d'abord, poétique ensuite.
+ * Voix : Le Collègue. Sobre, claire d'abord, poétique ensuite.
  * La poésie ne doit jamais coûter la compréhension d'un nouveau venu.
  *
  * Ce module sert deux usages :
@@ -37,16 +37,9 @@ export interface Concept {
 export const CONCEPTS: Record<string, Concept> = {
   collegue: {
     terme: "Le Collègue",
-    gloss: "L'application elle-même : un espace pour mettre en lien ce que tu vis.",
+    gloss: "Celui qui t'accompagne ici — un guide, pas un assistant.",
     definition:
-      "Le Collègue n'est ni un outil de productivité, ni un journal intime. C'est un espace pour y voir plus clair : il aide à transformer un vécu brut, encore confus, en une trace réfléchie. On n'y vient pas pour faire — on y vient pour voir.",
-  },
-
-  serpentin: {
-    terme: "Le Serpentin",
-    gloss: "La présence qui t'accompagne — moi. Un guide, pas un assistant.",
-    definition:
-      "Je suis le Serpentin : une forme fluide qui suit ta pensée sans la brusquer ni la presser. Je ne te donne pas de réponses ; je t'aide à rendre les tiennes plus claires. Quand une aide signée « Clarté » s'adresse à toi, c'est moi qui parle.",
+      "Le Collègue n'est ni un outil de productivité, ni un journal intime, ni un assistant qui te donne des réponses. C'est une présence qui suit ta pensée sans la brusquer ni la presser, et t'aide à rendre les tiennes plus claires. On ne vient pas ici pour faire — on vient pour voir.",
   },
 
   session: {
@@ -79,14 +72,14 @@ export const CONCEPTS: Record<string, Concept> = {
 
   prisme: {
     terme: "Les Prismes",
-    gloss: "Dix émotions primitives qui servent de signaux pour s'orienter.",
+    gloss: "Une lentille qui décompose ce que tu traverses pour le rendre lisible.",
     definition:
-      "Les Prismes sont dix émotions primitives : Joie, Tristesse, Colère, Peur, Confiance, Dégoût, Anticipation, Surprise, Honte, Mélancolie. Ce ne sont pas des émotions à corriger — ce sont des signaux : une émotion qui indique dans quelle direction regarder. Tu les découvres peu à peu, au fil de tes conversations.",
+      "Un Prisme décompose ce que tu vis en une lumière qu'on peut lire — comme un prisme sépare la lumière en couleurs. Ce n'est rien à corriger : c'est un signal, une indication de la direction où regarder. Il y en a dix ; tu les rencontres un à un, au fil de tes conversations, et c'est à toi de reconnaître ce que chacun éclaire.",
   },
 
   sphere: {
     terme: "Les Sphères",
-    gloss: "Les quatre domaines de vie où une émotion prend racine.",
+    gloss: "Les quatre domaines de vie où ce que tu ressens prend racine.",
     definition:
       "Quatre sphères situent l'origine de ce que tu ressens : Familiale, Sociale, Amoureuse, Professionnelle. Elles permettent de voir d'où vient un affect — et comment un même fil traverse parfois plusieurs domaines à la fois.",
   },
@@ -95,35 +88,35 @@ export const CONCEPTS: Record<string, Concept> = {
     terme: "Le Carnet",
     gloss: "Le lieu où tes fragments se déposent et se relisent à plusieurs niveaux.",
     definition:
-      "Le Carnet est le lieu de sédimentation : tes fragments s'y déposent, et le temps les fait parler. Il se lit par couches — Fragments, Lien, Affect, Élan, Matrice — chacune extrayant un niveau de sens différent. Le Carnet reste ouvert même les jours où tu ne converses pas.",
+      "Le Carnet est l'endroit où tes fragments se déposent, et où le temps les fait parler. On le lit par couches — Fragments, Lien, Affect, Élan, Matrice — chacune révélant un sens plus profond que la précédente. Le Carnet reste ouvert même les jours où tu ne converses pas.",
   },
 
   lien: {
     terme: "Le Lien",
     gloss: "La couche du Carnet qui range tes fragments par sphère de vie.",
     definition:
-      "Le Lien sédimente tes fragments par sphère — Familiale, Sociale, Amoureuse, Professionnelle. Pour chacune, il dégage une teinte dominante et une intensité, puis un relief d'ensemble : la structure, d'abord invisible, de la façon dont ton vécu circule en ce moment.",
+      "Le Lien range tes fragments par sphère — Familiale, Sociale, Amoureuse, Professionnelle. Pour chacune, il dégage une teinte dominante et une intensité. Peu à peu se dessine une structure d'abord invisible : la façon dont ton vécu circule entre ces domaines.",
   },
 
   affect: {
     terme: "L'Affect",
     gloss: "La couche du Carnet qui lit ce qui te porte, ce qui te freine, ce qui émerge.",
     definition:
-      "L'Affect lit le courant sous tes émotions : ce qui te met en mouvement, ce qui te retient, ce qui commence à poindre. Là où un Prisme est un signal ponctuel, l'Affect en lit la dynamique sur la durée.",
+      "L'Affect lit le courant sous ce que tu vis : ce qui te porte, ce qui te freine, ce qui commence à émerger. Là où un Prisme éclaire un instant, l'Affect en suit le mouvement sur la durée.",
   },
 
   elan: {
     terme: "L'Élan",
     gloss: "La couche du Carnet qui lit la trajectoire : d'où ça vient, vers quoi ça va.",
     definition:
-      "L'Élan lit le mouvement d'ensemble de ta pratique : sa dynamique, la direction qu'elle prend, et la question encore en suspens qui te travaille. C'est la couche du temps long.",
+      "L'Élan lit la trajectoire de ta pratique : la direction qu'elle prend, et la question encore en suspens qui te travaille. C'est la couche du temps long.",
   },
 
   matrice: {
     terme: "La Matrice",
     gloss: "La couche la plus profonde : la structure d'où vient tout le reste.",
     definition:
-      "La Matrice est ce dont on vient — la structure de fond qui revient sous le reste. Elle nomme ce qui te travaille de façon récurrente, ce qui compte pour toi, ce qui te protège, et le fil qui les relie. C'est la couche la plus lente à se former : elle a besoin de matière avant de dire quelque chose de juste.",
+      "La Matrice est le socle : la structure de fond qui revient sous tout le reste. Elle nomme ce qui te travaille sans cesse, ce qui compte pour toi, ce qui te protège, et le fil qui les relie. C'est la couche la plus lente à se former : elle a besoin de beaucoup de matière avant de dire quelque chose de juste.",
   },
 
   songe: {
@@ -184,7 +177,7 @@ export const SECTION_GUIDE: Record<string, SectionGuide> = {
     titre: "La conversation",
     intro:
       "Ici, on avance ensemble, en cinq étapes. Tu n'as rien à préparer : pars de ce qui est là, même flou. Je ne te donnerai pas de réponses — je t'aiderai à rendre les tiennes plus claires. Quand une forme se dégage, la conversation se referme d'elle-même et dépose un fragment dans ton Carnet. Trois conversations par jour : le reste du travail se fait en toi, entre deux.",
-    concepts: ["session", "serpentin", "fragment", "deplacement", "direction", "prisme"],
+    concepts: ["session", "collegue", "fragment", "deplacement", "direction", "prisme"],
   },
 
   "carnet-fragments": {
@@ -197,14 +190,14 @@ export const SECTION_GUIDE: Record<string, SectionGuide> = {
   "carnet-lien": {
     titre: "Le Lien",
     intro:
-      "Cette couche range tes fragments par sphère de vie — Familiale, Sociale, Amoureuse, Professionnelle. Pour chacune, elle dégage une teinte et une intensité, puis un relief d'ensemble : la structure, d'abord invisible, de la façon dont ton vécu circule en ce moment. Le Lien a besoin de plusieurs fragments avant d'avoir quelque chose à dire.",
+      "Cette couche range tes fragments par sphère de vie — Familiale, Sociale, Amoureuse, Professionnelle. Pour chacune, elle dégage une teinte et une intensité. Peu à peu se dessine une structure d'abord invisible : la façon dont ton vécu circule entre ces domaines. Le Lien a besoin de plusieurs fragments avant d'avoir quelque chose à dire.",
     concepts: ["lien", "sphere", "fragment"],
   },
 
   "carnet-affect": {
     titre: "L'Affect",
     intro:
-      "Cette couche lit le courant sous tes émotions : ce qui te porte, ce qui te freine, ce qui commence à émerger. Là où un Prisme est un signal ponctuel, l'Affect en lit la dynamique sur la durée.",
+      "Cette couche lit le courant sous ce que tu vis : ce qui te porte, ce qui te freine, ce qui commence à émerger. Là où un Prisme éclaire un instant, l'Affect en suit le mouvement sur la durée.",
     concepts: ["affect", "prisme", "fragment"],
   },
 

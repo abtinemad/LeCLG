@@ -245,7 +245,7 @@ export default function Admin() {
           <button 
             onClick={() => {
               localStorage.removeItem('lclg_guide_seen');
-              alert('Guide réinitialisé. Le serpentin apparaîtra sur la page d\'accueil.');
+              alert('Guide réinitialisé. Le guide réapparaîtra sur la page d\'accueil.');
               window.location.reload();
             }}
             className="px-3 py-1.5 border border-white/5 hover:bg-white/5 font-mono text-[8px] uppercase tracking-widest text-beige-faint hover:text-beige transition-all rounded-sm"
