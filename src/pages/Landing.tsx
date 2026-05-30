@@ -1,7 +1,7 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { motion, useInView } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { Heart, Fingerprint, History, Waves, Orbit, Sparkles, Gem } from 'lucide-react';
+import { Heart, Fingerprint, History, Waves, Orbit, Sparkles, Gem, ArrowDown } from 'lucide-react';
 import { ClarteSection } from '../components/SerpentinGuide';
 import { PaymentWrapper } from '../components/PaymentModal';
 import { LogoEmber } from '../components/LogoEmber';
@@ -30,6 +30,67 @@ const Step = ({ number, title, desc, note, index }: { number: string; title: str
 };
 
 export default function Landing() {
+  // Boucle douce, mais en DEUX temps : arriver en bas bloque normalement.
+  // Il faut un NOUVEAU geste — lancé alors qu'on est déjà tout en bas — pour
+  // réenrouler vers le haut. Le geste qui descend jusqu'au bas ne compte jamais
+  // (on mémorise, au début de chaque geste, si on était déjà au bas).
+  // Écouteurs passifs → aucun détournement du scroll en cours, aucun à-coup.
+  useEffect(() => {
+    let wheelAccum = 0;
+    let touchStartY = 0;
+    let startedAtBottom = false; // était-on déjà au bas au début du geste ?
+    let lastWheel = 0;
+    let cooling = false;
+
+    const atBottom = () =>
+      window.innerHeight + window.scrollY >=
+      document.documentElement.scrollHeight - 3;
+
+    const wrapToTop = () => {
+      if (cooling) return;
+      cooling = true;
+      wheelAccum = 0;
+      startedAtBottom = false;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(() => {
+        cooling = false;
+      }, 1300);
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      const now = Date.now();
+      // Une pause > 250 ms démarre une nouvelle « rafale » : on regarde alors
+      // si elle commence au bas. La rafale qui amène au bas commence plus haut.
+      if (now - lastWheel > 250) {
+        startedAtBottom = atBottom();
+        wheelAccum = 0;
+      }
+      lastWheel = now;
+      if (startedAtBottom && atBottom() && e.deltaY > 0) {
+        wheelAccum += e.deltaY;
+        if (wheelAccum > 200) wrapToTop();
+      }
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+      startedAtBottom = atBottom(); // ce geste a-t-il démarré tout en bas ?
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!startedAtBottom || !atBottom()) return;
+      // swipe vers le haut (le doigt remonte) = tenter de scroller plus bas
+      if (touchStartY - e.touches[0].clientY > 70) wrapToTop();
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+    };
+  }, []);
+
   return (
     <div className="relative min-h-screen">
       {/* Grain Overlay */}
@@ -37,35 +98,51 @@ export default function Landing() {
 
       <main className="max-w-[720px] mx-auto px-6 md:px-8">
         {/* Hero */}
-        <section className="min-h-screen flex flex-col justify-center pt-32 pb-12 md:pt-48">
+        <section className="min-h-screen flex flex-col items-center justify-center text-center pt-32 pb-12 md:pt-40">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1.2, delay: 0.1, ease: "easeOut" }}
+            className="w-32 h-32 md:w-40 md:h-40 mb-12 flex items-center justify-center"
+          >
+            <LogoEmber className="w-full h-full" />
+          </motion.div>
           <motion.h1 
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.25 }}
-            className="font-serif italic text-[clamp(40px,8vw,64px)] font-medium text-beige leading-[1.1] tracking-tight mb-8 mt-12 md:mt-24"
+            transition={{ duration: 0.8, delay: 0.35 }}
+            className="font-serif italic text-[clamp(40px,8vw,64px)] font-medium text-beige leading-[1.1] tracking-tight mb-8 max-w-[600px]"
           >
             Quelque chose à démêler ?
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-[18px] md:text-[20px] leading-[1.8] text-beige-dim max-w-[540px] mb-12 antialiased"
+            transition={{ duration: 0.8, delay: 0.5 }}
+            className="text-[18px] md:text-[20px] leading-[1.8] text-beige-dim max-w-[520px] mb-12 antialiased"
           >
             Une pause au milieu du bruit, le temps d'une conversation.
           </motion.p>
           <motion.div 
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.55 }}
-            className="flex flex-wrap items-center gap-6"
+            transition={{ duration: 0.8, delay: 0.65 }}
+            className="flex flex-col items-center gap-5"
           >
-            <Link to="/chat" className="font-mono text-[11px] tracking-widest uppercase text-bg bg-beige px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity">Penser maintenant</Link>
+            <Link to="/chat" className="font-mono text-[11px] tracking-widest uppercase text-bg bg-beige px-10 py-4 rounded-sm hover:opacity-85 transition-opacity">Penser maintenant</Link>
             <span className="font-mono text-[8px] tracking-widest text-beige-faint italic">Anonyme et confidentiel</span>
           </motion.div>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.95 }}
+            className="mt-16 font-mono text-[8px] tracking-widest text-beige-faint/60 uppercase leading-[1.9] max-w-[320px]"
+          >
+            Le collègue n'est pas un outil de soin.<br />3114 disponible 24h/24 en cas de besoin.
+          </motion.p>
         </section>
 
-        <hr className="border-none border-t border-border my-20" />
+        <hr className="border-none border-t border-border my-14" />
 
         {/* Intro */}
         <section>
@@ -79,7 +156,7 @@ export default function Landing() {
           </blockquote>
         </section>
 
-        <hr className="border-none border-t border-border my-20" />
+        <hr className="border-none border-t border-border my-14" />
 
         {/* Steps */}
         <section>
@@ -132,7 +209,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <hr className="border-none border-t border-border my-20" />
+        <hr className="border-none border-t border-border my-14" />
 
         {/* Le Carnet */}
         <section>
@@ -200,7 +277,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <hr className="border-none border-t border-border my-20" />
+        <hr className="border-none border-t border-border my-14" />
 
         {/* Ce qui le rend différent */}
         <section>
@@ -221,12 +298,12 @@ export default function Landing() {
           </div>
         </section>
 
-        <hr className="border-none border-t border-border my-20" />
+        <hr className="border-none border-t border-border my-14" />
 
         {/* Soutenir le projet */}
         <section>
           <div className="font-mono text-[8px] tracking-[0.18em] uppercase text-green mb-8">Soutenir le projet</div>
-          <div className="space-y-16">
+          <div className="space-y-12">
             {/* Évolution */}
             <div className="space-y-5">
               <div className="flex items-center gap-2 group">
@@ -264,9 +341,9 @@ export default function Landing() {
             </div>
 
             {/* Early Access */}
-            <div className="space-y-5 border-t border-border/30 pt-16">
+            <div className="space-y-3 border-t border-border/30 pt-8">
               <div className="flex items-center gap-2 group">
-                <Gem size={24} className="text-green opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
+                <Gem size={18} className="text-green opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
                 <PaymentWrapper
                   paypalUrl="https://www.paypal.com/donate/?business=REDACTED&no_recurring=0&currency_code=EUR"
                   title="Early Access"
@@ -277,15 +354,15 @@ export default function Landing() {
                 </PaymentWrapper>
                 <span className="font-mono text-[9px] text-green/60 uppercase tracking-widest">50€ · Une fois</span>
               </div>
-              <p className="text-[15px] text-beige-faint antialiased leading-relaxed italic">
+              <p className="text-[13px] text-beige-faint antialiased leading-relaxed italic">
                 Évolution permanent. Pour ceux qui croient dans le projet dès le début.
               </p>
             </div>
 
             {/* Soutien Libre */}
-            <div className="space-y-5 border-t border-border/30 pt-16">
+            <div className="space-y-3 border-t border-border/30 pt-8">
               <div className="flex items-center gap-2 group">
-                <Heart size={24} className="text-red-400 opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
+                <Heart size={18} className="text-red-400 opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
                 <PaymentWrapper
                   paypalUrl="https://www.paypal.com/donate/?business=REDACTED&no_recurring=0&currency_code=EUR"
                   title="Soutien"
@@ -294,34 +371,33 @@ export default function Landing() {
                   <h3 className="font-mono text-[11px] tracking-widest uppercase text-red-400 cursor-pointer">Soutien</h3>
                 </PaymentWrapper>
               </div>
-              <p className="text-[15px] text-beige-faint antialiased leading-relaxed italic">
+              <p className="text-[13px] text-beige-faint antialiased leading-relaxed italic">
                 Un projet indépendant, une seule personne derrière. Votre don contribue directement à la poursuite de son développement.
               </p>
             </div>
           </div>
         </section>
 
-        <hr className="border-none border-t border-border my-20" />
+        <hr className="border-none border-t border-border my-14" />
 
         <ClarteSection section="landing" />
 
-        <hr className="border-none border-t border-border my-20" />
-
-        {/* CTA */}
-        <section className="py-20 text-center relative overflow-hidden">
-          {/* Emblème — logo ψ+4 */}
-          <div className="relative mx-auto mb-14 w-32 h-32 md:w-36 md:h-36 flex items-center justify-center">
-            <LogoEmber className="w-full h-full" />
-          </div>
-
-          <h2 className="font-serif italic text-[clamp(28px,5vw,38px)] font-medium text-beige leading-tight mb-5 max-w-[500px] mx-auto">Quelque chose à démêler ?</h2>
-          <p className="italic text-[16px] text-beige-faint mb-12">Anonyme et confidentiel</p>
-          <Link to="/chat" className="font-mono text-[13px] tracking-widest uppercase text-bg bg-beige px-12 py-4 rounded-sm hover:opacity-90 transition-all hover:scale-[1.02] active:scale-[0.98] inline-block shadow-lg shadow-black/10">Penser maintenant</Link>
+        {/* Clôture — rouleau, compact pour laisser voir la boîte de clarté en entier en bas */}
+        <section className="mt-10 pb-12 text-center">
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            aria-label="Revenir au début"
+            className="group inline-flex flex-col items-center gap-2 text-beige-faint hover:text-beige transition-colors"
+          >
+            <span className="font-serif italic text-[14px] md:text-[15px]">Revenir au début</span>
+            <motion.div
+              animate={{ y: [0, 4, 0] }}
+              transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+            >
+              <ArrowDown size={13} strokeWidth={1.5} />
+            </motion.div>
+          </button>
         </section>
-
-        <footer className="border-t border-border/30 pt-16 pb-12 space-y-5">
-          <div className="font-mono text-[8px] tracking-widest text-beige-faint uppercase">Le collègue n'est pas un outil de soin.<br />3114 disponible 24h/24 en cas de besoin.</div>
-        </footer>
       </main>
 
     </div>

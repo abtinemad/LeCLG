@@ -9,7 +9,7 @@ import {
   Brain,
   BookOpen,
   Cloud,
-  X,
+  Feather,
   Gem,
   MessageCircle,
 } from "lucide-react";
@@ -52,6 +52,11 @@ const MAX_CONVERSATIONS_PER_DAY = 3;
 // crédit. Le plafond s'appuyant sur `ended_at`, il suffit de ne poser
 // `ended_at` qu'une fois ce seuil franchi (voir saveSession).
 const ENGAGEMENT_MIN_USER_MESSAGES = 3;
+// Reprise : si une conversation est laissée ouverte et qu'on revient APRÈS ce
+// délai, on ne repose pas la personne dans le fil en silence — on lui propose
+// de le reprendre ou de repartir. En deçà (retour quasi immédiat), restauration
+// directe : elle n'a pas vraiment décroché.
+const RESUME_PROMPT_AFTER_MS = 3 * 60 * 1000; // 3 min, ajustable
 // Plafond dur invisible : une conversation ne peut pas s'étendre sans fin.
 // Plafond souple en deux temps. Le problème n'est pas la longueur en soi —
 // c'est la conversation qui tourne en boucle et vire à la rumination.
@@ -426,6 +431,9 @@ export default function Chat() {
   // Reprise session
   const [resumeCardToOffer, setResumeCardToOffer] =
     useState<ReflectionCard | null>(null);
+  // Conversation laissée ouverte (retour tardif) : on retient l'état restauré
+  // pour proposer « reprendre / repartir » au lieu de reposer dans le fil.
+  const [staleOpenSession, setStaleOpenSession] = useState<any | null>(null);
   const [activeResumeContext, setActiveResumeContext] = useState<string | null>(
     null,
   );
@@ -546,6 +554,23 @@ export default function Chat() {
     lastActivity,
   ]);
 
+  // Applique un état de conversation sauvegardé (restauration silencieuse ou
+  // reprise explicite après le choix au retour). Continue la MÊME session.
+  function applyChatState(state: any) {
+    setMessages(state.messages || []);
+    setValidatedSteps(new Set(state.validatedSteps || []));
+    setPendingStep(state.pendingStep ?? null);
+    setSessionActive(state.sessionActive ?? false);
+    setShowEnded(state.showEnded ?? false);
+    setClosingPhase(state.closingPhase ?? "none");
+    setCrisisDetected(state.crisisDetected ?? false);
+    setDiffractionSansPartage(state.diffractionSansPartage ?? false);
+    setMotsCles(state.motsCles || []);
+    setReflectionCard(state.reflectionCard || null);
+    currentSessionId.current = state.sessionId || null;
+    setLastActivity(state.lastActivity || Date.now());
+  }
+
   useEffect(() => {
     // Le fragment de reprise arrive soit par location.state (navigation
     // directe), soit par localStorage (canal qui survit à un reload ou à un
@@ -581,18 +606,19 @@ export default function Chat() {
       if (saved) {
         try {
           const state = JSON.parse(saved);
-          setMessages(state.messages || []);
-          setValidatedSteps(new Set(state.validatedSteps || []));
-          setPendingStep(state.pendingStep ?? null);
-          setSessionActive(state.sessionActive ?? false);
-          setShowEnded(state.showEnded ?? false);
-          setClosingPhase(state.closingPhase ?? "none");
-          setCrisisDetected(state.crisisDetected ?? false);
-          setDiffractionSansPartage(state.diffractionSansPartage ?? false);
-          setMotsCles(state.motsCles || []);
-          setReflectionCard(state.reflectionCard || null);
-          currentSessionId.current = state.sessionId || null;
-          setLastActivity(state.lastActivity || Date.now());
+          const userMsgs = (state.messages || []).filter(
+            (m: Message) => m.role === "user",
+          ).length;
+          const idleFor = Date.now() - (state.lastActivity || 0);
+          // Conversation entamée (au moins un message écrit) ET retour tardif :
+          // on propose « reprendre / repartir » plutôt que de reposer la
+          // personne dans le fil sans cadre. Sinon, restauration directe
+          // (retour quasi immédiat, ou rien n'a encore été écrit).
+          if (userMsgs >= 1 && idleFor > RESUME_PROMPT_AFTER_MS) {
+            setStaleOpenSession(state);
+          } else {
+            applyChatState(state);
+          }
         } catch (e) {
           console.error("Failed to restore chat state", e);
         }
@@ -1297,6 +1323,36 @@ export default function Chat() {
     } else {
       confirmStart(generateNewKey(), null, dayStateKey);
     }
+  };
+
+  // ── Conversation laissée ouverte (retour tardif) ──────────
+  // Reprendre : on réapplique l'état retenu et on continue la MÊME session
+  // (même sessionId) → aucun nouveau crédit.
+  const resumeStaleSession = () => {
+    if (!staleOpenSession) return;
+    applyChatState(staleOpenSession);
+    setSessionActive(true);
+    setStaleOpenSession(null);
+  };
+
+  // Clôturer et repartir : on vide UNIQUEMENT l'état local et on revient à
+  // l'accueil pour un nouveau départ. On NE pose JAMAIS `ended_at` sur
+  // l'ancienne session → fermer ne consomme aucun crédit. La nouvelle n'en
+  // coûtera un que si la personne s'y engage (au-delà du seuil d'engagement).
+  const discardStaleSession = () => {
+    localStorage.removeItem("collegue_chat_state");
+    setStaleOpenSession(null);
+  };
+
+  // Durée écoulée, formulée doucement, pour situer la conversation ouverte.
+  const formatIdle = (ts?: number) => {
+    if (!ts) return "";
+    const min = Math.round((Date.now() - ts) / 60000);
+    if (min < 60) return `il y a ${min} min`;
+    const h = Math.round(min / 60);
+    if (h < 24) return `il y a ${h} h`;
+    const d = Math.round(h / 24);
+    return d <= 1 ? "hier" : `il y a ${d} jours`;
   };
 
   const handleResumeChoice = (choice: "reprendre" | "nouvelle") => {
@@ -2630,10 +2686,10 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
             {sessionActive && !showEnded && (
               <button
                 onClick={endSession}
-                className="font-mono text-[9px] tracking-widest uppercase text-green hover:text-green-dim transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm ring-1 ring-green/20 hover:bg-green/5"
+                className="font-mono text-[9px] tracking-widest uppercase text-green hover:text-green-dim transition-colors flex items-center gap-1.5 px-2.5 py-1 rounded-sm ring-1 ring-green/25 bg-green/5 hover:bg-green/10"
               >
-                <X size={10} strokeWidth={1.5} />
-                <span>Terminer</span>
+                <Feather size={11} strokeWidth={1.5} />
+                <span>Déposer</span>
               </button>
             )}
 
@@ -2754,7 +2810,36 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                     On en parle. Pas pour trouver la bonne réponse — pour
                     mettre des mots sur ce que vous traversez.
                   </p>
-                  {resumeCardToOffer ? (
+                  {staleOpenSession ? (
+                    <>
+                      <div className="w-full max-w-xs mb-8 border border-beige-faint/15 rounded-md p-4 text-left">
+                        <div className="font-mono text-[8px] tracking-[0.18em] uppercase text-beige-faint mb-2">
+                          Conversation laissée ouverte
+                        </div>
+                        <p className="text-[13px] italic text-beige-dim leading-relaxed">
+                          Vous aviez commencé à penser quelque chose
+                          {staleOpenSession.lastActivity
+                            ? `, ${formatIdle(staleOpenSession.lastActivity)}`
+                            : ""}
+                          . La reprendre, ou repartir à neuf ?
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-4 w-full max-w-xs">
+                        <button
+                          onClick={resumeStaleSession}
+                          className="bg-beige text-bg font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity"
+                        >
+                          Reprendre
+                        </button>
+                        <button
+                          onClick={discardStaleSession}
+                          className="bg-transparent text-beige border border-beige/20 font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:bg-beige/5 transition-colors"
+                        >
+                          Clôturer et repartir
+                        </button>
+                      </div>
+                    </>
+                  ) : resumeCardToOffer ? (
                     <>
                       <div className="w-full max-w-xs mb-8 border border-beige-faint/15 rounded-md p-4 text-left">
                         <div className="font-mono text-[8px] tracking-[0.18em] uppercase text-beige-faint mb-2">
@@ -3011,11 +3096,11 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                 </div>
               )}
 
-              {/* Session terminée */}
+              {/* Clôture — le fragment se dépose, pont vers le carnet */}
               <div className="flex flex-col items-center gap-4 w-full max-w-[560px]">
                 <div className="text-center">
                   <div className="font-serif text-lg text-beige">
-                    Session terminée.
+                    Un fragment de cet échange s'est déposé dans votre carnet.
                   </div>
                 </div>
                 {/* Action principale : rejoindre le carnet où le fragment se

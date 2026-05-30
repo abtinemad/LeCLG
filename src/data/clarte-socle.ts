@@ -39,7 +39,7 @@ export const CONCEPTS: Record<string, Concept> = {
     terme: "Le Collègue",
     gloss: "L'application elle-même : un espace pour mettre en lien ce que tu vis.",
     definition:
-      "Le Collègue n'est ni un outil de productivité, ni un journal intime. C'est un espace de dégrisement : il aide à transformer un vécu brut, encore confus, en une trace réfléchie. On n'y vient pas pour faire — on y vient pour voir.",
+      "Le Collègue n'est ni un outil de productivité, ni un journal intime. C'est un espace pour y voir plus clair : il aide à transformer un vécu brut, encore confus, en une trace réfléchie. On n'y vient pas pour faire — on y vient pour voir.",
   },
 
   serpentin: {
@@ -81,7 +81,7 @@ export const CONCEPTS: Record<string, Concept> = {
     terme: "Les Prismes",
     gloss: "Dix émotions primitives qui servent de signaux pour s'orienter.",
     definition:
-      "Les Prismes sont dix émotions primitives : Joie, Tristesse, Colère, Peur, Confiance, Dégoût, Anticipation, Surprise, Honte, Mélancolie. Ce ne sont pas des affects à corriger — ce sont des signaux : une émotion qui indique dans quelle direction regarder. Tu les découvres peu à peu, au fil de tes conversations.",
+      "Les Prismes sont dix émotions primitives : Joie, Tristesse, Colère, Peur, Confiance, Dégoût, Anticipation, Surprise, Honte, Mélancolie. Ce ne sont pas des émotions à corriger — ce sont des signaux : une émotion qui indique dans quelle direction regarder. Tu les découvres peu à peu, au fil de tes conversations.",
   },
 
   sphere: {
@@ -123,7 +123,7 @@ export const CONCEPTS: Record<string, Concept> = {
     terme: "La Matrice",
     gloss: "La couche la plus profonde : la structure d'où vient tout le reste.",
     definition:
-      "La Matrice est ce dont on vient — la structure fondamentale qui génère le reste. Elle nomme les angoisses récurrentes, les valeurs, les défenses, et le schéma central qui les relie. C'est la couche la plus lente à se former : elle a besoin de matière avant de dire quelque chose de juste.",
+      "La Matrice est ce dont on vient — la structure de fond qui revient sous le reste. Elle nomme ce qui te travaille de façon récurrente, ce qui compte pour toi, ce qui te protège, et le fil qui les relie. C'est la couche la plus lente à se former : elle a besoin de matière avant de dire quelque chose de juste.",
   },
 
   songe: {
@@ -218,7 +218,7 @@ export const SECTION_GUIDE: Record<string, SectionGuide> = {
   "carnet-matrice": {
     titre: "La Matrice",
     intro:
-      "C'est la couche la plus profonde : la structure d'où vient le reste. Elle nomme les angoisses récurrentes, les valeurs, les défenses, et le schéma central qui les relie. La Matrice est lente à se former — elle a besoin de beaucoup de matière avant de dire quelque chose de juste.",
+      "C'est la couche la plus profonde : la structure d'où vient le reste. Elle nomme ce qui te travaille de façon récurrente, ce qui compte pour toi, ce qui te protège, et le fil qui les relie. La Matrice est lente à se former — elle a besoin de beaucoup de matière avant de dire quelque chose de juste.",
     concepts: ["matrice", "lueur", "eclat"],
   },
 };
