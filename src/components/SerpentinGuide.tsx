@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, BookOpen, Brain, Gem, Heart, HelpCircle, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, BookOpen, Brain, Heart, Sparkle, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight, MessageCircle, History, ArrowRightLeft, Compass, Globe, Layers, Moon, Star } from 'lucide-react';
+import PrismeIcon from './PrismeIcon';
 import { sbGet } from '../lib/worker';
 import { SECTION_GUIDE, CONCEPTS } from '../data/clarte-socle';
 import { SerpentinCanvas } from './SerpentinCanvas';
@@ -20,7 +21,7 @@ interface GuideStep {
  * le carrousel (les points en bas du composant) les fait défiler.
  */
 const SECTION_ICONS: Record<string, React.ReactNode> = {
-  landing: <Sparkles size={14} className="text-beige" />,
+  landing: <Sparkle size={14} className="text-beige" />,
   chat: <Brain size={14} className="text-beige" />,
   'carnet-fragments': <BookOpen size={14} className="text-beige" />,
   'carnet-lien': <Heart size={14} className="text-beige" />,
@@ -29,22 +30,40 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   'carnet-matrice': <Fingerprint size={14} className="text-beige" />,
 };
 
+const CONCEPT_ICONS: Record<string, React.ReactNode> = {
+  collegue: <Brain size={14} className="text-beige" />,
+  session: <MessageCircle size={14} className="text-beige" />,
+  fragment: <History size={14} className="text-beige" />,
+  carnet: <BookOpen size={14} className="text-beige" />,
+  deplacement: <ArrowRightLeft size={14} className="text-beige" />,
+  direction: <Compass size={14} className="text-beige" />,
+  prisme: <PrismeIcon size={14} className="text-beige" />,
+  sphere: <Globe size={14} className="text-beige" />,
+  lien: <Heart size={14} className="text-beige" />,
+  affect: <Waves size={14} className="text-beige" />,
+  elan: <Orbit size={14} className="text-beige" />,
+  matrice: <Fingerprint size={14} className="text-beige" />,
+  texture: <Layers size={14} className="text-beige" />,
+  songe: <Moon size={14} className="text-beige" />,
+  lueur: <Sparkles size={14} className="text-beige" />,
+  eclat: <Star size={14} className="text-beige" />,
+};
+
 const CLARITES: Record<string, GuideStep[]> = Object.fromEntries(
   Object.entries(SECTION_GUIDE).map(([section, guide]): [string, GuideStep[]] => {
     const intro: GuideStep = {
       id: `${section}-intro`,
       title: guide.titre,
       content: guide.intro,
-      icon: SECTION_ICONS[section] ?? <Sparkles size={14} className="text-beige" />,
+      icon: SECTION_ICONS[section] ?? <Sparkle size={14} className="text-beige" />,
     };
     const glossaire: GuideStep[] = guide.concepts
-      .map((key) => CONCEPTS[key])
-      .filter(Boolean)
-      .map((c) => ({
-        id: `${section}-${c.terme}`,
-        title: c.terme,
-        content: c.definition,
-        icon: <Gem size={14} className="text-beige" />,
+      .filter((key) => CONCEPTS[key])
+      .map((key) => ({
+        id: `${section}-${CONCEPTS[key].terme}`,
+        title: CONCEPTS[key].terme,
+        content: CONCEPTS[key].definition,
+        icon: CONCEPT_ICONS[key] ?? <PrismeIcon size={14} className="text-beige" />,
       }));
     return [section, [intro, ...glossaire]];
   })
@@ -336,7 +355,11 @@ const CometAnimation = ({
 
 export const ClarteSection = ({ section, forceClose }: { section: string, forceClose?: boolean }) => {
   const steps = CLARITES[section] || [];
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  // (a) : scintille tant que la boîte n'a jamais été ouverte (par section), mémorisé en localStorage.
+  const [hasSeen, setHasSeen] = useState(() => {
+    try { return localStorage.getItem(`clarte_seen_${section}`) === '1'; } catch { return true; }
+  });
 
   useEffect(() => {
     if (forceClose) {
@@ -373,13 +396,28 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
     loadPlan();
   }, []);
 
+  const openClarte = () => {
+    setIsOpen(true);
+    if (!hasSeen) {
+      try { localStorage.setItem(`clarte_seen_${section}`, '1'); } catch {}
+      setHasSeen(true);
+    }
+  };
+
   if (!isOpen) {
     return (
-      <button 
-        onClick={() => setIsOpen(true)}
-        className="fixed top-20 right-4 md:right-8 z-[100] p-3 rounded-full bg-bg/80 backdrop-blur-md border border-beige/10 text-beige-faint hover:text-beige transition-all shadow-xl group"
+      <button
+        onClick={openClarte}
+        aria-label="Qu'est-ce que c'est ?"
+        className="fixed top-20 right-4 md:right-8 z-[100] text-beige-faint hover:text-beige transition-colors group"
       >
-        <HelpCircle size={18} className="group-hover:rotate-12 transition-transform opacity-40 group-hover:opacity-100" />
+        <motion.span
+          className="flex"
+          animate={hasSeen ? { opacity: 1, scale: 1 } : { opacity: [0.5, 1, 0.5], scale: [1, 1.15, 1] }}
+          transition={hasSeen ? { duration: 0.3 } : { duration: 1.9, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <Sparkle size={20} strokeWidth={1.6} className="group-hover:scale-110 transition-transform" />
+        </motion.span>
       </button>
     );
   }
@@ -391,11 +429,21 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
   const sectionColor = SECTION_COLORS[section] || '#E8D5B0';
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      className="relative mb-4 px-3 py-3 rounded-lg border border-white/5 bg-white/[0.015] overflow-hidden group shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] min-h-[80px] flex flex-col justify-center"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+      onClick={() => setIsOpen(false)}
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+    >
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96, y: 8 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      onClick={(e) => e.stopPropagation()}
+      className="relative w-full max-w-md px-3 py-3 rounded-lg border border-white/10 bg-bg overflow-hidden group shadow-[0_10px_40px_rgba(0,0,0,0.5)] min-h-[80px] flex flex-col justify-center"
     >
       <SerpentinCanvas color={sectionColor} level={isPermanentUnlock ? 3 : 1} className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-11" />
 
@@ -489,6 +537,7 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
         )}
       </div>
     </motion.div>
+    </motion.div>
   );
 };
 
@@ -530,9 +579,7 @@ export const PrismeExplainer = ({
                 <div className="w-12 h-[1px] bg-white/10" />
               </div>
 
-              <div className="p-3 rounded-full mb-6" style={{ backgroundColor: `${color}10`, border: `1px solid ${color}30` }}>
-                <Gem size={22} style={{ color: color }} />
-              </div>
+              <PrismeIcon size={44} rainbow={false} strokeWidth={1.5} className="mb-6" style={{ color: color }} />
 
               <h3 className="text-xl font-serif italic mb-4" style={{ color: color }}>{title}</h3>
               

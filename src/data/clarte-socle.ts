@@ -173,6 +173,13 @@ export const SECTION_GUIDE: Record<string, SectionGuide> = {
     concepts: ["collegue", "session", "fragment", "carnet"],
   },
 
+  climat: {
+    titre: "Le Climat",
+    intro:
+      "Le Climat, c'est la météo émotionnelle collective — l'air du temps de celles et ceux qui viennent penser ici, toi compris, sans que personne ne soit reconnaissable. Pas ton état à toi, mais ce qui traverse l'ensemble en ce moment : ce qui pèse, ce qui s'allège. Une façon de se rappeler qu'on n'est jamais seul à traverser ce qu'on traverse.",
+    concepts: [],
+  },
+
   chat: {
     titre: "La conversation",
     intro:

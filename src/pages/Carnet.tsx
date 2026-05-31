@@ -20,7 +20,6 @@ import {
   Network,
   Sparkles,
   X,
-  Gem,
   Feather,
   Activity,
   MessageCircle,
@@ -41,6 +40,7 @@ import {
 import { AnimatePresence } from "motion/react";
 import { sbGet, sbInsert, sbUpdate, sendEclatReply } from "../lib/worker";
 import { ClarteSection, PrismeExplainer } from "../components/SerpentinGuide";
+import PrismeIcon from "../components/PrismeIcon";
 import { PaymentWrapper } from "../components/PaymentModal";
 import { LueurVisual } from "../components/LueurVisual";
 import { RetourModal } from "../components/RetourModal";
@@ -1540,11 +1540,11 @@ export default function Carnet() {
               className="group flex flex-col items-center gap-2 transition-all"
               title="Prismes"
             >
-              <div className="w-8 h-8 rounded-full border border-white/5 bg-white/[0.02] flex items-center justify-center group-hover:border-yellow-400/30 transition-all">
-                <Gem
-                  className={`w-4 h-4 transition-colors ${prismesCount > 0 ? "text-yellow-400/40 group-hover:text-yellow-400" : "text-white/10"}`}
-                />
-              </div>
+              <PrismeIcon
+                rainbow={prismesCount > 0}
+                strokeWidth={1.5}
+                className={`w-5 h-5 transition-colors ${prismesCount > 0 ? "" : "text-white/10"}`}
+              />
             </button>
 
             <button
@@ -1552,11 +1552,10 @@ export default function Carnet() {
               className="group flex flex-col items-center gap-2 transition-all"
               title="Lueurs"
             >
-              <div className="w-8 h-8 rounded-full border border-white/5 bg-white/[0.02] flex items-center justify-center group-hover:border-white/30 transition-all">
-                <Sparkles
-                  className={`w-4 h-4 transition-colors ${lueurs.length > 0 ? "text-white/40 group-hover:text-white/80" : "text-white/10"}`}
-                />
-              </div>
+              <Sparkles
+                strokeWidth={1.5}
+                className={`w-5 h-5 transition-colors ${lueurs.length > 0 ? "text-white/40 group-hover:text-white/80" : "text-white/10"}`}
+              />
             </button>
 
             <button
@@ -1564,9 +1563,7 @@ export default function Carnet() {
               className="group flex flex-col items-center gap-2 transition-all"
               title="Faire un retour"
             >
-              <div className="w-8 h-8 rounded-full border border-white/5 bg-white/[0.02] flex items-center justify-center group-hover:border-white/30 transition-all">
-                <MessageCircle className="w-4 h-4 text-white/10 group-hover:text-white/60 transition-all" />
-              </div>
+              <MessageCircle strokeWidth={1.5} className="w-5 h-5 text-white/10 group-hover:text-white/60 transition-all" />
             </button>
           </div>
         </div>
@@ -1665,7 +1662,7 @@ export default function Carnet() {
                             />
                           )}
                           {!isLocked && (
-                            <Gem
+                            <PrismeIcon
                               className="w-2.5 h-2.5 text-yellow-500/60"
                               title={`Prisme: ${card.prisme}`}
                             />
@@ -3440,7 +3437,10 @@ export default function Carnet() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-sm bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 shadow-2xl overflow-hidden"
             >
-              <div className="absolute top-0 inset-x-0 h-1 bg-yellow-400/20" />
+              <div
+                className="absolute top-0 inset-x-0 h-1"
+                style={{ background: "linear-gradient(90deg, #E8554E, #F2994A, #F2D94E, #6BBF59, #4A90D9, #9B59B6)" }}
+              />
               <button
                 onClick={() => {
                   setIsPrismesModalOpen(false);
@@ -3452,7 +3452,7 @@ export default function Carnet() {
               </button>
 
               <div className="mb-8 text-center md:text-left">
-                <div className="font-mono text-[9px] uppercase tracking-[0.4em] text-yellow-400 mb-2">
+                <div className="font-mono text-[9px] uppercase tracking-[0.4em] text-beige-faint mb-2">
                   Prismes Collectés
                 </div>
                 <div className="text-3xl font-serif text-white">
@@ -3476,17 +3476,20 @@ export default function Carnet() {
                             setSelectedPrisme(key);
                           }
                         }}
-                        className={`relative aspect-square w-full rounded-full border flex items-center justify-center transition-all
-                          ${isFound ? "border-yellow-400/20 bg-yellow-400/5 cursor-pointer hover:border-yellow-400/40" : "border-white/5 bg-white/[0.02] opacity-30 cursor-default"}`}
+                        className={`relative aspect-square w-full flex items-center justify-center transition-all
+                          ${isFound ? "cursor-pointer hover:scale-110" : "opacity-30 cursor-default"}`}
                         title={isFound ? em.label : "Prisme non découvert"}
                       >
                         {isFound && foundCount >= 2 && (
-                          <div className="absolute -top-1 -right-1 bg-yellow-400/20 text-yellow-500 text-[6px] font-mono w-3 h-3 rounded-full flex items-center justify-center border border-yellow-400/30">
+                          <div className="absolute -top-1 -right-1 bg-white/10 text-white/70 text-[6px] font-mono w-3 h-3 rounded-full flex items-center justify-center border border-white/20">
                             {foundCount}
                           </div>
                         )}
-                        <Gem
-                          className={`w-4 h-4 ${isFound ? "text-yellow-400" : "text-white/10"}`}
+                        <PrismeIcon
+                          rainbow={false}
+                          color={isFound ? em.color : undefined}
+                          strokeWidth={1.5}
+                          className={`w-8 h-8 ${isFound ? "" : "text-white/10"}`}
                         />
                       </button>
                       {isFound && (
@@ -3624,7 +3627,7 @@ export default function Carnet() {
                       >
                         <div className="font-mono text-[8px] uppercase tracking-widest text-white/40 mb-3 flex items-center justify-between gap-2">
                           <span className="flex items-center gap-2">
-                            <Gem className="w-3 h-3 text-white/20" />
+                            <PrismeIcon className="w-3 h-3 text-white/20" />
                             <span>{i === 0 ? "Dernier Éclat" : "Éclat"}</span>
                           </span>
                           {e.answered_at && (
@@ -3810,7 +3813,7 @@ export default function Carnet() {
               <div className="px-10 pt-10 pb-5 flex-shrink-0">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.3em] text-yellow-400/50">
-                    <Gem className="w-3.5 h-3.5 text-yellow-400/40" />
+                    <PrismeIcon className="w-3.5 h-3.5 text-yellow-400/40" />
                     <span>L'Éclat</span>
                   </div>
                   {readingEclat.answered_at && (

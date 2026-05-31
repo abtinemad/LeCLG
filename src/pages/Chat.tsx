@@ -136,35 +136,59 @@ const COLD_OPENER =
 // rencontre cet état d'emblée. Comme l'opener nomme l'état et reste dans
 // l'historique, le modèle calibre le ton du reste de la session tout seul.
 // Libellés et phrases = la voix de l'app, à réécrire librement.
-const DAY_PROMPT = "Comment arrivez-vous, aujourd'hui ?";
+const DAY_PROMPT = "Plutôt lequel, là, maintenant ?";
 const DAY_STATES: { key: string; label: string; opener: string }[] = [
   {
-    key: "lourd",
-    label: "lourd",
+    key: "marre",
+    label: "y'en a marre",
     opener:
-      "Bonjour. Il y a quelque chose de lourd aujourd'hui, on dirait. Pas besoin de le soulever d'un coup — posez-le ici, comme il est, et on le regardera ensemble.",
+      "Bonjour. Il y a un ras-le-bol, quelque chose qui a assez duré. On ne cherchera pas à le faire taire — il dit souvent quelque chose de juste. Posez-le ici, et regardons ce qui, au fond, n'en peut plus.",
   },
   {
-    key: "agite",
-    label: "agité",
+    key: "eclaire",
+    label: "ça s'éclaire",
     opener:
-      "Bonjour. Ça s'agite à l'intérieur. On va ralentir un peu. Dites ce qui tourne, même en désordre — on verra l'ordre après, ou pas.",
+      "Bonjour. Quelque chose s'éclaire — le bruit est retombé, il y a de la place. C'est souvent là qu'on voit le mieux. Dites ce qui apparaît dans cette éclaircie ; on peut aussi penser le clair, pas seulement le trouble.",
+  },
+  {
+    key: "coince",
+    label: "ça coince",
+    opener:
+      "Bonjour. Quelque chose coince — un endroit où ça n'avance plus. On n'est pas obligés de le débloquer tout de suite ; parfois il suffit de regarder où, exactement, ça résiste. Posez-le ici, et on verra ce qui s'y joue.",
+  },
+  {
+    key: "emballe",
+    label: "ça m'emballe",
+    opener:
+      "Bonjour. Quelque chose vous emballe — il y a de l'élan, ça pousse en avant. On n'est pas là pour le refroidir, plutôt pour voir vers quoi ça vous tire. Posez ce qui vous anime, et regardons-le de plus près.",
+  },
+  {
+    key: "boucle",
+    label: "ça tourne en boucle",
+    opener:
+      "Bonjour. Quelque chose tourne, et ça ne s'arrête pas. Une pensée qui repasse a souvent un nœud à montrer, pas seulement à fatiguer. On n'est pas obligés d'en sortir tout de suite — posez-la ici, telle qu'elle tourne, et on regardera autour de quoi elle gravite.",
   },
   {
     key: "flou",
-    label: "flou",
+    label: "c'est flou",
     opener:
       "Bonjour. Quelque chose est là sans être net. C'est un très bon point de départ. Dites-le flou ; le flou se laisse penser, lui aussi.",
   },
   {
-    key: "pose",
-    label: "posé",
+    key: "pastrop",
+    label: "ça va pas trop",
     opener:
-      "Bonjour. Vous arrivez plutôt posé — bien. On peut prendre de la hauteur tranquillement. Qu'est-ce que vous auriez envie de regarder de plus près ?",
+      "Bonjour. Ça ne va pas trop, et c'est déjà bien de le poser là sans avoir à l'expliquer. Pas besoin de mettre un mot juste tout de suite. Dites ce qui se présente en premier, même petit — on avancera doucement à partir de là.",
   },
   {
-    key: "nsp",
-    label: "je ne sais pas",
+    key: "penser",
+    label: "juste penser",
+    opener:
+      "Bonjour. Juste penser, alors — pas un problème à dénouer, l'envie de réfléchir, simplement. C'est l'usage le plus juste qu'on puisse en faire. Par quoi vous avez envie de commencer ? On prend le temps.",
+  },
+  {
+    key: "autre",
+    label: "…c'est autre chose",
     opener:
       "Bonjour. Pas besoin de savoir d'où vous arrivez. Posez-vous un instant, et dites ce qui vient en premier — on cheminera à partir de là.",
   },
@@ -484,6 +508,13 @@ export default function Chat() {
   // Révélation de la Clé-LCLG sur l'écran de fin (à la première conversation).
   const [keyJustRevealed, setKeyJustRevealed] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
+  // Animation « plume → carnet » au moment du dépôt.
+  const deposerBtnRef = useRef<HTMLButtonElement | null>(null);
+  const carnetIconRef = useRef<HTMLAnchorElement | null>(null);
+  const [featherFlight, setFeatherFlight] = useState<
+    { from: { x: number; y: number }; to: { x: number; y: number } } | null
+  >(null);
+  const [carnetPulse, setCarnetPulse] = useState(false);
   const [crisisDetected, setCrisisDetected] = useState(false);
   // Orientation clinique (Option B) : une décision médicale est clairement en
   // jeu. Sticky une fois posé — on n'oriente pas par à-coups. Affiche une note
@@ -1526,17 +1557,6 @@ export default function Chat() {
 
   // ── Démarrage de session ──────────────────────────────────
   const startSessionFlow = (dayStateKey?: string) => {
-    const localCardsStr = localStorage.getItem("collegue_cards");
-    if (localCardsStr) {
-      try {
-        const cards: ReflectionCard[] = JSON.parse(localCardsStr);
-        if (cards.length > 0 && !cards[0].prisme) {
-          setResumeCardToOffer(cards[0]);
-          return;
-        }
-      } catch (e) {}
-    }
-
     if (hasStoredKey && personalId) {
       confirmStart(personalId, null, dayStateKey);
     } else {
@@ -2509,10 +2529,12 @@ Fais un point en deux temps. Premier temps : une image tirée directement de ce 
     // Si un miroir a joué, la carte est déjà lancée (le garde rend ceci
     // inopérant). Sinon — clôture directe sans miroir — elle démarre ici.
     startCardGeneration();
-    // Révélation de la clé : une seule fois, à la première conversation close.
-    const firstTime = !localStorage.getItem("collegue_key_revealed");
-    setKeyJustRevealed(firstTime);
-    if (firstTime) localStorage.setItem("collegue_key_revealed", "1");
+    // Invitation à poser le code : tant qu'aucun code n'est enregistré sur cet
+    // appareil, on la (re)montre à chaque clôture — ça ferme la fenêtre de
+    // préemption d'un personal_id non verrouillé. Dès qu'un code existe, plus
+    // rien. Non bloquant : le bouton « Aller au carnet » reste accessible.
+    const hasCode = !!localStorage.getItem("collegue_access_code");
+    setKeyJustRevealed(!hasCode);
   };
 
   // ── Miroir réfléchissant — dernier message de la conversation ──
@@ -2656,6 +2678,26 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
     setIsRecentrage(false);
     flowRef.current.isCalming = false;
     finalizeClose();
+  };
+
+  // Lance la plume vers le Carnet, puis clôt la session une fois posée.
+  const handleDeposer = () => {
+    const btn = deposerBtnRef.current?.getBoundingClientRect();
+    const carnet = carnetIconRef.current?.getBoundingClientRect();
+    if (btn && carnet) {
+      setFeatherFlight({
+        from: { x: btn.left + btn.width / 2, y: btn.top + btn.height / 2 },
+        to: { x: carnet.left + carnet.width / 2, y: carnet.top + carnet.height / 2 },
+      });
+      setTimeout(() => setCarnetPulse(true), 500);
+      setTimeout(() => {
+        setFeatherFlight(null);
+        setCarnetPulse(false);
+        endSession();
+      }, 700);
+    } else {
+      endSession();
+    }
   };
 
   const endSession = async () => {
@@ -2919,6 +2961,21 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
   // ============================================================
   return (
     <div className="flex flex-col bg-bg font-serif h-[100dvh] overflow-hidden">
+      {featherFlight && (
+        <motion.div
+          className="fixed left-0 top-0 z-[10001] text-green pointer-events-none"
+          initial={{ x: featherFlight.from.x - 7, y: featherFlight.from.y - 7, opacity: 0, scale: 0.7 }}
+          animate={{
+            x: featherFlight.to.x - 7,
+            y: featherFlight.to.y - 7,
+            opacity: [0, 1, 1, 0],
+            scale: [0.7, 1, 1, 0.5],
+          }}
+          transition={{ duration: 0.6, ease: "easeInOut" }}
+        >
+          <Feather size={14} strokeWidth={1.5} />
+        </motion.div>
+      )}
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 border-b border-border bg-bg z-[9999]">
         <div className="flex items-center justify-between px-4 py-3">
@@ -2947,15 +3004,23 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               <Brain size={13} strokeWidth={1.5} />
             </Link>
             <Link
+              ref={carnetIconRef}
               to="/carnet"
               className={`transition-colors flex items-center p-1.5 ${location.pathname === "/carnet" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
               title="Carnet"
             >
-              <BookOpen size={13} strokeWidth={1.5} />
+              <motion.span
+                animate={carnetPulse ? { scale: [1, 1.5, 1] } : {}}
+                transition={{ duration: 0.5 }}
+                className="flex items-center"
+              >
+                <BookOpen size={13} strokeWidth={1.5} />
+              </motion.span>
             </Link>
             {sessionActive && !showEnded && (
               <button
-                onClick={endSession}
+                ref={deposerBtnRef}
+                onClick={handleDeposer}
                 className="font-mono text-[9px] tracking-widest uppercase text-green hover:text-green-dim transition-colors flex items-center gap-1.5 px-2.5 py-1 rounded-sm ring-1 ring-green/25 bg-green/5 hover:bg-green/10"
               >
                 <Feather size={11} strokeWidth={1.5} />
@@ -3028,7 +3093,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
       {/* Messages */}
       <main className="flex-1 overflow-y-auto px-4 md:px-7 py-8 scroll-smooth">
         <div className="max-w-[620px] mx-auto">
-          {!showEnded && <ClarteSection section="chat" forceClose={messages.some(m => m.role === 'user')} />}
+          {!sessionActive && !showEnded && <ClarteSection section="chat" forceClose={messages.some(m => m.role === 'user')} />}
 
           {!sessionActive ? (
             // ── Écran d'accueil ──
@@ -3135,7 +3200,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                       </div>
                     </>
                   ) : (
-                    <div className="flex flex-col items-center gap-4 w-full max-w-xs">
+                    <div className="flex flex-col items-center gap-4 w-full max-w-[520px]">
                       <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-beige-faint">
                         {DAY_PROMPT}
                       </div>
@@ -3144,7 +3209,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                           <button
                             key={s.key}
                             onClick={() => startSessionFlow(s.key)}
-                            className="bg-transparent text-beige border border-beige/20 font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-sm hover:bg-beige hover:text-bg transition-colors"
+                            className="bg-transparent text-beige-dim border border-beige-faint/15 font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-full hover:text-beige hover:border-beige-faint/40 transition-colors"
                           >
                             {s.label}
                           </button>
@@ -3281,11 +3346,12 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               {keyJustRevealed && personalId && (
                 <div className="w-full max-w-[560px] border border-[#4a4028] bg-[#0e0d08] rounded-lg p-7 text-left space-y-4">
                   <div className="font-serif text-lg text-beige">
-                    Ce carnet est désormais le vôtre.
+                    Ce carnet est le vôtre.
                   </div>
                   <p className="text-[13px] leading-relaxed text-beige-faint">
-                    Voici votre Clé-LCLG — enregistrez-la : c'est le seul moyen
-                    de retrouver votre carnet, ici ou sur un autre appareil.
+                    Votre Clé-LCLG, ci-dessous — gardez-la précieusement : c'est
+                    elle qui vous permet de retrouver votre carnet, ici ou sur un
+                    autre appareil.
                   </p>
                   <div className="flex items-center gap-3 pt-1">
                     <code className="flex-1 font-mono text-[15px] tracking-wide text-beige bg-[#161512] border border-[#3a3420] rounded px-4 py-3 select-all break-all">
@@ -3374,9 +3440,10 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                   </div>
                 </div>
                 {/* Action principale : rejoindre le carnet où le fragment se
-                    dépose. Masquée quand l'encadré de révélation de la clé
-                    affiche déjà son propre « Aller au carnet ». */}
-                {!keyJustRevealed && (
+                    dépose. Masquée seulement quand le bloc-clé affiche déjà son
+                    propre « Aller au carnet » (donc une fois le code créé) —
+                    sinon toujours présente, pour rester non bloquant. */}
+                {!(keyJustRevealed && codeCreated) && (
                   <Link
                     to="/carnet"
                     className="inline-flex items-center gap-2 font-mono text-[10px] tracking-widest uppercase text-bg bg-beige px-6 py-3 rounded hover:opacity-90 transition-opacity"
