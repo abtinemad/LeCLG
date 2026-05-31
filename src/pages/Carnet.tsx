@@ -44,82 +44,12 @@ import { ClarteSection, PrismeExplainer } from "../components/SerpentinGuide";
 import { PaymentWrapper } from "../components/PaymentModal";
 import { LueurVisual } from "../components/LueurVisual";
 import { RetourModal } from "../components/RetourModal";
-export const EMOTIONS = {
-  joie: {
-    label: "Joie (Prisme)",
-    color: "#FACC15",
-    bg: "bg-[#FACC15]/15",
-    border: "border-[#FACC15]/40",
-  },
-  tristesse: {
-    label: "Tristesse (Prisme)",
-    color: "#60A5FA",
-    bg: "bg-[#60A5FA]/15",
-    border: "border-[#60A5FA]/40",
-  },
-  colere: {
-    label: "Colère (Prisme)",
-    color: "#F87171",
-    bg: "bg-[#F87171]/15",
-    border: "border-[#F87171]/40",
-  },
-  peur: {
-    label: "Peur (Prisme)",
-    color: "#A78BFA",
-    bg: "bg-[#A78BFA]/15",
-    border: "border-[#A78BFA]/40",
-  },
-  degout: {
-    label: "Dégoût (Prisme)",
-    color: "#4ADE80",
-    bg: "bg-[#4ADE80]/15",
-    border: "border-[#4ADE80]/40",
-  },
-  surprise: {
-    label: "Surprise (Prisme)",
-    color: "#FB923C",
-    bg: "bg-[#FB923C]/15",
-    border: "border-[#FB923C]/40",
-  },
-  confiance: {
-    label: "Confiance (Prisme)",
-    color: "#22D3EE",
-    bg: "bg-[#22D3EE]/15",
-    border: "border-[#22D3EE]/40",
-  },
-  anticipation: {
-    label: "Anticipation (Prisme)",
-    color: "#F472B6",
-    bg: "bg-[#F472B6]/15",
-    border: "border-[#F472B6]/40",
-  },
-  honte: {
-    label: "Honte (Prisme)",
-    color: "#94A3B8",
-    bg: "bg-[#94A3B8]/15",
-    border: "border-[#94A3B8]/40",
-  },
-  melancolie: {
-    label: "Mélancolie (Prisme)",
-    color: "#8B5CF6",
-    bg: "bg-[#8B5CF6]/15",
-    border: "border-[#8B5CF6]/40",
-  },
-} as const;
+import { EMOTIONS, type ReflectionCard } from "../data/emotions";
+import { PRISME_DESCRIPTIONS } from "../data/prismes";
 
-interface ReflectionCard {
-  id?: string;
-  fragment: string;
-  deplacement: string;
-  direction: string;
-  texture_relationnelle?: string;
-  sphere?: string;
-  emotion?: string;
-  prisme?: string;
-  date: string;
-  user_note?: string;
-  image_url?: string;
-}
+// Réexport conservé pour compatibilité d'éventuels imports externes.
+export { EMOTIONS } from "../data/emotions";
+
 
 const CardReadTracker = ({ card }: { card: ReflectionCard }) => {
   useEffect(() => {
@@ -217,26 +147,6 @@ export default function Carnet() {
     }
   });
 
-  const PRISME_DESCRIPTIONS: Record<string, string> = {
-    joie: "L'énergie qui s'expand. La joie est un signal d'adéquation entre l'être et son acte. Elle marque une ouverture et une vitalité retrouvée.",
-    tristesse:
-      "Le retrait nécessaire. La tristesse s'installe quand une perte doit être métabolisée. Elle est la texture du désinvestissement utile.",
-    colere:
-      "La force de la limite. La colère surgit quand le cadre est menacé. Elle est une poussée vers la défense de son propre espace psychique.",
-    peur: "Le signal de l'incertain. La peur signale une menace ou une rupture de prévisibilité. Elle invite à la prudence ou au surpoids du contrôle.",
-    confiance:
-      "Le relâchement constructif. La confiance permet de déléguer la vigilance. Elle est la base de toute coopération et de tout lien solide.",
-    degout:
-      "Le rejet protecteur. Le dégoût marque la saturation. Il impose une distance immédiate face à ce qui est perçu comme toxique ou intrusif.",
-    anticipation:
-      "Le regard vers l'avant. L'anticipation prépare le terrain. Elle est une projection qui cherche à réduire l'angoisse de l'inconnu.",
-    surprise:
-      "Le séisme cognitif. La surprise bouscule les attentes. Elle force une réactualisation brutale de la perception de la réalité.",
-    honte:
-      "Le repli du regard. La honte signale un écart douloureux entre l'idéal de soi et l'acte posé. Elle est un signal de régulation sociale interne.",
-    melancolie:
-      "La résonance de l'absence. La mélancolie est une tristesse qui s'est installée dans la durée, créant une profondeur et une esthétique du manque.",
-  };
 
   const toggleSound = () => {
     const newVal = !isSoundEnabled;

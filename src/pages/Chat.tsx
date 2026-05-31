@@ -123,6 +123,10 @@ const RESUME_PROMPT_AFTER_MS = 3 * 60 * 1000; // 3 min, ajustable
 // validé ou non — une conversation se referme toujours par le miroir.
 const LANDING_THRESHOLD = 28;
 const HARD_MESSAGE_LIMIT = 32;
+// Nombre de phrases jouées pendant l'écran de clôture (le « sceau »).
+// Le miroir reste le vrai temps de clôture ; le sceau ne fait que retourner :
+// une métaphore puis son paradoxe. Donc 2. Réglable.
+const SEAL_PHRASE_COUNT = 2;
 // Premier message à froid (primo-visite ou pas de reprise) : ton intuitif,
 // invitation ouverte. La personnalisation tissée (phase 2) viendra par-dessus.
 const COLD_OPENER =
@@ -271,6 +275,13 @@ interface EvalResult {
   collegue_posture: number;
   tension: number;
   alliance: number;
+  // Drapeau silencieux (Option B) : la situation touche manifestement à une
+  // décision médicale. Optionnel — absent tant que le prompt d'eval du worker
+  // ne le renvoie pas (le bandeau reste alors simplement inactif).
+  orientation_clinique?: boolean;
+  // Drapeau silencieux : la personne s'installe dans le blâme global d'un
+  // tiers. Optionnel — absent tant que l'eval du worker ne le renvoie pas.
+  projection?: boolean;
 }
 
 interface ReflectionCard {
@@ -474,6 +485,14 @@ export default function Chat() {
   const [keyJustRevealed, setKeyJustRevealed] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
   const [crisisDetected, setCrisisDetected] = useState(false);
+  // Orientation clinique (Option B) : une décision médicale est clairement en
+  // jeu. Sticky une fois posé — on n'oriente pas par à-coups. Affiche une note
+  // sobre vers un professionnel ; ne remplace jamais le filet de crise (3114).
+  const [orientationClinique, setOrientationClinique] = useState(false);
+  // Projection : la personne s'enferme dans le blâme de l'autre. Non sticky —
+  // reflète l'état courant ; sert à souffler au bot de déprojeter (jamais
+  // montré à la personne). Repasse à false dès qu'elle n'y est plus.
+  const [projectionDetected, setProjectionDetected] = useState(false);
   // Expression du regard du collègue — RÉACTION dérivée des signaux de l'éval
   // (aucun token supplémentaire). Revient à "neutre" après un court moment.
   const [eyeExpression, setEyeExpression] = useState<EyeExpression>("neutre");
@@ -581,6 +600,10 @@ export default function Chat() {
   const rafRef = useRef<number | null>(null);
   const resizeHandlerRef = useRef<(() => void) | null>(null);
 
+  // Canvas du sceau de clôture — le nœud dessiné avec le serpentin lui-même.
+  const sealCanvasRef = useRef<HTMLCanvasElement>(null);
+  const sealRafRef = useRef<number | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── Persistence ───────────────────────────────────────────
@@ -593,6 +616,8 @@ export default function Chat() {
       showEnded,
       closingPhase,
       crisisDetected,
+      orientationClinique,
+      projectionDetected,
       diffractionSansPartage,
       motsCles,
       reflectionCard,
@@ -608,6 +633,8 @@ export default function Chat() {
     showEnded,
     closingPhase,
     crisisDetected,
+    orientationClinique,
+    projectionDetected,
     diffractionSansPartage,
     motsCles,
     reflectionCard,
@@ -624,6 +651,8 @@ export default function Chat() {
     setShowEnded(state.showEnded ?? false);
     setClosingPhase(state.closingPhase ?? "none");
     setCrisisDetected(state.crisisDetected ?? false);
+    setOrientationClinique(state.orientationClinique ?? false);
+    setProjectionDetected(state.projectionDetected ?? false);
     setDiffractionSansPartage(state.diffractionSansPartage ?? false);
     setMotsCles(state.motsCles || []);
     setReflectionCard(state.reflectionCard || null);
@@ -1256,6 +1285,136 @@ export default function Chat() {
   }, [sessionActive, showEnded]);
 
 
+  // ── Nœud du sceau ─────────────────────────────────────────
+  // Le serpentin se referme sur lui-même : une courbe en trèfle (un vrai nœud),
+  // dessinée dans le langage du serpentin — trait beige, comète qui parcourt la
+  // boucle, halo. Un coefficient de serrage s'anime à la clôture : le nœud se
+  // resserre (lobes cinchés) si rien n'est tranché, ou se desserre vers une
+  // boucle ouverte si une direction a émergé.
+  useEffect(() => {
+    if (!isRecentrage || recentrageMode !== "sceau") return;
+    const canvas = sealCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const resolved = validatedSteps.size === 5;
+    // Une boucle qui se croise UNE seule fois (un nœud de corde simple), pas une
+    // figure à 3 lobes : le trèfle symétrique lisait comme un emblème (le
+    // triquetra de Charmed). `a` règle la profondeur de la boucle interne :
+    // grand = nœud cinché, petit = la boucle s'ouvre et se dénoue vers un anneau.
+    const A_TIGHT = 0.92;
+    const A_LOOSE = 0.42;
+    const targetA = resolved ? A_LOOSE : A_TIGHT;
+    let A = 0.65; // départ neutre — on voit le serrage/desserrage se faire
+    let writhe = 0; // torsion lente → ça vit, jamais figé en symbole
+
+    const [r, g, b] = [232, 213, 176];
+    const TWO_PI = Math.PI * 2;
+    const SAMPLES = 260;
+
+    let dpr = 1;
+    const resize = () => {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(canvas.clientWidth * dpr);
+      canvas.height = Math.floor(canvas.clientHeight * dpr);
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    const t0 = performance.now();
+    let comet = 0;
+
+    const pt = (t: number, scale: number): [number, number] => {
+      const x = (Math.cos(t) + A * Math.cos(2 * t + writhe)) * scale;
+      const y = (Math.sin(t) + A * Math.sin(2 * t + writhe)) * scale * 0.82;
+      return [x, y];
+    };
+
+    const frame = (now: number) => {
+      const W = canvas.width;
+      const H = canvas.height;
+      const elapsed = now - t0;
+      A += (targetA - A) * 0.012;
+      writhe = elapsed * 0.00018;
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.save();
+      ctx.translate(W / 2, H / 2);
+      ctx.rotate(elapsed * 0.00006);
+
+      const minDim = Math.min(W, H);
+      const breathe = 1 + 0.025 * Math.sin(elapsed * 0.0009);
+      const scale = ((minDim * 0.3) / (1 + A)) * breathe;
+
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      // chemin complet
+      ctx.beginPath();
+      for (let i = 0; i <= SAMPLES; i++) {
+        const [x, y] = pt((i / SAMPLES) * TWO_PI, scale);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+
+      // rail large et faible
+      ctx.strokeStyle = `rgba(${r},${g},${b},0.07)`;
+      ctx.lineWidth = 5 * dpr;
+      ctx.stroke();
+      // trait principal
+      ctx.strokeStyle = `rgba(${r},${g},${b},0.3)`;
+      ctx.lineWidth = 1.4 * dpr;
+      ctx.stroke();
+
+      // comète qui parcourt la boucle
+      comet += 0.0016;
+      if (comet > 1) comet -= 1;
+      const headT = comet * TWO_PI;
+      const TRAIL = 0.11;
+      const steps = 44;
+      ctx.lineWidth = 1.8 * dpr;
+      for (let i = 0; i < steps; i++) {
+        const f1 = i / steps;
+        const f2 = (i + 1) / steps;
+        const [x1, y1] = pt(headT - f1 * TRAIL * TWO_PI, scale);
+        const [x2, y2] = pt(headT - f2 * TRAIL * TWO_PI, scale);
+        const a = (1 - f1) * 0.8;
+        ctx.strokeStyle = `rgba(${r},${g},${b},${a.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+      // tête + halo
+      const [hx, hy] = pt(headT, scale);
+      const glowR = 6 * dpr;
+      const halo = ctx.createRadialGradient(hx, hy, 0, hx, hy, glowR * 3);
+      halo.addColorStop(0, `rgba(${r},${g},${b},0.5)`);
+      halo.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(hx, hy, glowR * 3, 0, TWO_PI);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,250,240,0.9)";
+      ctx.beginPath();
+      ctx.arc(hx, hy, 1.6 * dpr, 0, TWO_PI);
+      ctx.fill();
+
+      ctx.restore();
+      sealRafRef.current = requestAnimationFrame(frame);
+    };
+    sealRafRef.current = requestAnimationFrame(frame);
+
+    return () => {
+      if (sealRafRef.current) cancelAnimationFrame(sealRafRef.current);
+      window.removeEventListener("resize", resize);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecentrage, recentrageMode]);
+
+
   // ── setFlowIntensity ──────────────────────────────────────
   const setFlowIntensity = useCallback(
     (
@@ -1693,6 +1852,10 @@ export default function Chat() {
         contextNote += `Mémoire de résonance (Piste 4) : Dans ses sessions précédentes, les thèmes suivants ont émergé : ${pastSummary}. Si tu perçois un écho avec la situation actuelle, propose une mise en lien très subtile pour approfondir le trajet, sans forcer.`;
       }
 
+      if (!noInjection && projectionDetected) {
+        contextNote += `Note interne (ne jamais nommer, ne pas citer) : la personne s'installe dans le blâme de l'autre. Reçois l'émotion comme réelle, mais ne valide pas le "c'est sa faute" comme une direction — rouvre doucement vers ce que l'autre traverse ou vers sa propre part, sans la contredire. `;
+      }
+
       let finalMessages = [...payload];
       if (contextNote) {
         finalMessages[finalMessages.length - 1] = {
@@ -1741,7 +1904,7 @@ export default function Chat() {
       }
       return fullText;
     },
-    [validatedSteps, motsCles, activeResumeContext, pastReflections],
+    [validatedSteps, motsCles, activeResumeContext, pastReflections, projectionDetected],
   );
 
   // ── Recentrage ───────────────────────────────────────
@@ -1761,10 +1924,15 @@ export default function Chat() {
       motsCles.length > 0
         ? `\nMots qui sont revenus : ${motsCles.join(", ")}.`
         : "";
-    const cadre = resolved
-      ? "L'échange se referme, et les cinq dimensions ont été traversées : le nœud se défait. Écris 4 phrases brèves — des paradoxes, des retournements doux — qui accompagnent ce dénouement sur l'ensemble de l'arc parcouru. Pas un résumé : une image qui reste et continue de travailler en elle après la fermeture."
-      : "L'échange se referme sans que tout ait été dénoué : le nœud tient encore, peut-être plus serré qu'au début. Écris 4 phrases brèves — des paradoxes, des retournements doux — qui nomment cela avec justesse et douceur, sans le moindre reproche ni constat d'échec : un nœud qu'on voit déjà mieux. Une image qui reste et continue de travailler en elle.";
-    const instruction = `Voici un extrait de la conversation que tu viens d'avoir avec cette personne :\n\n${recent}\n${motsLine}\n\n[CONSIGNE INTERNE — ne réponds qu'avec le résultat, rien d'autre.]\n${cadre}\n\nRègle absolue : AUCUNE sagesse générique. Aucun proverbe, aucun aphorisme, aucune formule de méditation, de pleine conscience ou de développement personnel, rien qui pourrait s'écrire sans l'avoir écoutée. Chaque phrase doit être impossible à formuler pour quelqu'un qui n'aurait pas lu CETTE conversation : ancre-la dans sa situation précise, reprends ses propres mots et ses images, retourne-les.\n\nReste dans ta voix — celle de tout ce que tu viens de lui dire, pas une voix de méditation. Pas de conseil, pas de question, pas d'injonction. Une phrase par ligne, rien d'autre — aucun numéro, aucun tiret, aucun préambule.`;
+    const cadre = `L'échange se referme, après ton miroir. Ne répète pas le miroir. Écris exactement DEUX lignes qui se répondent :
+1. Une métaphore — une image concrète de ce que la personne traverse, tirée de ses mots et de son univers à elle, qui en dit la structure. Une image différente de celle que tu as déjà donnée dans le miroir.
+2. Un paradoxe — la même image que la métaphore, retournée, vue par son autre face. ${
+      resolved
+        ? "Une direction a émergé : le nœud se desserre, l'ouverture était déjà dans l'image."
+        : "Rien n'est encore tranché : le nœud tient toujours, mais on le voit mieux."
+    }
+Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui se retourne. Quelque chose qui continue de travailler en elle après la fermeture.`;
+    const instruction = `Voici un extrait de la conversation que tu viens d'avoir avec cette personne :\n\n${recent}\n${motsLine}\n\n[CONSIGNE INTERNE — ne réponds qu'avec le résultat, rien d'autre.]\n${cadre}\n\nRègle absolue : AUCUNE sagesse générique. Aucun proverbe, aucun aphorisme, aucune formule de méditation, de pleine conscience ou de développement personnel, rien qui pourrait s'écrire sans l'avoir écoutée. Chaque phrase doit être impossible à formuler pour quelqu'un qui n'aurait pas lu CETTE conversation : ancre-la dans sa situation précise, reprends ses propres mots et ses images, retourne-les.\n\nReste dans ta voix — celle de tout ce que tu viens de lui dire, pas une voix de méditation. Pas de conseil, pas de question, pas d'injonction. Exactement deux lignes, une par ligne, dans l'ordre métaphore puis paradoxe — aucun numéro, aucun tiret, aucun préambule.`;
 
     const raw = await streamChat(
       [{ role: "user", content: instruction, ts: new Date().toISOString() }],
@@ -1855,6 +2023,19 @@ export default function Chat() {
           setCrisisDetected(true);
           setFlowIntensity("chaos");
         }
+
+        // Orientation clinique (Option B) — sticky : une fois une décision
+        // médicale détectée, la note vers un professionnel reste posée pour
+        // le reste de la session (rien ne la remet à false).
+        if (result.orientation_clinique === true) {
+          setOrientationClinique(true);
+        }
+
+        // Projection — non sticky : reflète l'état courant. Quand la personne
+        // s'installe dans le blâme de l'autre, on soufflera au bot de
+        // déprojeter au tour suivant (cf. injection dans streamChat). Repasse
+        // à false dès qu'elle n'y est plus.
+        setProjectionDetected(result.projection === true);
 
         // Charge émotionnelle maximale : pas de mode contemplatif (le
         // recentrage est réservé à la clôture). On invite à une vraie rupture
@@ -2444,10 +2625,11 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
     };
 
     const resolved = validatedSteps.size === 5;
-    let prompts = RECENTRAGE_PROMPTS.slice(0, 4);
+    let prompts = RECENTRAGE_PROMPTS.slice(0, SEAL_PHRASE_COUNT);
     try {
       const generated = await generateRecentragePrompts(resolved);
-      if (generated && generated.length >= 3) prompts = generated.slice(0, 4);
+      if (generated && generated.length >= SEAL_PHRASE_COUNT)
+        prompts = generated.slice(0, SEAL_PHRASE_COUNT);
     } catch (e) {}
     setActiveRecentragePrompts(prompts);
 
@@ -2465,7 +2647,7 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
         setRecentrageStep(current);
         flowRef.current.dampExtra = 1.0;
       }
-    }, 5000);
+    }, 8000);
   };
 
   // Passer le sceau : la carte se révèle tout de suite.
@@ -3348,21 +3530,6 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                 </motion.div>
               )}
 
-              {/* Bannière crise */}
-              {crisisDetected && (
-                <div className="max-w-[560px] mx-auto flex items-center justify-between gap-4 px-4 py-3 border border-[#5a2a2a40] bg-[#0f0a0a] rounded-sm">
-                  <span className="font-mono text-[9px] tracking-widest uppercase text-[#7a4a4a]">
-                    Si vous traversez une crise
-                  </span>
-                  <a
-                    href="tel:3114"
-                    className="font-mono text-[13px] tracking-widest text-[#c87a7a] font-medium"
-                  >
-                    3114
-                  </a>
-                </div>
-              )}
-
               <div ref={messagesEndRef} />
             </div>
               );
@@ -3374,6 +3541,37 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
       {/* Footer */}
       <footer className="shrink-0 bg-bg border-t border-border relative z-10">
         <div className="absolute top-[-48px] inset-x-0 h-12 bg-gradient-to-b from-transparent to-bg pointer-events-none" />
+
+        {/* Bandeaux d'orientation — barre fixe au-dessus de la saisie, HORS du
+            flux des messages (sinon ils bloquent le défilement). La crise prime
+            sur l'orientation clinique. */}
+        {sessionActive && !showEnded && (crisisDetected || orientationClinique) && (
+          <div className="border-b border-border px-4 md:px-8 py-2">
+            {crisisDetected ? (
+              <div className="max-w-[620px] mx-auto flex items-center justify-between gap-4">
+                <span className="font-mono text-[9px] tracking-widest uppercase text-[#7a4a4a]">
+                  Si vous traversez une crise
+                </span>
+                <a
+                  href="tel:3114"
+                  className="font-mono text-[13px] tracking-widest text-[#c87a7a] font-medium"
+                >
+                  3114
+                </a>
+              </div>
+            ) : (
+              <div className="max-w-[620px] mx-auto flex items-center gap-3">
+                <span className="font-mono text-[9px] tracking-widest uppercase text-beige-faint shrink-0">
+                  Décision médicale
+                </span>
+                <span className="font-serif italic text-[12px] text-beige-faint/80 leading-snug">
+                  Pour une décision de cette nature, l'avis d'un professionnel de
+                  santé reste essentiel.
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Serpentin */}
         {sessionActive && !showEnded && (
@@ -3469,9 +3667,28 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[300] bg-bg/80 backdrop-blur-[35px] flex items-center justify-center p-12 text-center"
+            className={`fixed inset-0 z-[300] flex items-center justify-center p-12 text-center overflow-hidden ${
+              recentrageMode === "sceau"
+                ? "bg-bg"
+                : "bg-bg/80 backdrop-blur-[35px]"
+            }`}
           >
-            <div className="max-w-md">
+            {recentrageMode === "sceau" && (
+              <>
+                <canvas
+                  ref={sealCanvasRef}
+                  className="absolute inset-0 w-full h-full"
+                />
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background:
+                      "radial-gradient(ellipse at center, rgba(10,9,8,0.55) 0%, rgba(10,9,8,0) 62%)",
+                  }}
+                />
+              </>
+            )}
+            <div className="relative max-w-md">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={recentrageStep}
