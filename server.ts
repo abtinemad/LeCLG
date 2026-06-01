@@ -534,21 +534,22 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  // --- Sécurité : ÉCRITURE sur une clé RÉCLAMÉE → code exigé ----------------
-  // Le client joint déjà `code` à chaque sb_insert/sb_update. Si la clé a un
-  // compte, on vérifie le code (même verrou anti-brute-force que la lecture) :
-  // sinon, connaître un personal_id suffisait à écrire dans le compte d'autrui.
-  // Une clé SANS compte ("unknown") reste libre en écriture (première session /
-  // usage mono-appareil sans code). `feedbacks` n'a pas de personal_id → non
-  // concerné. L'admin (sb_update eclats/feedbacks) est géré plus bas.
+  // --- Sécurité : ÉCRITURE → code exigé (clé réclamée ou non) ---------------
+  // Avec le code obligatoire dès l'onboarding (3b), tout client légitime a un
+  // compte avant d'écrire la moindre donnée — account_create crée la ligne
+  // `access` en amont (et passe par un autre handler, pas par ce gate). Une
+  // écriture sur une clé SANS compte ("unknown") ne peut donc venir que d'un
+  // contournement du client : on la refuse aussi, fermant le déchet orphelin.
+  // `feedbacks` (sans personal_id) et l'admin (mot de passe) → non concernés.
   if (
     (type === "sb_insert" || type === "sb_update") &&
     personalId &&
     !(data.password && data.password === adminPassword)
   ) {
     const v = await verifyAccess(personalId, data.code || "", serviceKey);
-    if (!v.ok && v.error !== "unknown") {
-      return res.status(v.status).json({ error: v.error });
+    if (!v.ok) {
+      const status = v.error === "unknown" ? 401 : v.status;
+      return res.status(status).json({ error: v.error });
     }
   }
 
