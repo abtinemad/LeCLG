@@ -153,12 +153,6 @@ const COLD_OPENER =
 const DAY_PROMPT = "Plutôt lequel, là, maintenant ?";
 const DAY_STATES: { key: string; label: string; opener: string }[] = [
   {
-    key: "rien",
-    label: "non rien",
-    opener:
-      "Bonjour. Rien, alors — et c'est peut-être ce qui en dit le plus. Le silence n'est pas un vide, c'est une profondeur qui attend qu'on l'écoute. On ne va rien forcer. Restez là un instant ; et s'il vient quelque chose, même un mot, même de travers, posez-le — on n'est pas pressés.",
-  },
-  {
     key: "marre",
     label: "y'en a marre",
     opener:
@@ -211,6 +205,12 @@ const DAY_STATES: { key: string; label: string; opener: string }[] = [
     label: "…c'est autre chose",
     opener:
       "Bonjour. Pas besoin de savoir d'où vous arrivez. Posez-vous un instant, et dites ce qui vient en premier — on cheminera à partir de là.",
+  },
+  {
+    key: "rien",
+    label: "non rien",
+    opener:
+      "Bonjour. Rien, alors — et c'est peut-être ce qui en dit le plus. Le silence n'est pas un vide, c'est une profondeur qui attend qu'on l'écoute. On ne va rien forcer. Restez là un instant ; et s'il vient quelque chose, même un mot, même de travers, posez-le — on n'est pas pressés.",
   },
 ];
 // Phase 2 — personnalisation tissée : à partir de ce nombre de cartes passées,
@@ -3456,7 +3456,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                         {DAY_PROMPT}
                       </div>
                       <div className="flex flex-wrap items-center justify-center gap-2">
-                        {DAY_STATES.map((s) => (
+                        {DAY_STATES.filter((s) => s.key !== "rien").map((s) => (
                           <button
                             key={s.key}
                             onClick={() => startSessionFlow(s.key)}
@@ -3466,6 +3466,16 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                           </button>
                         ))}
                       </div>
+                      {/* « non rien » détachée, seule, tout en bas. */}
+                      {DAY_STATES.filter((s) => s.key === "rien").map((s) => (
+                        <button
+                          key={s.key}
+                          onClick={() => startSessionFlow(s.key)}
+                          className="mt-2 bg-transparent text-beige-faint border border-beige-faint/15 font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-full hover:text-beige hover:border-beige-faint/40 transition-colors"
+                        >
+                          {s.label}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </>
