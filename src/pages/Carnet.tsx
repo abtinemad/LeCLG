@@ -67,7 +67,9 @@ const CardReadTracker = ({ card }: { card: ReflectionCard }) => {
 // retentée un nombre borné de fois, puis — si elle échoue toujours — la
 // section affiche une erreur sobre au lieu d'un spinner éternel.
 const MAX_RETRY = 3; // tentatives totales avant de poser un état d'erreur
-const RETRY_DELAY_MS = 4000; // délai entre deux tentatives
+// Backoff des relances : 1re rapide (un blip réseau se rattrape vite),
+// les suivantes plus espacées (sans inonder le Worker si c'est une vraie panne).
+const RETRY_DELAYS_MS = [2000, 4000]; // ms, par numéro de tentative (backoff prudent : LLM rate-limité)
 
 // Affiché à la place du spinner quand une analyse a définitivement échoué.
 // Ton accordé à LockedBlock / au « pas encore métabolisée » — discret,
@@ -662,10 +664,11 @@ export default function Carnet() {
             // ne se relançant pas seul, le setTimeout bump retryTick — ajouté
             // à ses deps — ce qui le relance et fait re-tenter ce maillon.
             if (retryTimers.current[key]) clearTimeout(retryTimers.current[key]);
+            const delay = RETRY_DELAYS_MS[tries - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1];
             retryTimers.current[key] = setTimeout(() => {
               delete retryTimers.current[key];
               setRetryTick((t) => t + 1);
-            }, RETRY_DELAY_MS);
+            }, delay);
           } else {
             // Plafond atteint : on pose un état d'erreur visible pour la
             // section. Plus de relance automatique — la main repasse à
@@ -1663,6 +1666,8 @@ export default function Carnet() {
                           )}
                           {!isLocked && (
                             <PrismeIcon
+                              rainbow={false}
+                              color={emotionData?.color}
                               className="w-2.5 h-2.5 text-yellow-500/60"
                               title={`Prisme: ${card.prisme}`}
                             />
@@ -3438,7 +3443,7 @@ export default function Carnet() {
               className="relative w-full max-w-sm bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 shadow-2xl overflow-hidden"
             >
               <div
-                className="absolute top-0 inset-x-0 h-1"
+                className="absolute top-0 inset-x-0 h-1 opacity-60"
                 style={{ background: "linear-gradient(90deg, #E8554E, #F2994A, #F2D94E, #6BBF59, #4A90D9, #9B59B6)" }}
               />
               <button

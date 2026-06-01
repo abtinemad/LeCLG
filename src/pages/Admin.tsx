@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Gem } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import PrismeIcon from '../components/PrismeIcon';
 import { sbGet, sbUpdate } from '../lib/worker';
 
 interface Session {
@@ -662,7 +663,7 @@ export default function Admin() {
                       <div className="font-mono text-[8px] tracking-[0.16em] uppercase text-[#4a4028]">Carte de réflexion générée</div>
                       {selectedSession.reflection_card.prisme && (
                         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 font-mono text-[7px] uppercase">
-                          <Gem className="w-2 h-2" />
+                          <PrismeIcon rainbow={false} className="w-2 h-2" />
                           Prisme débloqué
                         </div>
                       )}

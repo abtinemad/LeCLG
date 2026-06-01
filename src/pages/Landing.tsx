@@ -11,7 +11,7 @@ export default function Landing() {
 
       <main className="max-w-[720px] mx-auto px-6 md:px-8">
         {/* Hero */}
-        <section className="min-h-screen flex flex-col items-center text-center pt-32 pb-12 md:pt-40">
+        <section className="min-h-screen flex flex-col items-center text-center pt-24 pb-10 md:pt-40 md:pb-12">
           {/* Cluster d'adresse centré (regard + question + promesse + action).
               `my-auto` le centre dans l'espace disponible. */}
           <div className="my-auto flex flex-col items-center">
@@ -19,7 +19,7 @@ export default function Landing() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1.2, delay: 0.1, ease: "easeOut" }}
-            className="w-40 h-40 md:w-44 md:h-44 mb-10 flex items-center justify-center"
+            className="w-28 h-28 md:w-44 md:h-44 mb-6 md:mb-10 flex items-center justify-center"
           >
             <LogoEmber className="w-full h-full" autonomous />
           </motion.div>
@@ -27,7 +27,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.35 }}
-            className="font-serif italic text-[clamp(40px,8vw,64px)] font-medium text-beige leading-[1.1] tracking-tight mb-8 max-w-[600px]"
+            className="font-serif italic text-[clamp(36px,8vw,64px)] font-medium text-beige leading-[1.1] tracking-tight mb-5 md:mb-8 max-w-[600px]"
           >
             Quelque chose à démêler ?
           </motion.h1>
@@ -35,7 +35,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.5 }}
-            className="text-[18px] md:text-[20px] leading-[1.8] text-beige-dim max-w-[520px] mb-12 antialiased"
+            className="text-[17px] md:text-[20px] leading-[1.6] md:leading-[1.8] text-beige-dim max-w-[520px] mb-8 md:mb-12 antialiased"
           >
             Une pause au milieu du bruit, le temps d'une conversation.
           </motion.p>
@@ -43,7 +43,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.575 }}
-            className="flex flex-wrap items-center justify-center gap-2.5 mb-12 max-w-[520px]"
+            className="flex flex-wrap items-center justify-center gap-2.5 mb-8 md:mb-12 max-w-[520px]"
           >
             <Link to="/chat" state={{ moment: "ça tourne en boucle" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">ça tourne en boucle</Link>
             <Link to="/chat" state={{ moment: "ça m'emballe" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">ça m'emballe</Link>
@@ -53,7 +53,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.65 }}
-            className="flex flex-col items-center gap-5"
+            className="flex flex-col items-center gap-4 md:gap-5"
           >
             <Link to="/chat" className="font-mono text-[11px] tracking-widest uppercase text-bg bg-beige px-10 py-4 rounded-sm hover:opacity-85 transition-opacity">Déposer un truc</Link>
             <span className="font-mono text-[8px] tracking-widest text-beige-faint italic">Anonyme et confidentiel</span>
