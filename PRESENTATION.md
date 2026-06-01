@@ -55,7 +55,7 @@ La Matrice est le cœur métacognitif de l'app. Elle synthétise le trajet long 
 
 ### Suivi Inter-Session (Mémoire de Résonance)
 Le système est conçu pour une continuité sans intrusion :
-- **Clé de Reconnaissance** : Une clé unique (ex: `vrai-chemin-234`) générée à l'ouverture, servant d'identifiant unique sans lien avec une identité réelle.
+- **Clé de Reconnaissance** : Une clé unique et mémorisable (ex: `vrai-chemin-234`) servant d'identifiant sans lien avec une identité réelle, complétée par un **code à 6 chiffres** choisi par l'utilisateur et obligatoire dès l'arrivée (aucune conversation ne démarre sans lui).
 - **Réinjection de Contexte** : Lors d'une nouvelle session, l'IA "réactive" les fragments des sessions passées pour proposer des mises en lien, créant un sentiment de trajet suivi et de profondeur clinique.
 
 ### Anonymat & Confidentialité : Un Engagement Total

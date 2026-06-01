@@ -26,6 +26,10 @@
 @layer base {
   body {
     @apply font-serif antialiased bg-bg text-beige;
+    /* Évite une barre de défilement horizontale transitoire pendant le glissé
+       de transition de page (n'affecte ni le scroll vertical, ni le
+       défilement interne du chat). */
+    overflow-x: hidden;
   }
 
   ::-webkit-scrollbar {
