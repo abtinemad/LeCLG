@@ -11,21 +11,38 @@ interface PaymentModalProps {
   color?: string;
 }
 
+// Coordonnées de paiement issues de l'environnement (build Vite). Tant qu'une
+// valeur n'est pas renseignée, la méthode correspondante ne s'affiche pas :
+// impossible de livrer une coordonnée factice ou un bouton « copier » bidon.
+const WERO_NUMBER = (import.meta.env.VITE_WERO_NUMBER || "").trim();
+const CRYPTOS = [
+  { name: "Bitcoin (BTC)", address: (import.meta.env.VITE_BTC_ADDRESS || "").trim() },
+  { name: "Ethereum (ERC-20)", address: (import.meta.env.VITE_ETH_ADDRESS || "").trim() },
+  { name: "Solana (SOL)", address: (import.meta.env.VITE_SOL_ADDRESS || "").trim() },
+].filter((c) => c.address);
+
 export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color = "text-beige" }: PaymentModalProps) {
   const [copied, setCopied] = useState<string | null>(null);
-  // Sections de paiement repliables (accordéon) : "classic" ouvert par défaut.
-  const [openMethod, setOpenMethod] = useState<"classic" | "crypto" | null>("classic");
 
-  const cryptos = [
-    { name: "Bitcoin (BTC)", address: "bc1q... (Veuillez insérer votre adresse BTC)" },
-    { name: "Ethereum (ERC-20)", address: "0x... (Veuillez insérer votre adresse ETH)" },
-    { name: "Solana (SOL)", address: "G5... (Veuillez insérer votre adresse SOL)" },
-  ];
+  const hasPayPal = !!(paypalUrl && paypalUrl.trim());
+  const hasWero = !!WERO_NUMBER;
+  const hasClassic = hasPayPal || hasWero;
+  const hasCrypto = CRYPTOS.length > 0;
 
-  const handleCopy = (address: string, name: string) => {
-    navigator.clipboard.writeText(address);
-    setCopied(name);
-    setTimeout(() => setCopied(null), 2000);
+  // Section ouverte par défaut : la première réellement disponible.
+  const [openMethod, setOpenMethod] = useState<"classic" | "crypto" | null>(
+    hasClassic ? "classic" : hasCrypto ? "crypto" : null,
+  );
+
+  const handleCopy = async (address: string, name: string) => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(name);
+      setTimeout(() => setCopied(null), 2000);
+    } catch {
+      // Contexte non sécurisé (http) ou permission refusée : on évite la
+      // promesse non gérée. Le texte reste sélectionnable manuellement.
+    }
   };
 
   return (
@@ -63,7 +80,9 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
               </div>
 
               <div className="space-y-3">
-                {/* Paiement classique — PayPal & Wero, repliable */}
+                {/* Paiement classique — PayPal & Wero, repliable.
+                    Affiché seulement si au moins l'un des deux est renseigné. */}
+                {hasClassic && (
                 <div className="border border-white/10">
                   <button
                     onClick={() => setOpenMethod(openMethod === "classic" ? null : "classic")}
@@ -79,6 +98,7 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
                   </button>
                   {openMethod === "classic" && (
                     <div className="p-4 pt-0 space-y-3">
+                      {hasPayPal && (
                       <a
                         href={paypalUrl}
                         target="_blank"
@@ -94,7 +114,9 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
                         </div>
                         <ExternalLink size={16} className="text-white/40 group-hover:text-white/80 transition-colors" />
                       </a>
+                      )}
 
+                      {hasWero && (
                       <div className="flex items-center justify-between w-full bg-[#3949ab]/10 border border-[#3949ab]/30 p-4 relative group">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-[#3949ab] flex items-center justify-center text-white font-bold text-xs italic">
@@ -102,22 +124,26 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
                           </div>
                           <div className="flex flex-col">
                             <span className="font-sans text-sm text-white transition-colors">Payer avec Wero</span>
-                            <span className="font-mono text-[13px] text-white/50">+33 6 XX XX XX XX (à remplacer)</span>
+                            <span className="font-mono text-[13px] text-white/50">{WERO_NUMBER}</span>
                           </div>
                         </div>
                         <button
-                          onClick={() => handleCopy("+33600000000", "Wero")}
+                          onClick={() => handleCopy(WERO_NUMBER, "Wero")}
                           className="p-2 bg-black/40 hover:bg-black border border-white/10 text-white/50 hover:text-white transition-all rounded-sm flex items-center justify-center cursor-pointer"
                           title="Copier le numéro"
                         >
                           {copied === "Wero" ? <CheckCircle2 size={14} className="text-green" /> : <Copy size={14} />}
                         </button>
                       </div>
+                      )}
                     </div>
                   )}
                 </div>
+                )}
 
-                {/* Cryptomonnaie — BTC / ETH / SOL, repliable */}
+                {/* Cryptomonnaie — BTC / ETH / SOL, repliable.
+                    Affiché seulement si au moins une adresse est renseignée. */}
+                {hasCrypto && (
                 <div className="border border-white/10">
                   <button
                     onClick={() => setOpenMethod(openMethod === "crypto" ? null : "crypto")}
@@ -133,7 +159,7 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
                   </button>
                   {openMethod === "crypto" && (
                     <div className="p-4 pt-0 space-y-3">
-                      {cryptos.map((crypto) => (
+                      {CRYPTOS.map((crypto) => (
                         <div key={crypto.name} className="flex flex-col gap-2 p-4 bg-white/5 border border-white/5 hover:border-white/10 transition-colors relative group">
                           <div className="flex items-center gap-2">
                             <Bitcoin size={16} className="text-yellow-500/80" strokeWidth={1.5} />
@@ -154,6 +180,13 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
                     </div>
                   )}
                 </div>
+                )}
+
+                {!hasClassic && !hasCrypto && (
+                  <p className="font-serif italic text-beige-faint/70 text-sm text-center py-2">
+                    Moyens de paiement bientôt disponibles.
+                  </p>
+                )}
               </div>
             </div>
           </motion.div>

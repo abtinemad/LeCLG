@@ -11,6 +11,30 @@ function accessCode(): string {
   }
 }
 
+// Gestion commune des échecs d'auth (clé réclamée) pour lecture ET écriture.
+// 400 "invalid" = code absent/incorrect en local sur cet appareil → on invite
+// à entrer le code. 423 = verrou anti-brute-force. 401 = non autorisé.
+// Renvoie true si l'erreur a été traitée (et relancée), false sinon.
+async function handleAuthError(res: Response, action: string): Promise<void> {
+  if (res.status === 401) {
+    toast.error("Non autorisé (Accès admin requis ou clé manquante)");
+    throw new Error("Unauthorized");
+  }
+  if (res.status === 423) {
+    toast.error("Trop d'essais de code. Réessaie dans quelques minutes.");
+    throw new Error("Locked");
+  }
+  let errBody: any = null;
+  try { errBody = await res.json(); } catch {}
+  if (res.status === 400 && errBody && errBody.error === "invalid") {
+    window.dispatchEvent(new CustomEvent("collegue:code-required"));
+    toast.error("Entre ton code pour accéder à ton carnet sur cet appareil.");
+    throw new Error("CodeRequired");
+  }
+  toast.error(`Erreur réseau (${res.status}) lors de ${action}`);
+  throw new Error("Worker request failed");
+}
+
 export async function sbGet(table: string, params: string = "", password?: string) {
   const res = await fetch(WORKER_URL, {
     method: "POST",
@@ -20,24 +44,10 @@ export async function sbGet(table: string, params: string = "", password?: strin
       data: { table, params, password, code: accessCode() }
     })
   });
-  if (!res.ok) { 
-    if (res.status === 401) {
-      toast.error("Non autorisé (Accès admin requis ou clé manquante)");
-      throw new Error("Unauthorized");
-    }
-    // 400 "invalid" = clé réclamée mais code absent/incorrect en local sur cet
-    // appareil. On invite à se reconnecter avec le code plutôt que d'afficher
-    // une erreur réseau opaque. (Un nouvel utilisateur non réclamé ne déclenche
-    // jamais ce 400 : sa lecture passe via la règle « allow-if-unclaimed ».)
-    let errBody: any = null;
-    try { errBody = await res.json(); } catch {}
-    if (res.status === 400 && errBody && errBody.error === "invalid") {
-      window.dispatchEvent(new CustomEvent("collegue:code-required"));
-      toast.error("Entre ton code pour accéder à ton carnet sur cet appareil.");
-      throw new Error("CodeRequired");
-    }
-    toast.error(`Erreur réseau (${res.status}) lors de la lecture`);
-    throw new Error("Worker request failed");
+  if (!res.ok) {
+    // (Un nouvel utilisateur non réclamé ne déclenche jamais ce 400 : sa
+    // lecture renvoie [] via la règle « unknown → vide ».)
+    await handleAuthError(res, "la lecture");
   }
   return res.json();
 }
@@ -49,8 +59,7 @@ export async function sbInsert(table: string, payload: any, password?: string) {
     body: JSON.stringify({ type: "sb_insert", data: { table, payload, password, code: accessCode() } })
   });
   if (!res.ok) {
-    toast.error(`Erreur réseau (${res.status}) lors de la sauvegarde`);
-    throw new Error("Worker request failed");
+    await handleAuthError(res, "la sauvegarde");
   }
   return res.json();
 }
@@ -62,8 +71,7 @@ export async function sbUpdate(table: string, id: string, payload: any, password
     body: JSON.stringify({ type: "sb_update", data: { table, id, payload, password, code: accessCode() } })
   });
   if (!res.ok) {
-    toast.error(`Erreur réseau (${res.status}) lors de la mise à jour`);
-    throw new Error("Worker request failed");
+    await handleAuthError(res, "la mise à jour");
   }
   return res.json();
 }

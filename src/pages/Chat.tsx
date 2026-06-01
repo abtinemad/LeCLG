@@ -1896,6 +1896,14 @@ export default function Chat() {
         }),
       });
 
+      // C2 : un échec HTTP (429/500/403…) porte un corps, donc `!res.body` ne
+      // l'attrape pas — sans ce contrôle, le parser SSE ne trouve aucun
+      // `data:`, renvoie une chaîne vide, et la bulle reste vide en silence.
+      // On lève pour que l'appelant (catch) rende l'erreur visible.
+      if (!res.ok) {
+        if (res.status === 429) throw new Error("RATE_LIMIT");
+        throw new Error(`Worker error ${res.status}`);
+      }
       if (!res.body) throw new Error("No body");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -1915,6 +1923,20 @@ export default function Chat() {
           try {
             const parsed = JSON.parse(data);
             const chunk = parsed.delta?.text || "";
+            if (chunk) {
+              fullText += chunk;
+              onChunk(chunk);
+            }
+          } catch {}
+        }
+      }
+      // C3 : un dernier événement SSE sans newline final reste dans `buffer`
+      // et serait perdu. On le traite avant de retourner.
+      if (buffer.startsWith("data: ")) {
+        const data = buffer.slice(6);
+        if (data !== "[DONE]") {
+          try {
+            const chunk = JSON.parse(data).delta?.text || "";
             if (chunk) {
               fullText += chunk;
               onChunk(chunk);
@@ -2333,10 +2355,14 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
       }
     } catch (e) {
       console.error("streamChat error:", e);
+      const msg =
+        e instanceof Error && e.message === "RATE_LIMIT"
+          ? "Trop de demandes d'un coup — laisse passer un instant, puis réessaie."
+          : "Erreur de connexion.";
       setMessages((prev) => {
         const next = [...prev];
         if (next[next.length - 1].role === "assistant")
-          next[next.length - 1].content = "Erreur de connexion.";
+          next[next.length - 1].content = msg;
         return next;
       });
     } finally {
@@ -2433,6 +2459,15 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
       }
     } catch (e) {
       console.error("nudge failed", e);
+      // Le nudge est secondaire : en cas d'échec, on retire la bulle vide
+      // plutôt que de la laisser traîner.
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === "assistant" && !last.content) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
     } finally {
       setLoading(false);
       flowRef.current.isLoading = false;
@@ -2850,14 +2885,19 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
           }
         }
 
-        // Sauvegarder dans sessions pour compatibilité admin
+        // Sauvegarder dans sessions pour compatibilité admin.
+        // NB : `ended_at` n'est PAS posé ici. C'est `saveSession` (appelé juste
+        // avant via startCardGeneration) qui en est l'unique source — sous la
+        // règle d'engagement. Une carte ne s'obtient qu'au bout des 5 étapes,
+        // donc la session a forcément dépassé le seuil : saveSession pose bien
+        // `ended_at`. On évite ainsi deux sources de vérité contradictoires
+        // pour le décompte du plafond quotidien.
         if (personalId && currentSessionId.current) {
           try {
             await sbUpdate("sessions", currentSessionId.current, {
               reflection_card: newCard,
               personal_id: personalId,
               step_reached: validatedSteps.size,
-              ended_at: new Date().toISOString(),
             });
           } catch (e) {
             console.error("session save failed", e);

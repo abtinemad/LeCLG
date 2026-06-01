@@ -534,6 +534,24 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
+  // --- Sécurité : ÉCRITURE sur une clé RÉCLAMÉE → code exigé ----------------
+  // Le client joint déjà `code` à chaque sb_insert/sb_update. Si la clé a un
+  // compte, on vérifie le code (même verrou anti-brute-force que la lecture) :
+  // sinon, connaître un personal_id suffisait à écrire dans le compte d'autrui.
+  // Une clé SANS compte ("unknown") reste libre en écriture (première session /
+  // usage mono-appareil sans code). `feedbacks` n'a pas de personal_id → non
+  // concerné. L'admin (sb_update eclats/feedbacks) est géré plus bas.
+  if (
+    (type === "sb_insert" || type === "sb_update") &&
+    personalId &&
+    !(data.password && data.password === adminPassword)
+  ) {
+    const v = await verifyAccess(personalId, data.code || "", serviceKey);
+    if (!v.ok && v.error !== "unknown") {
+      return res.status(v.status).json({ error: v.error });
+    }
+  }
+
   // --- Sécurité : les champs de réponse (response_text / answered_at, plus
   // replies / replies_closed pour les eclats) sont en écriture contrôlée —
   // jamais via le chemin d'insertion (la demande d'Éclat ou le retour envoyé
@@ -624,12 +642,16 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     }
 
     // Lecture utilisateur : si la clé a un compte (ligne access), le code est
-    // exigé et vérifié (avec verrou anti-brute-force). Si la clé n'a pas encore
-    // de compte ("unknown"), on laisse passer — données vides/orphelines, et
-    // ça n'empêche pas la toute première session d'un nouvel utilisateur.
+    // exigé et vérifié (avec verrou anti-brute-force). Si la clé n'a PAS de
+    // compte ("unknown"), on ne sert RIEN depuis le cloud : un nouvel
+    // utilisateur n'a rien à relire, et une clé devinée sans compte ne doit
+    // plus exposer de données. L'usage mono-appareil reste intact (le Carnet
+    // lit d'abord en localStorage) ; seule la synchro cross-device exige
+    // désormais un code — ce qui est précisément le cas qu'on protège.
     if (!isAdmin && hasUserFilter) {
       const v = await verifyAccess(personalId, data.code || "", serviceKey);
-      if (!v.ok && v.error !== "unknown") {
+      if (!v.ok) {
+        if (v.error === "unknown") return res.json([]);
         return res.status(v.status).json({ error: v.error });
       }
     }
