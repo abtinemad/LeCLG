@@ -99,6 +99,20 @@ function RichText({ content }: { content: string }) {
 const API_BASE = "/api";
 const WORKER_URL = "/api/worker";
 
+// Refus des codes triviaux à la création : chiffres tous identiques (000000…),
+// suites croissantes/décroissantes (012345, 654321…) et quelques motifs très
+// courants. Le code restant à 6 chiffres, ceci ferme l'angle réaliste —
+// l'essai « évident » par un proche qui connaîtrait la clé.
+function isTrivialCode(c: string): boolean {
+  if (!/^\d{6}$/.test(c)) return true;
+  if (/^(\d)\1{5}$/.test(c)) return true; // 000000, 111111…
+  if ("0123456789".includes(c)) return true; // 012345, 123456, 456789…
+  if ("9876543210".includes(c)) return true; // 654321, 987654…
+  const common = ["112233", "121212", "123123", "102030", "147258", "159753"];
+  if (common.includes(c)) return true;
+  return false;
+}
+
 // Plafond de conversations réellement engagées par jour (le serveur fait foi).
 const MAX_CONVERSATIONS_PER_DAY = 3;
 // Seuil d'engagement : une conversation ne décompte un crédit du plafond
@@ -112,7 +126,7 @@ const ENGAGEMENT_MIN_USER_MESSAGES = 3;
 // délai, on ne repose pas la personne dans le fil en silence — on lui propose
 // de le reprendre ou de repartir. En deçà (retour quasi immédiat), restauration
 // directe : elle n'a pas vraiment décroché.
-const RESUME_PROMPT_AFTER_MS = 3 * 60 * 1000; // 3 min, ajustable
+const RESUME_PROMPT_AFTER_MS = 30 * 1000; // 30 s : au-delà d'un simple reload, on propose le choix
 // Plafond dur invisible : une conversation ne peut pas s'étendre sans fin.
 // Plafond souple en deux temps. Le problème n'est pas la longueur en soi —
 // c'est la conversation qui tourne en boucle et vire à la rumination.
@@ -557,7 +571,25 @@ export default function Chat() {
   const [keySaved, setKeySaved] = useState(false);
   // Code d'accès à 6 chiffres (choisi à la création de la clé).
   const [accessCode, setAccessCode] = useState("");
-  const [codeCreated, setCodeCreated] = useState(false);
+  // `codeCreated` reflète l'existence d'un code en local : initialisé d'après
+  // localStorage pour qu'un utilisateur déjà inscrit ne se voie pas reproposer
+  // la création de code (à l'onboarding comme à l'écran de fin).
+  const [codeCreated, setCodeCreated] = useState(
+    () => !!localStorage.getItem("collegue_access_code"),
+  );
+  // 3b — code obligatoire avant toute conversation. Quand un démarrage est
+  // demandé sans code en local, on l'affiche (needCode) et on diffère le
+  // démarrage réel jusqu'à la création du code.
+  const [needCode, setNeedCode] = useState(false);
+  const pendingStartRef = useRef<{
+    id: string;
+    resumeCtx: string | null;
+    dayStateKey?: string;
+  } | null>(null);
+  // 3b — reprise (session laissée ouverte ou restaurée au montage) différée
+  // tant qu'aucun code n'existe : on mémorise l'état à ré-appliquer, on exige
+  // le code, puis on reprend. Couvre les sessions legacy d'avant 3b.
+  const pendingResumeRef = useRef<any | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [codeSubmitting, setCodeSubmitting] = useState(false);
   const currentSessionId = useRef<string | null>(null);
@@ -721,23 +753,46 @@ export default function Chat() {
       } else {
         confirmStart(generateNewKey(), resumeCtx);
       }
+    } else if ((location.state as any)?.dayStateKey) {
+      // Pastille du Landing : démarrer une session fraîche calée sur cet état
+      // du jour. On passe par confirmStart → le gate 3b s'applique (création de
+      // code si besoin), puis l'opener correspondant à l'état est posé.
+      const seed = (location.state as any).dayStateKey as string;
+      localStorage.removeItem("collegue_chat_state");
+      const storedId = localStorage.getItem("collegue_personal_id");
+      confirmStart(storedId || generateNewKey(), null, seed);
     } else {
       const saved = localStorage.getItem("collegue_chat_state");
       if (saved) {
         try {
           const state = JSON.parse(saved);
-          const userMsgs = (state.messages || []).filter(
-            (m: Message) => m.role === "user",
-          ).length;
-          const idleFor = Date.now() - (state.lastActivity || 0);
-          // Conversation entamée (au moins un message écrit) ET retour tardif :
-          // on propose « reprendre / repartir » plutôt que de reposer la
-          // personne dans le fil sans cadre. Sinon, restauration directe
-          // (retour quasi immédiat, ou rien n'a encore été écrit).
-          if (userMsgs >= 1 && idleFor > RESUME_PROMPT_AFTER_MS) {
-            setStaleOpenSession(state);
+          // Même définition que le Landing d'« en cours » : session ouverte, ni
+          // terminée ni clôturée. Une conversation finie laisse son état en
+          // localStorage (showEnded) — il ne faut surtout pas la proposer en
+          // reprise. On nettoie et on retombe sur l'accueil.
+          const isOpen =
+            state.sessionActive === true &&
+            !state.showEnded &&
+            state.closingPhase !== "closed";
+          if (!isOpen) {
+            localStorage.removeItem("collegue_chat_state");
           } else {
-            applyChatState(state);
+            const userMsgs = (state.messages || []).filter(
+              (m: Message) => m.role === "user",
+            ).length;
+            const idleFor = Date.now() - (state.lastActivity || 0);
+            // « Reprendre » depuis le Landing passe state.resume : on restaure
+            // directement, sans reproposer le choix (le Landing l'a déjà posé).
+            const forceResume = (location.state as any)?.resume === true;
+            // Conversation entamée ET retour tardif : on propose « reprendre /
+            // laisser de côté » plutôt que de reposer la personne dans le fil
+            // sans cadre. Sinon, restauration directe (retour quasi immédiat,
+            // reload, ou reprise explicite).
+            if (userMsgs >= 1 && idleFor > RESUME_PROMPT_AFTER_MS && !forceResume) {
+              setStaleOpenSession(state);
+            } else {
+              resumeWithCodeGuard(state);
+            }
           }
         } catch (e) {
           console.error("Failed to restore chat state", e);
@@ -1522,10 +1577,19 @@ export default function Chat() {
       setCodeError("Le code doit comporter exactement 6 chiffres.");
       return;
     }
+    if (isTrivialCode(accessCode)) {
+      setCodeError(
+        "Choisissez un code moins évident (évitez les chiffres identiques ou qui se suivent).",
+      );
+      return;
+    }
     setCodeSubmitting(true);
     setCodeError(null);
     try {
-      let pid = personalId;
+      // La clé à associer : celle déjà en main, sinon celle mémorisée pour le
+      // démarrage différé (3b), sinon on en génère une.
+      const existingKey = personalId || pendingStartRef.current?.id || "";
+      let pid = existingKey || generateNewKey();
       const send = (id: string) =>
         fetch("/api/worker", {
           method: "POST",
@@ -1536,8 +1600,21 @@ export default function Chat() {
           }),
         });
       let res = await send(pid);
-      // Collision improbable de clé : on en régénère une et on réessaie une fois.
+      // 409 = la clé a déjà un compte. Deux cas distincts :
       if (res.status === 409) {
+        if (existingKey) {
+          // Clé EXISTANTE déjà réclamée (ex. code créé sur un autre appareil) :
+          // surtout NE PAS régénérer — on orphelinerait les données. On ouvre
+          // la reconnexion (KeyEntry, clé pré-remplie) pour saisir le code
+          // existant — pas de cul-de-sac.
+          window.dispatchEvent(new CustomEvent("collegue:code-required"));
+          setCodeError(
+            "Cette clé a déjà un code. Reconnecte-toi avec ton code existant (icône empreinte, en haut).",
+          );
+          setCodeSubmitting(false);
+          return;
+        }
+        // Clé fraîchement générée : vraie collision (improbable) → on régénère.
         pid = generateNewKey();
         res = await send(pid);
       }
@@ -1549,10 +1626,30 @@ export default function Chat() {
       localStorage.setItem("collegue_personal_id", pid);
       localStorage.setItem("collegue_access_code", accessCode);
       setCodeCreated(true);
+      setCodeSubmitting(false);
+
+      // 3b : si un démarrage attendait le code, on le reprend maintenant. Le
+      // code est en local → confirmStart franchit le gate et lance la session
+      // avec l'état du jour choisi (ou le contexte de reprise).
+      const pend = pendingStartRef.current;
+      if (pend) {
+        pendingStartRef.current = null;
+        setNeedCode(false);
+        setAccessCode("");
+        confirmStart(pid, pend.resumeCtx, pend.dayStateKey);
+      } else if (pendingResumeRef.current) {
+        // Une reprise de session (legacy) attendait le code : on l'applique.
+        const st = pendingResumeRef.current;
+        pendingResumeRef.current = null;
+        setNeedCode(false);
+        setAccessCode("");
+        applyChatState(st);
+        setSessionActive(true);
+      }
     } catch (e) {
       setCodeError("Erreur réseau. Réessayez.");
+      setCodeSubmitting(false);
     }
-    setCodeSubmitting(false);
   };
 
   // ── Démarrage de session ──────────────────────────────────
@@ -1564,20 +1661,33 @@ export default function Chat() {
     }
   };
 
+  // Reprise d'une conversation laissée ouverte. 3b : si aucun code n'existe
+  // (session legacy d'avant la mise à jour), on exige d'abord la création du
+  // code, puis on ré-applique l'état — aucune session active sans code.
+  const resumeWithCodeGuard = (state: any) => {
+    if (!localStorage.getItem("collegue_access_code")) {
+      pendingResumeRef.current = state;
+      setNeedCode(true);
+      return;
+    }
+    applyChatState(state);
+    setSessionActive(true);
+  };
+
   // ── Conversation laissée ouverte (retour tardif) ──────────
   // Reprendre : on réapplique l'état retenu et on continue la MÊME session
   // (même sessionId) → aucun nouveau crédit.
   const resumeStaleSession = () => {
     if (!staleOpenSession) return;
-    applyChatState(staleOpenSession);
-    setSessionActive(true);
+    const state = staleOpenSession;
     setStaleOpenSession(null);
+    resumeWithCodeGuard(state);
   };
 
-  // Clôturer et repartir : on vide UNIQUEMENT l'état local et on revient à
-  // l'accueil pour un nouveau départ. On NE pose JAMAIS `ended_at` sur
-  // l'ancienne session → fermer ne consomme aucun crédit. La nouvelle n'en
-  // coûtera un que si la personne s'y engage (au-delà du seuil d'engagement).
+  // Laisser de côté : on ferme la conversation en cours (on vide UNIQUEMENT
+  // l'état local — aucune carte, aucun crédit) et on retombe sur l'accueil,
+  // prêt à repartir sur autre chose (les états du jour). On NE pose JAMAIS
+  // `ended_at`.
   const discardStaleSession = () => {
     localStorage.removeItem("collegue_chat_state");
     setStaleOpenSession(null);
@@ -1624,6 +1734,23 @@ export default function Chat() {
     // sinon on retombe sur le state (cas d'un démarrage normal).
     const resumeContext =
       resumeContextArg !== undefined ? resumeContextArg : activeResumeContext;
+
+    // 3b — aucune conversation ne démarre sans code. Si la clé n'a pas encore
+    // de code en local, on diffère le démarrage : on fixe la clé (pour que
+    // createAccount l'associe), on mémorise l'intention, et on affiche l'écran
+    // de création de code. Le démarrage reprend dans createAccount, une fois le
+    // code posé.
+    if (!localStorage.getItem("collegue_access_code")) {
+      if (finalId && finalId !== personalId) setPersonalId(finalId);
+      pendingStartRef.current = {
+        id: finalId || "",
+        resumeCtx: resumeContext,
+        dayStateKey,
+      };
+      setShowIdentityModal(false);
+      setNeedCode(true);
+      return;
+    }
 
     // Plafond : pré-vérification du nombre de conversations du jour. Le serveur
     // reste le garde-fou dur ; ceci sert à afficher un message clair plutôt que
@@ -2564,12 +2691,18 @@ Fais un point en deux temps. Premier temps : une image tirée directement de ce 
     // Si un miroir a joué, la carte est déjà lancée (le garde rend ceci
     // inopérant). Sinon — clôture directe sans miroir — elle démarre ici.
     startCardGeneration();
-    // Invitation à poser le code : tant qu'aucun code n'est enregistré sur cet
-    // appareil, on la (re)montre à chaque clôture — ça ferme la fenêtre de
-    // préemption d'un personal_id non verrouillé. Dès qu'un code existe, plus
-    // rien. Non bloquant : le bouton « Aller au carnet » reste accessible.
+    // Révélation de la clé en fin d'échange. Avec 3b le code est posé dès
+    // l'onboarding (la clé n'y est pas montrée) : on la révèle donc à la
+    // première clôture, une seule fois (flag `collegue_key_shown`), pour que la
+    // personne puisse la garder. Cas legacy sans code : on la (re)montre tant
+    // qu'aucun code n'existe, pour inviter à en poser un. Non bloquant.
     const hasCode = !!localStorage.getItem("collegue_access_code");
-    setKeyJustRevealed(!hasCode);
+    const keyShown = localStorage.getItem("collegue_key_shown") === "1";
+    const reveal = !hasCode || !keyShown;
+    setKeyJustRevealed(reveal);
+    if (reveal && localStorage.getItem("collegue_personal_id")) {
+      localStorage.setItem("collegue_key_shown", "1");
+    }
   };
 
   // ── Miroir réfléchissant — dernier message de la conversation ──
@@ -3145,7 +3278,55 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               <div className="relative w-28 h-28 md:w-32 md:h-32 flex items-center justify-center mb-8 transition-opacity duration-700 opacity-80 hover:opacity-100">
                 <LogoEmber className="w-full h-full" />
               </div>
-              {limitChecking ? (
+              {needCode ? (
+                // 3b — création de code obligatoire avant la première
+                // conversation. L'état du jour choisi est déjà mémorisé ; dès
+                // le code validé, la session démarre avec la bonne ouverture.
+                <div className="w-full max-w-[460px] border border-[#4a4028] bg-[#0e0d08] rounded-lg p-7 text-left space-y-4">
+                  <div className="font-serif text-lg text-beige">
+                    Avant de commencer.
+                  </div>
+                  <p className="text-[13px] leading-relaxed text-beige-faint">
+                    Choisissez un code à 6 chiffres. C'est lui qui protège votre
+                    carnet : vous seul y accédez, sur cet appareil comme sur un
+                    autre. Gardez-le — il vous sera demandé pour vous
+                    reconnecter, et il ne peut pas être réinitialisé.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={6}
+                      value={accessCode}
+                      onChange={(e) =>
+                        setAccessCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && accessCode.length === 6)
+                          createAccount();
+                      }}
+                      placeholder="••••••"
+                      autoFocus
+                      className="flex-1 font-mono text-[15px] tracking-[0.4em] text-beige bg-[#161512] border border-[#3a3420] rounded px-4 py-3 placeholder:text-beige-faint focus:outline-none focus:border-beige-faint"
+                    />
+                    <button
+                      onClick={createAccount}
+                      disabled={codeSubmitting || accessCode.length !== 6}
+                      className="font-mono text-[9px] tracking-widest uppercase text-bg bg-beige px-5 py-3 rounded hover:opacity-90 transition-opacity shrink-0 disabled:opacity-40"
+                    >
+                      {codeSubmitting ? "..." : "Commencer"}
+                    </button>
+                  </div>
+                  {codeError && (
+                    <p className="text-[12px] text-red-400/80">{codeError}</p>
+                  )}
+                  <p className="text-[12px] leading-relaxed text-beige-faint/70">
+                    Votre clé de carnet vous sera montrée à la fin de l'échange,
+                    à garder précieusement.
+                  </p>
+                </div>
+              ) : limitChecking ? (
                 // Vérification du plafond en cours : le logo reste seul une
                 // fraction de seconde, le temps de savoir quoi afficher.
                 <div className="h-12" />
@@ -3196,7 +3377,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                           {staleOpenSession.lastActivity
                             ? `, ${formatIdle(staleOpenSession.lastActivity)}`
                             : ""}
-                          . La reprendre, ou repartir à neuf ?
+                          . La reprendre, ou la laisser de côté ?
                         </p>
                       </div>
                       <div className="flex flex-col gap-4 w-full max-w-xs">
@@ -3210,7 +3391,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                           onClick={discardStaleSession}
                           className="bg-transparent text-beige border border-beige/20 font-mono text-xs tracking-widest uppercase px-8 py-3.5 rounded-sm hover:bg-beige/5 transition-colors"
                         >
-                          Clôturer et repartir
+                          Laisser de côté
                         </button>
                       </div>
                     </>
@@ -3420,55 +3601,22 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                     continuité, leur cohérence d'une session à l'autre. Cette
                     clé en est la porte.
                   </p>
-                  {!codeCreated ? (
-                    <div className="space-y-3">
-                      <p className="text-[13px] leading-relaxed text-beige-faint">
-                        Choisissez un code à 6 chiffres. Avec votre clé, il
-                        protège l'accès à votre carnet. Gardez-le précieusement —
-                        il vous sera demandé pour vous reconnecter.
-                      </p>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete="off"
-                          maxLength={6}
-                          value={accessCode}
-                          onChange={(e) =>
-                            setAccessCode(
-                              e.target.value.replace(/\D/g, "").slice(0, 6),
-                            )
-                          }
-                          placeholder="••••••"
-                          className="flex-1 font-mono text-[15px] tracking-[0.4em] text-beige bg-[#161512] border border-[#3a3420] rounded px-4 py-3 placeholder:text-beige-faint focus:outline-none focus:border-beige-faint"
-                        />
-                        <button
-                          onClick={createAccount}
-                          disabled={codeSubmitting || accessCode.length !== 6}
-                          className="font-mono text-[9px] tracking-widest uppercase text-bg bg-beige px-5 py-3 rounded hover:opacity-90 transition-opacity shrink-0 disabled:opacity-40"
-                        >
-                          {codeSubmitting ? "..." : "Valider"}
-                        </button>
-                      </div>
-                      {codeError && (
-                        <p className="text-[12px] text-red-400/80">{codeError}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <p className="text-[13px] leading-relaxed text-beige-faint">
-                        Code enregistré. Votre clé et votre code ouvrent
-                        désormais votre carnet.
-                      </p>
-                      <Link
-                        to="/carnet"
-                        className="inline-flex items-center gap-2 font-mono text-[10px] tracking-widest uppercase text-bg bg-beige px-5 py-2.5 rounded hover:opacity-90 transition-opacity"
-                      >
-                        <BookOpen size={12} strokeWidth={1.5} />
-                        Aller au carnet
-                      </Link>
-                    </div>
-                  )}
+                  {/* 3b : le code est désormais créé à l'onboarding, jamais
+                      ici. Cet écran ne fait plus que révéler la clé (une fois)
+                      et confirmer que l'accès est protégé. */}
+                  <div className="space-y-3">
+                    <p className="text-[13px] leading-relaxed text-beige-faint">
+                      Votre clé et votre code à 6 chiffres ouvrent désormais
+                      votre carnet, ici ou sur un autre appareil.
+                    </p>
+                    <Link
+                      to="/carnet"
+                      className="inline-flex items-center gap-2 font-mono text-[10px] tracking-widest uppercase text-bg bg-beige px-5 py-2.5 rounded hover:opacity-90 transition-opacity"
+                    >
+                      <BookOpen size={12} strokeWidth={1.5} />
+                      Aller au carnet
+                    </Link>
+                  </div>
                 </div>
               )}
 
