@@ -115,6 +115,7 @@ export default function Landing() {
                 <Link to="/chat" state={{ dayStateKey: "boucle" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">ça tourne en boucle</Link>
                 <Link to="/chat" state={{ dayStateKey: "emballe" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">ça m'emballe</Link>
                 <Link to="/chat" state={{ dayStateKey: "marre" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">y'en a marre</Link>
+                <Link to="/chat" state={{ dayStateKey: "rien" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">non rien</Link>
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, y: 16 }}

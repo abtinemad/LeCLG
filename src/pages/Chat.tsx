@@ -153,6 +153,12 @@ const COLD_OPENER =
 const DAY_PROMPT = "Plutôt lequel, là, maintenant ?";
 const DAY_STATES: { key: string; label: string; opener: string }[] = [
   {
+    key: "rien",
+    label: "non rien",
+    opener:
+      "Bonjour. Rien, alors — et c'est peut-être ce qui en dit le plus. Le silence n'est pas un vide, c'est une profondeur qui attend qu'on l'écoute. On ne va rien forcer. Restez là un instant ; et s'il vient quelque chose, même un mot, même de travers, posez-le — on n'est pas pressés.",
+  },
+  {
     key: "marre",
     label: "y'en a marre",
     opener:
@@ -597,6 +603,12 @@ export default function Chat() {
   // Voix
   const [isListening, setIsListening] = useState(false);
   const recognition = useRef<any>(null);
+  // Anti-doublon dictée : index du dernier segment FINAL déjà intégré, et texte
+  // présent dans le champ au démarrage de la dictée. Sur mobile, l'API peut
+  // ré-émettre des segments finaux déjà vus — on s'appuie sur ces refs pour ne
+  // jamais ajouter deux fois le même segment.
+  const lastFinalIndex = useRef(0);
+  const dictationBase = useRef("");
 
   // Recentrage
   const [isRecentrage, setIsRecentrage] = useState(false);
@@ -978,12 +990,25 @@ export default function Chat() {
       recognition.current.interimResults = true;
       recognition.current.lang = "fr-FR";
       recognition.current.onresult = (e: any) => {
+        // On reconstruit le texte au lieu de concaténer aveuglément. Les
+        // segments finaux jamais vus (index >= lastFinalIndex) sont ajoutés une
+        // seule fois à la base ; les segments intermédiaires (non finaux) sont
+        // affichés en direct mais NON mémorisés, pour éviter tout doublon quand
+        // l'API ré-émet le même segment (fréquent sur mobile).
+        let interim = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
+          const txt = e.results[i][0].transcript;
           if (e.results[i].isFinal) {
-            setInputText((p) => p + e.results[i][0].transcript);
-            setHasDictatedCurrentMessage(true);
+            if (i >= lastFinalIndex.current) {
+              dictationBase.current += txt;
+              lastFinalIndex.current = i + 1;
+              setHasDictatedCurrentMessage(true);
+            }
+          } else {
+            interim += txt;
           }
         }
+        setInputText(dictationBase.current + interim);
       };
       recognition.current.onend = () => setIsListening(false);
     }
@@ -3124,6 +3149,11 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
     if (isListening) {
       recognition.current?.stop();
     } else {
+      // On part du texte déjà présent dans le champ (dictée additive sans
+      // écraser ce qui a été tapé), et on remet l'index de segments finaux à
+      // zéro pour cette nouvelle session de dictée.
+      dictationBase.current = inputText;
+      lastFinalIndex.current = 0;
       recognition.current?.start();
       setIsListening(true);
     }

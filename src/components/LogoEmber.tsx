@@ -565,6 +565,22 @@ export function LogoEmber({
           animation: hippus-opt 15s infinite ease-in-out;
           transform-origin: 297px 421px;
         }
+        @keyframes spin-ember-opt {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-ember-opt {
+          animation: spin-ember-opt 90s infinite linear;
+          transform-origin: 297px 421px;
+        }
+        @keyframes counter-spin-ember-opt {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(-360deg); }
+        }
+        .animate-counter-spin-ember-opt {
+          animation: counter-spin-ember-opt 90s infinite linear;
+          transform-origin: 297px 421px;
+        }
       `}</style>
       <defs>
         {/* Dégradé pour la sclère */}
@@ -637,22 +653,36 @@ export function LogoEmber({
           <stop offset="85%" stopColor="#000000" stopOpacity="0" />
           <stop offset="100%" stopColor="#000000" stopOpacity="0.65" />
         </radialGradient>
+
+        {/* Halo du balayage de lumière (tourne avec le monogramme) */}
+        <radialGradient id="light-sweep-grad" cx="50%" cy="42%" r="55%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+          <stop offset="35%" stopColor="#ffffff" stopOpacity="0.45" />
+          <stop offset="70%" stopColor="#ffffff" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
       </defs>
 
-      {/* Rotation générale et majestueuse */}
-      <motion.g
+      {/* Rotation générale et majestueuse — en CSS (compositeur) : framer-motion
+          réinitialisait l'animation à chaque re-rendu du composant, ce qui la
+          figeait. Le CSS tourne indépendamment des rendus React. */}
+      {/* Le monogramme tourne (ouverture + trait), porté par ce groupe. L'œil
+          à l'intérieur contre-tourne pour rester visuellement immobile pendant
+          que le cadre pivote autour de lui. Rotation en CSS (re-render-proof). */}
+      <g
+        className={isSleeping ? "" : "animate-spin-ember-opt"}
         style={{ transformOrigin: `${CENTER_X}px ${CENTER_Y}px`, willChange: "transform" }}
-        animate={isSleeping ? false : {
-          rotate: [0, 360]
-        }}
-        transition={{
-          duration: 220, // Grandeur cosmique sans contrainte sur le CPU
-          repeat: Infinity,
-          ease: "linear"
-        }}
       >
         {/* Rendu principal de l'œil, clippé par le logo (Sans les filtres de distorsion lourds) */}
         <g clipPath="url(#logo-letters-clip)">
+          {/* Contre-rotation : annule la rotation du parent pour l'œil, qui
+              paraît donc fixe pendant que l'ouverture (le clip, porté par le
+              parent) balaie autour. L'œil étant concentrique, il reste visible
+              à tout angle. */}
+          <g
+            className={isSleeping ? "" : "animate-counter-spin-ember-opt"}
+            style={{ transformOrigin: `${CENTER_X}px ${CENTER_Y}px`, willChange: "transform" }}
+          >
           <rect width="595.28" height="841.89" fill="#0a0a0a" />
 
           {/* Corps de l'oeil inséré sous la forme du Judas.
@@ -859,11 +889,39 @@ export function LogoEmber({
               />
             </motion.g>
           </motion.g>
-          
+          </g>
+        </g>
+
+        {/* Balayage de lumière — une traînée allongée, inclinée et décalée
+            hors de l'axe, clippée à la forme du logo, qui tourne AVEC le
+            monogramme (hors du groupe contre-tourné). Le décalage hors-centre
+            fait qu'elle « glisse » réellement sur la surface en pivotant, comme
+            un reflet de lentille. Purement décoratif. */}
+        <g clipPath="url(#logo-letters-clip)">
+          <ellipse
+            cx={CENTER_X - 70}
+            cy={CENTER_Y - 150}
+            rx="95"
+            ry="340"
+            transform={`rotate(-32 ${CENTER_X - 70} ${CENTER_Y - 150})`}
+            fill="url(#light-sweep-grad)"
+            opacity="0.22"
+          />
+          {/* Petit éclat plus vif au cœur du balayage */}
+          <ellipse
+            cx={CENTER_X - 70}
+            cy={CENTER_Y - 150}
+            rx="38"
+            ry="150"
+            transform={`rotate(-32 ${CENTER_X - 70} ${CENTER_Y - 150})`}
+            fill="url(#light-sweep-grad)"
+            opacity="0.28"
+          />
         </g>
 
         {/* Silhouette extérieure délicate de la marque — placée AVANT le
-            diaphragme pour qu'elle soit recouverte quand l'œil se ferme. */}
+            diaphragme pour qu'elle soit recouverte quand l'œil se ferme.
+            Elle tourne avec le parent (le monogramme), pas séparément. */}
         <motion.g
           fill="none"
           stroke="#fdf5e6"
@@ -905,7 +963,7 @@ export function LogoEmber({
           />
         )}
 
-      </motion.g>
+      </g>
     </svg>
   );
 }

@@ -49,6 +49,38 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Retour tactile mobile : sur smartphone il n'y a pas de survol (`hover`),
+     donc sans état « pressé » les boutons paraissent morts au tap. On donne un
+     feedback global à tous les éléments interactifs : léger enfoncement +
+     assombrissement pendant la pression seulement. */
+  button,
+  a,
+  [role="button"] {
+    /* Remplace le flash gris natif (incohérent selon les navigateurs) par un
+       highlight discret aux teintes du produit. */
+    -webkit-tap-highlight-color: rgb(232 224 200 / 0.08);
+    /* Évite le délai de 300 ms et la sélection de texte parasite au tap. */
+    touch-action: manipulation;
+  }
+
+  button:active,
+  a:active,
+  [role="button"]:active {
+    transform: scale(0.97);
+    filter: brightness(0.92);
+  }
+
+  /* Sur les appareils tactiles, la transition rend l'enfoncement plus organique
+     (le retour à l'état normal au relâchement est adouci). */
+  @media (hover: none) {
+    button,
+    a,
+    [role="button"] {
+      transition: transform 0.08s ease, filter 0.08s ease;
+    }
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
