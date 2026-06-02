@@ -603,11 +603,9 @@ export default function Chat() {
   // Voix
   const [isListening, setIsListening] = useState(false);
   const recognition = useRef<any>(null);
-  // Anti-doublon dictée : index du dernier segment FINAL déjà intégré, et texte
-  // présent dans le champ au démarrage de la dictée. Sur mobile, l'API peut
-  // ré-émettre des segments finaux déjà vus — on s'appuie sur ces refs pour ne
-  // jamais ajouter deux fois le même segment.
-  const lastFinalIndex = useRef(0);
+  // Texte présent dans le champ au démarrage de la dictée. À chaque résultat on
+  // reconstruit le champ = base + transcription recomposée depuis e.results
+  // (jamais d'ajout incrémental), ce qui supprime les doublons sur mobile.
   const dictationBase = useRef("");
 
   // Recentrage
@@ -987,29 +985,23 @@ export default function Chat() {
     if (SR) {
       recognition.current = new SR();
       recognition.current.continuous = true;
-      recognition.current.interimResults = true;
+      // interimResults DÉSACTIVÉ : sur Android Chrome, les résultats
+      // intermédiaires font ré-émettre des segments finaux — c'est la cause des
+      // mots en double/triple. Sans interim, l'API ne livre que des finaux.
+      recognition.current.interimResults = false;
       recognition.current.lang = "fr-FR";
       recognition.current.onresult = (e: any) => {
-        // On reconstruit le texte au lieu de concaténer aveuglément. Les
-        // segments finaux jamais vus (index >= lastFinalIndex) sont ajoutés une
-        // seule fois à la base ; les segments intermédiaires (non finaux) sont
-        // affichés en direct mais NON mémorisés, pour éviter tout doublon quand
-        // l'API ré-émet le même segment (fréquent sur mobile).
-        let interim = "";
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const txt = e.results[i][0].transcript;
-          if (e.results[i].isFinal) {
-            if (i >= lastFinalIndex.current) {
-              dictationBase.current += txt;
-              lastFinalIndex.current = i + 1;
-              setHasDictatedCurrentMessage(true);
-            }
-          } else {
-            interim += txt;
-          }
+        // On RECOMPOSE tout le texte depuis e.results à chaque événement (on
+        // remplace, on n'ajoute jamais) : une ré-émission ne peut donc plus
+        // créer de doublon. Champ = texte de départ + transcription de session.
+        let finals = "";
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) finals += e.results[i][0].transcript;
         }
-        setInputText(dictationBase.current + interim);
+        if (finals) setHasDictatedCurrentMessage(true);
+        setInputText(dictationBase.current + finals);
       };
+      recognition.current.onerror = () => setIsListening(false);
       recognition.current.onend = () => setIsListening(false);
     }
   }, []);
@@ -3148,13 +3140,16 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
   const toggleListening = () => {
     if (isListening) {
       recognition.current?.stop();
+      setIsListening(false);
     } else {
-      // On part du texte déjà présent dans le champ (dictée additive sans
-      // écraser ce qui a été tapé), et on remet l'index de segments finaux à
-      // zéro pour cette nouvelle session de dictée.
+      // Dictée additive : on part du texte déjà présent sans l'écraser.
+      // try/catch car start() lève si une session précédente traîne encore.
       dictationBase.current = inputText;
-      lastFinalIndex.current = 0;
-      recognition.current?.start();
+      try {
+        recognition.current?.start();
+      } catch {
+        /* déjà démarré : on resynchronise juste l'état */
+      }
       setIsListening(true);
     }
   };
