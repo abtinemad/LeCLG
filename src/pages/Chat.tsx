@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { sbInsert, sbUpdate, sbGet } from "../lib/worker";
+import { WORDLIST } from "../lib/wordlist";
 import { ClarteSection } from "../components/SerpentinGuide";
 import { LogoEmber, type EyeExpression } from "../components/LogoEmber";
 import { RetourModal } from "../components/RetourModal";
@@ -1574,17 +1575,23 @@ export default function Chat() {
 
   // ── Génération de clé personnelle ─────────────────────────
   const generateNewKey = () => {
-    const adj = ["libre", "calme", "vif", "ample", "juste", "sobre", "vrai"];
-    const noun = [
-      "horizon",
-      "souffle",
-      "chemin",
-      "miroir",
-      "accord",
-      "echo",
-      "geste",
-    ];
-    const key = `${adj[Math.floor(Math.random() * adj.length)]}-${noun[Math.floor(Math.random() * noun.length)]}-${Math.floor(100 + Math.random() * 899)}`;
+    // Clé-poème à haute entropie : 5 mots tirés de la liste EFF (7775 mots)
+    // via crypto.getRandomValues → ~64,6 bits, non énumérable. Le tirage modulo
+    // est dé-biaisé par rejet (on écarte les valeurs au-delà du dernier multiple
+    // entier de la taille de liste). Les clés existantes plus faibles restent
+    // valides (migration « nouveaux seulement »).
+    const n = WORDLIST.length;
+    const max = Math.floor(0xffffffff / n) * n;
+    const buf = new Uint32Array(1);
+    const pick = () => {
+      let r: number;
+      do {
+        crypto.getRandomValues(buf);
+        r = buf[0];
+      } while (r >= max);
+      return WORDLIST[r % n];
+    };
+    const key = Array.from({ length: 5 }, pick).join("-");
     setPersonalId(key);
     return key;
   };

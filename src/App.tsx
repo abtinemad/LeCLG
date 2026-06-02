@@ -1,10 +1,11 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import Landing from './pages/Landing';
 import Chat from './pages/Chat';
 import Admin from './pages/Admin';
 import Carnet from './pages/Carnet';
+import Restore from './pages/Restore';
 import Climat from './pages/Climat';
 import QuestCeQueCest from './pages/QuestCeQueCest';
 import { GlobalNav } from './components/GlobalNav';
@@ -43,8 +44,12 @@ function AnimatedRoutes() {
           <Route path="/chat" element={<Chat />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/carnet" element={<Carnet />} />
+          <Route path="/restore" element={<Restore />} />
           <Route path="/climat" element={<Climat />} />
           <Route path="/quest-ce-que-cest" element={<QuestCeQueCest />} />
+          {/* Filet attrape-tout : toute route inconnue renvoie à l'accueil
+              plutôt que de laisser une page nue (juste le header). */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </motion.div>
     </AnimatePresence>

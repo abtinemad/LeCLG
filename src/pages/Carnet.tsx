@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion } from "motion/react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { QRCodeSVG } from "qrcode.react";
 import {
   ArrowLeft,
   History,
@@ -24,6 +25,7 @@ import {
   Feather,
   Activity,
   MessageCircle,
+  Smartphone,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -72,6 +74,12 @@ const MAX_RETRY = 3; // tentatives totales avant de poser un état d'erreur
 // Backoff des relances : 1re rapide (un blip réseau se rattrape vite),
 // les suivantes plus espacées (sans inonder le Worker si c'est une vraie panne).
 const RETRY_DELAYS_MS = [2000, 4000]; // ms, par numéro de tentative (backoff prudent : LLM rate-limité)
+
+// Relances rapides pour les échecs transitoires (blip réseau, 5xx, JSON
+// vide/malformé) : une re-requête quasi immédiate les rattrape souvent, inutile
+// d'imposer 2 s. Le backoff long (RETRY_DELAYS_MS) reste réservé au vrai
+// rate-limit (429), seul cas où patienter a vraiment un sens.
+const FAST_RETRY_DELAYS_MS = [500, 1500];
 
 // Affiché à la place du spinner quand une analyse a définitivement échoué.
 // Ton accordé à LockedBlock / au « pas encore métabolisée » — discret,
@@ -183,6 +191,7 @@ export default function Carnet() {
   // Affichage de la Clé-LCLG depuis le header (toujours consultable).
   const [showKey, setShowKey] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [view, setView] = useState<
     "fragments" | "lien" | "affect" | "elan" | "matrice"
   >("fragments");
@@ -739,10 +748,16 @@ export default function Carnet() {
         body: JSON.stringify({ type, data }),
       });
       if (res.ok) return await res.json();
+      // Échec serveur : on remonte le TYPE d'échec pour calibrer la relance.
+      // 429 = vrai rate-limit (backoff long) ; tout le reste (5xx, etc.) =
+      // transitoire (relance rapide).
+      return { __failed: res.status === 429 ? "rate_limit" : "transient" };
     } catch (e) {
+      // Panne réseau, ou JSON vide/malformé sur un 200 (res.json() lève) :
+      // transitoire, une re-requête rapide a de bonnes chances de passer.
       console.error(`${type} analysis error:`, e);
+      return { __failed: "transient" };
     }
-    return null;
   };
 
   useEffect(() => {
@@ -776,7 +791,7 @@ export default function Carnet() {
       runningFor.current[key] = true;
       runAnalysis(type, payload).then((data) => {
         runningFor.current[key] = false;
-        if (data) {
+        if (data && !data.__failed) {
           // Succès : on estampille, on stocke — et on efface toute trace
           // d'échec (compteur de tentatives remis à zéro, erreur levée si
           // elle était posée). Sans ça, le message resterait collé alors
@@ -803,8 +818,13 @@ export default function Carnet() {
             // Sous le plafond : on planifie UNE relance espacée. Le useEffect
             // ne se relançant pas seul, le setTimeout bump retryTick — ajouté
             // à ses deps — ce qui le relance et fait re-tenter ce maillon.
+            // Le délai dépend du type d'échec : rapide pour un transitoire,
+            // long pour un vrai rate-limit (429).
+            const kind = (data && data.__failed) || "transient";
+            const schedule =
+              kind === "rate_limit" ? RETRY_DELAYS_MS : FAST_RETRY_DELAYS_MS;
             if (retryTimers.current[key]) clearTimeout(retryTimers.current[key]);
-            const delay = RETRY_DELAYS_MS[tries - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1];
+            const delay = schedule[tries - 1] ?? schedule[schedule.length - 1];
             retryTimers.current[key] = setTimeout(() => {
               delete retryTimers.current[key];
               setRetryTick((t) => t + 1);
@@ -1580,6 +1600,38 @@ export default function Carnet() {
                     Gardez-la : c'est elle qui vous permet de retrouver ce
                     carnet, ici ou sur un autre appareil.
                   </p>
+
+                  {personalId && (
+                    <div className="mt-3 pt-3 border-t border-border/60">
+                      <button
+                        onClick={() => setShowQr((v) => !v)}
+                        className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-beige-faint hover:text-beige transition-colors"
+                      >
+                        <Smartphone size={12} strokeWidth={1.5} />
+                        {showQr
+                          ? "Masquer le QR"
+                          : "Transférer vers un autre appareil"}
+                      </button>
+                      {showQr && (
+                        <div className="mt-3 flex flex-col items-center">
+                          <div className="bg-[#f3efe6] rounded-md p-3">
+                            <QRCodeSVG
+                              value={`${window.location.origin}/restore#k=${encodeURIComponent(personalId)}`}
+                              size={168}
+                              bgColor="#f3efe6"
+                              fgColor="#1a1814"
+                              level="M"
+                            />
+                          </div>
+                          <p className="text-[10px] text-beige-faint italic leading-relaxed mt-2.5 text-center">
+                            Scannez-le avec l'appareil photo de l'autre
+                            téléphone, puis saisissez votre code. Ne le partagez
+                            pas.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1858,22 +1910,35 @@ export default function Carnet() {
                             </span>
                           )}
                           {!isLocked && emotionData ? (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openVoice(card, card.id || `idx-${i}`); }}
-                              onPointerDown={(e) => e.stopPropagation()}
-                              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-sm border ${emotionData.bg} ${emotionData.border} hover:brightness-125 transition-all`}
-                              title="Prisme détecté — toucher pour entendre le collègue"
-                            >
-                              <PrismeIcon
-                                rainbow={false}
-                                color={emotionData.color}
-                                className="w-2.5 h-2.5"
-                                title={`Prisme: ${card.prisme}`}
-                              />
-                              <span className="text-[8px] font-mono uppercase tracking-tighter text-beige">
-                                {emotionData.label.split(" ")[0]}
-                              </span>
-                            </button>
+                            <>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedPrisme(prismeKey(card.prisme)); }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-sm border ${emotionData.bg} ${emotionData.border} hover:brightness-125 transition-all`}
+                                title="Prisme — toucher pour comprendre sa clarté"
+                              >
+                                <PrismeIcon
+                                  rainbow={false}
+                                  color={emotionData.color}
+                                  className="w-2.5 h-2.5"
+                                  title={`Prisme: ${card.prisme}`}
+                                />
+                                <span className="text-[8px] font-mono uppercase tracking-tighter text-beige">
+                                  {emotionData.label.split(" ")[0]}
+                                </span>
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openVoice(card, card.id || `idx-${i}`); }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm border border-beige-faint/25 hover:border-beige-faint/50 transition-colors"
+                                title="Signal capté — toucher pour entendre le collègue"
+                              >
+                                <span className="w-1 h-1 rounded-full bg-beige-faint/70 animate-pulse" />
+                                <span className="text-[8px] font-mono uppercase tracking-tighter text-beige-faint">
+                                  Signal capté
+                                </span>
+                              </button>
+                            </>
                           ) : (
                             <button
                               onClick={(e) => { e.stopPropagation(); openVoice(card, card.id || `idx-${i}`); }}
@@ -2493,7 +2558,7 @@ export default function Carnet() {
                               style={{ backgroundColor: `${theme.hex}66` }}
                             />
                           </div>
-                          <div className="flex-1 space-y-3">
+                          <div className="flex-1 space-y-3 max-h-56 overflow-y-auto custom-scrollbar pr-1">
                             {data.fragments?.map((f: string, i: number) => (
                               <div
                                 key={i}
@@ -2621,9 +2686,8 @@ export default function Carnet() {
                        )}
 
                        {/* CORRELATION TEXTURE / SPHERE & MOTS / PRISMES */}
-                       {unlockedBlocks.lien_correlation ? (
-                         <div className="grid grid-cols-2 gap-6 pt-4 border-t border-white/5 mt-4">
-                           {["familiale", "sociale", "amoureuse", "professionnelle"].map(key => {
+                       {unlockedBlocks.lien_correlation ? (() => {
+                         const correlationItems = ["familiale", "sociale", "amoureuse", "professionnelle"].map(key => {
                                const textureCount = { tendu: 0, calme: 0 };
                                cards.filter(c => normalizeSphere(c.sphere).toLowerCase() === key).forEach(c => {
                                    const t = (c.texture_relationnelle||'').toLowerCase();
@@ -2660,9 +2724,16 @@ export default function Carnet() {
                                    </div>
                                  </div>
                                );
-                           })}
-                         </div>
-                       ) : isNextLocked('lien_correlation', 'lien') && (
+                           }).filter(Boolean);
+
+                         if (correlationItems.length === 0) return null;
+
+                         return (
+                           <div className="grid grid-cols-2 gap-6 pt-4 border-t border-white/5 mt-4">
+                             {correlationItems}
+                           </div>
+                         );
+                       })() : isNextLocked('lien_correlation', 'lien') && (
                          <div className="mt-4"><LockedBlock title="Corrélation Texture / Prismes" requirements="3 fragments + 2 jours + 2 prismes" /></div>
                        )}
                     </div>
