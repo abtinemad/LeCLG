@@ -19,6 +19,7 @@ import {
   Download,
   Network,
   Sparkles,
+  Star,
   X,
   Feather,
   Activity,
@@ -39,8 +40,9 @@ import {
 } from "recharts";
 import { AnimatePresence } from "motion/react";
 import { sbGet, sbInsert, sbUpdate, sendEclatReply } from "../lib/worker";
-import { ClarteSection, PrismeExplainer } from "../components/SerpentinGuide";
+import { ClarteSection, PrismeExplainer, CLARTE_LOADING } from "../components/SerpentinGuide";
 import PrismeIcon from "../components/PrismeIcon";
+import CollegueMark from "../components/CollegueMark";
 import { PaymentWrapper } from "../components/PaymentModal";
 import { LueurVisual } from "../components/LueurVisual";
 import { RetourModal } from "../components/RetourModal";
@@ -50,18 +52,6 @@ import { PRISME_DESCRIPTIONS } from "../data/prismes";
 // Réexport conservé pour compatibilité d'éventuels imports externes.
 export { EMOTIONS } from "../data/emotions";
 
-
-const CardReadTracker = ({ card }: { card: ReflectionCard }) => {
-  useEffect(() => {
-    if (!card.id || card.user_note) return;
-    const reads = JSON.parse(localStorage.getItem("collegue_card_read_dates") || "{}");
-    if (!reads[card.id]) {
-      reads[card.id] = new Date().toISOString();
-      localStorage.setItem("collegue_card_read_dates", JSON.stringify(reads));
-    }
-  }, [card.id, card.user_note]);
-  return null;
-};
 
 // Chantier robustesse de la chaîne d'analyses : une analyse qui échoue est
 // retentée un nombre borné de fois, puis — si elle échoue toujours — la
@@ -90,6 +80,7 @@ const AnalysisError = ({ onRetry }: { onRetry: () => void }) => (
 
 type FragWeek = { key: string; label: string; items: { card: ReflectionCard; i: number }[] };
 
+
 function __isoWeekKey(dateStr: string): string {
   const d = new Date(dateStr);
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -106,8 +97,55 @@ function __mondayLabel(dateStr: string): string {
   monday.setDate(d.getDate() - day);
   return "Semaine du " + monday.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
 }
-// Regroupe les fragments par semaine ISO (plus récents d'abord), en conservant
-// l'index d'origine dans `cards` pour que les notes / copies restent justes.
+
+// Le « miroir » : la voix que le Collègue pose sur un fragment. Il est généré
+// par le supercerveau du worker (type:"chat" — le même cerveau clinique que le
+// chatbot, côté serveur), à partir des SEULES indications distillées du
+// fragment (jamais la conversation) → la règle de confidentialité tient.
+function miroirPromptFor(card: ReflectionCard): string {
+  return `Voici un fragment déposé dans le Carnet d'une personne :
+- Fragment : ${card.fragment}
+- Déplacement : ${card.deplacement}
+- Direction : ${card.direction}${card.texture_relationnelle ? `\n- Texture : ${card.texture_relationnelle}` : ""}
+
+Écris un court miroir : une pensée que tu poses sur ce fragment, à relire plus tard. Fais surgir une image juste à partir de ces éléments, accueille ce qui s'est déplacé, et termine sur une ouverture — une phrase qui continue de travailler. Ne résume pas, ne donne aucun conseil, ne pose aucune question. Deux à quatre phrases.`;
+}
+
+// Appelle le worker (type:"chat") et reconstitue le texte depuis le flux SSE.
+async function fetchMiroir(card: ReflectionCard): Promise<string> {
+  const res = await fetch("/api/worker", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "chat",
+      messages: [{ role: "user", content: miroirPromptFor(card) }],
+      max_tokens: 400,
+    }),
+  });
+  if (!res.ok || !res.body) throw new Error(`worker ${res.status}`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let full = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const data = line.slice(6);
+      if (data === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(data);
+        full += parsed.delta?.text || "";
+      } catch {}
+    }
+  }
+  return full.trim();
+}
+
 function groupCardsByWeek(cards: ReflectionCard[]): FragWeek[] {
   const map = new Map<string, FragWeek>();
   cards.forEach((card, i) => {
@@ -138,6 +176,60 @@ export default function Carnet() {
   >("fragments");
   // Index de la carte affichée par semaine (feuilletage des piles).
   const [weekFlip, setWeekFlip] = useState<Record<string, number>>({});
+  // Carte dont la bulle « Signal détecté » est ouverte (une à la fois).
+  // Texte de la voix du Collègue à afficher dans la boîte (null = fermée).
+  const [collegueVoice, setCollegueVoice] = useState<string | null>(null);
+  // Cache de session des miroirs générés (par fragment) pour éviter de relancer
+  // le worker à chaque ouverture.
+  // Cache de session des miroirs générés à la demande (réutilisé sans re-render).
+  // La persistance DURABLE (et cross-appareil) se fait en écrivant le miroir
+  // directement SUR la carte via persistMiroir -> aucun nouvel appel worker.
+  const miroirCache = useRef<Record<string, string>>({});
+  // Quels fragments ont eu leur message du Collègue consulté (éteint le brillant).
+  const [voiceRead, setVoiceRead] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("collegue_voice_read") || "{}"); } catch { return {}; }
+  });
+  const markVoiceRead = (key: string) => {
+    setVoiceRead((prev) => {
+      if (prev[key]) return prev;
+      const next = { ...prev, [key]: true };
+      try { localStorage.setItem("collegue_voice_read", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+  // Écrit le miroir directement SUR la carte : state + localStorage "collegue_cards"
+  // + Supabase (via syncCardToCloud). Au rechargement (n'importe quel appareil),
+  // loadCards ramène card.miroir -> openVoice prend le chemin "stored" -> 0 appel worker.
+  const persistMiroir = (card: ReflectionCard, text: string) => {
+    setCards((prev) => {
+      const next = prev.map((c) =>
+        (card.id ? c.id === card.id : c === card) ? { ...c, miroir: text } : c,
+      );
+      try { localStorage.setItem("collegue_cards", JSON.stringify(next)); } catch {}
+      if (card.id) {
+        const updated = next.find((c) => c.id === card.id);
+        if (updated) syncCardToCloud(updated);
+      }
+      return next;
+    });
+  };
+  // Ouvre la voix du Collègue sur un fragment : miroir déjà stocké/caché s'il
+  // existe, sinon génération à la demande via le worker (le supercerveau).
+  const openVoice = async (card: ReflectionCard, key: string) => {
+    const stored = (card.miroir || "").trim() || miroirCache.current[key];
+    if (stored) { setCollegueVoice(stored); markVoiceRead(key); return; }
+    setCollegueVoice(CLARTE_LOADING); // CollegueMark qui tourne pendant la génération
+    try {
+      const text = await fetchMiroir(card);
+      if (!text) { setCollegueVoice(null); return; } // le cerveau n'a rien rendu : on n'invente rien
+      miroirCache.current[key] = text;
+      persistMiroir(card, text); // écrit le miroir SUR la carte (local + Supabase) -> cross-appareil, jamais régénéré
+      setCollegueVoice(text);
+      markVoiceRead(key); // la carte ne s'éteint qu'une fois le message vraiment affiché
+    } catch {
+      setCollegueVoice(null); // worker injoignable : on referme, la carte reste brillante (réessayable)
+    }
+  };
   const [metacognitionData, setMetacognitionData] = useState<any>(
     JSON.parse(localStorage.getItem("collegue_metacognition") || "null"),
   );
@@ -1075,11 +1167,11 @@ export default function Carnet() {
     }
 
     // Ensure IDs exist for local compatibility
-    const cardsWithIds = allCards.map((c: any) => ({
+    const cardsWithIds = allCards.map((c: any, index: number) => ({
       ...c,
       id:
         c.id ||
-        (c.date ? `local-${new Date(c.date).getTime()}` : crypto.randomUUID()),
+        (c.date ? `local-${new Date(c.date).getTime()}-${index}` : crypto.randomUUID()),
     }));
 
     setCards(
@@ -1495,15 +1587,15 @@ export default function Carnet() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto py-12 px-6">
+      <div className="max-w-4xl mx-auto pt-5 pb-12 px-6">
         <div className="mb-12 border-b border-border pb-12 print:hidden">
           <div className="flex flex-col items-center gap-y-4 md:gap-y-6 w-full max-w-2xl mx-auto mb-8">
             <div className="flex flex-row justify-center items-center gap-x-3 sm:gap-x-6 md:gap-x-12 w-full flex-nowrap">
               <button
                 onClick={() => setView("fragments")}
-                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[10px] sm:text-[11px] tracking-widest uppercase transition-colors relative group px-2 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "fragments" ? "text-green" : "text-beige-faint hover:text-beige"}`}
+                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-colors relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "fragments" ? "text-green" : "text-beige-faint hover:text-beige"}`}
               >
-                <History className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <History className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span>Fragments</span>
                 {view === "fragments" && (
                   <motion.div
@@ -1515,9 +1607,9 @@ export default function Carnet() {
 
               <button
                 onClick={() => setView("lien")}
-                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[10px] sm:text-[11px] tracking-widest uppercase transition-colors relative group px-2 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "lien" ? "text-[#EA580C]" : "text-beige-faint hover:text-beige"}`}
+                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-colors relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "lien" ? "text-[#EA580C]" : "text-beige-faint hover:text-beige"}`}
               >
-                <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <Heart className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span>Lien</span>
                 {view === "lien" && (
                   <motion.div
@@ -1529,9 +1621,9 @@ export default function Carnet() {
 
               <button
                 onClick={() => setView("affect")}
-                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[10px] sm:text-[11px] tracking-widest uppercase transition-colors relative group px-2 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "affect" ? "text-[#7BA7D7]" : "text-beige-faint hover:text-beige"}`}
+                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-colors relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "affect" ? "text-[#7BA7D7]" : "text-beige-faint hover:text-beige"}`}
               >
-                <Waves className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <Waves className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span>Affect</span>
                 {view === "affect" && (
                   <motion.div
@@ -1545,9 +1637,9 @@ export default function Carnet() {
             <div className="flex flex-row justify-center items-center gap-x-3 sm:gap-x-6 md:gap-x-12 w-full flex-nowrap pt-1">
               <button
                 onClick={() => setView("elan")}
-                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[10px] sm:text-[11px] tracking-widest uppercase transition-colors relative group px-2 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "elan" ? "text-[#FAF9F6]" : "text-beige-faint hover:text-beige"}`}
+                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-colors relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "elan" ? "text-[#FAF9F6]" : "text-beige-faint hover:text-beige"}`}
               >
-                <Orbit className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <Orbit className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span>Élan</span>
                 {view === "elan" && (
                   <motion.div
@@ -1559,9 +1651,9 @@ export default function Carnet() {
 
               <button
                 onClick={() => setView("matrice")}
-                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[10px] sm:text-[11px] tracking-widest uppercase transition-all relative group px-2 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "matrice" ? "text-[#8B5CF6]" : "text-beige-faint hover:text-beige"}`}
+                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-all relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "matrice" ? "text-[#8B5CF6]" : "text-beige-faint hover:text-beige"}`}
               >
-                <Fingerprint className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <Fingerprint className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span>Matrice</span>
                 {view === "matrice" && (
                   <motion.div
@@ -1607,11 +1699,57 @@ export default function Carnet() {
           </div>
         </div>
 
-        <ClarteSection section={`carnet-${view}`} />
+        <ClarteSection section={`carnet-${view}`} voix={collegueVoice} onVoixClose={() => setCollegueVoice(null)} />
 
         {view === "fragments" ? (
           <div className="space-y-6">
             <div className="space-y-12">
+              <style>{`
+                .card-holo {
+                  position: absolute; inset: 0; border-radius: 0.5rem;
+                  overflow: hidden; pointer-events: none; z-index: 5;
+                }
+                /* la lame de lumière qui traverse la carte en diagonale, coin à coin */
+                .card-holo::before {
+                  content: ""; position: absolute; top: -60%; left: -60%;
+                  width: 220%; height: 220%;
+                  background: linear-gradient(115deg,
+                    transparent 38%,
+                    rgba(253,245,230,0.10) 46%,
+                    rgba(255,255,255,0.42) 50%,
+                    rgba(253,245,230,0.10) 54%,
+                    transparent 62%);
+                  transform: translate(-120%, -120%);
+                  animation: cardHoloSweep 4.2s ease-in-out infinite;
+                }
+                /* teinte holographique discrète facon "foil" */
+                .card-holo::after {
+                  content: ""; position: absolute; inset: 0; border-radius: inherit;
+                  background: linear-gradient(115deg,
+                    transparent 40%,
+                    rgba(99,163,104,0.10),
+                    rgba(123,167,215,0.12),
+                    rgba(234,88,12,0.08),
+                    rgba(139,92,246,0.12),
+                    transparent 60%);
+                  background-size: 260% 260%;
+                  mix-blend-mode: screen; opacity: 0.55;
+                  animation: cardHoloHue 4.2s ease-in-out infinite;
+                }
+                @keyframes cardHoloSweep {
+                  0%   { transform: translate(-120%, -120%); }
+                  28%  { transform: translate(120%, 120%); }
+                  100% { transform: translate(120%, 120%); }
+                }
+                @keyframes cardHoloHue {
+                  0%   { background-position: 0% 0%; }
+                  28%  { background-position: 100% 100%; }
+                  100% { background-position: 100% 100%; }
+                }
+                @media (prefers-reduced-motion: reduce) {
+                  .card-holo::before, .card-holo::after { animation: none; opacity: 0; }
+                }
+              `}</style>
               {loading ? (
                 <div className="col-span-2 text-center py-20 font-mono text-[9px] uppercase tracking-widest opacity-40">
                   Immersion dans vos archives…
@@ -1649,6 +1787,10 @@ export default function Carnet() {
                   };
                   const __ed1 = __edOf(1);
                   const __ed2 = __edOf(2);
+                  // « neuve » = encore jamais affichée (aucune date de lecture).
+                                    // Brillant tant que le message du Collègue n'a pas été consulté
+                  // (openVoice marque la lecture -> le brillant s'éteint).
+                  const isShiny = !voiceRead[card.id || `idx-${i}`];
                   return (
                     <div key={week.key} className="max-w-lg mx-auto w-full px-3">
                       <div className="flex items-baseline justify-between mb-3 px-1">
@@ -1665,7 +1807,7 @@ export default function Carnet() {
                         {/* base opaque : empêche la carte du dessus de laisser passer le fond */}
                         <div className="absolute inset-0 rounded-lg bg-[#0a1a12] pointer-events-none" style={{ zIndex: 2 }} />
                     <motion.div
-                      key={card.id ?? i}
+                      key={`${week.key}-${card.id ?? i}-${i}`}
                       initial={{ opacity: 0, x: 28, rotate: -1.5 }}
                       animate={{ opacity: 1, x: 0, rotate: 0 }}
                       transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
@@ -1680,19 +1822,9 @@ export default function Carnet() {
                       }}
                       className={`${emotionData ? emotionData.bg : "bg-[#0a1a12]"} border ${emotionData ? emotionData.border : "border-[#3a3420]"} rounded-lg p-6 relative space-y-4 hover:border-[#3a3420]/60 transition-all`}
                     >
-                      <CardReadTracker card={card} />
-                      {(() => {
-                        if (!card.id || card.user_note) return null;
-                        const reads = JSON.parse(localStorage.getItem("collegue_card_read_dates") || "{}");
-                        const readDate = reads[card.id];
-                        if (readDate) {
-                          const hours = (new Date().getTime() - new Date(readDate).getTime()) / (1000 * 60 * 60);
-                          if (hours > 48) {
-                            return <div className="absolute top-2 right-2 w-1 h-1 bg-white opacity-20 rounded-full" />;
-                          }
-                        }
-                        return null;
-                      })()}
+                      {isShiny && (
+                        <div className="card-holo" aria-hidden="true" />
+                      )}
                       <div className="text-[11px] font-mono text-[#4a4028] mb-2 flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <span>
@@ -1725,25 +1857,39 @@ export default function Carnet() {
                               {card.sphere}
                             </span>
                           )}
-                          {emotionData && (
-                            <div
-                              className="w-1.5 h-1.5 rounded-full"
-                              style={{
-                                backgroundColor: emotionData.color,
-                                boxShadow: `0 0 5px ${emotionData.color}44`,
-                              }}
-                            />
-                          )}
-                          {!isLocked && (
-                            <PrismeIcon
-                              rainbow={false}
-                              color={emotionData?.color}
-                              className="w-2.5 h-2.5 text-yellow-500/60"
-                              title={`Prisme: ${card.prisme}`}
-                            />
+                          {!isLocked && emotionData ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openVoice(card, card.id || `idx-${i}`); }}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-sm border ${emotionData.bg} ${emotionData.border} hover:brightness-125 transition-all`}
+                              title="Prisme détecté — toucher pour entendre le collègue"
+                            >
+                              <PrismeIcon
+                                rainbow={false}
+                                color={emotionData.color}
+                                className="w-2.5 h-2.5"
+                                title={`Prisme: ${card.prisme}`}
+                              />
+                              <span className="text-[8px] font-mono uppercase tracking-tighter text-beige">
+                                {emotionData.label.split(" ")[0]}
+                              </span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openVoice(card, card.id || `idx-${i}`); }}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm border border-beige-faint/25 hover:border-beige-faint/50 transition-colors"
+                              title="Signal détecté — toucher pour entendre le collègue"
+                            >
+                              <span className="w-1 h-1 rounded-full bg-beige-faint/70 animate-pulse" />
+                              <span className="text-[8px] font-mono uppercase tracking-tighter text-beige-faint">
+                                Signal détecté
+                              </span>
+                            </button>
                           )}
                         </div>
                       </div>
+
                       <div
                         className={`border-l ${emotionData ? emotionData.border : "border-[#3a3420]"} pl-4 text-xs italic text-[#9a8a68]`}
                       >
@@ -1827,19 +1973,11 @@ export default function Carnet() {
                                 }
                                 navigate('/chat', { state: { resumeFragment: card } });
                               }}
-                              className="px-2 py-0.5 rounded-sm text-[6px] font-mono uppercase tracking-tighter border border-[#EA580C]/40 text-[#EA580C] hover:bg-[#EA580C]/10 transition-colors w-fit"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              className="px-4 py-2 rounded-md text-[10px] font-mono uppercase tracking-wide border border-[#EA580C]/50 text-[#EA580C] hover:bg-[#EA580C]/10 transition-colors"
                             >
                               Reprendre ce fragment
                             </button>
-                          )}
-                          {emotionData && (
-                            <div
-                              className={`px-2 py-0.5 rounded-sm text-[6px] font-mono uppercase tracking-tighter border ${emotionData.bg} ${emotionData.border} text-beige w-fit`}
-                            >
-                              {isLocked
-                                ? "Signal détecté"
-                                : emotionData.label.split(" ")[0]}
-                            </div>
                           )}
                         </div>
                       </div>
@@ -3285,7 +3423,7 @@ export default function Carnet() {
                       onClick={() => setIsEclatModalOpen(true)}
                       className="flex items-center gap-2 py-2 px-6 bg-yellow-400/5 hover:bg-yellow-400/10 border border-yellow-400/20 text-yellow-500/80 hover:text-yellow-400 font-mono text-[9px] tracking-[0.3em] uppercase rounded-full transition-all"
                     >
-                      <Zap size={14} className="animate-pulse" />
+                      <CollegueMark size={26} className="animate-pulse text-red-500" />
                       <div className="flex flex-col items-center gap-0.5">
                         <span className="font-mono text-[9px] tracking-[0.3em] uppercase text-yellow-400">
                           Invoquer un Éclat
@@ -3544,6 +3682,9 @@ export default function Carnet() {
                   {prismesCount}
                   <span className="text-white/20">/10</span>
                 </div>
+                <p className="text-[11px] text-beige-faint/70 italic leading-relaxed mt-2 max-w-sm mx-auto md:mx-0">
+                  Une lentille qui décompose ce que tu traverses pour le rendre lisible.
+                </p>
               </div>
 
               <div className="grid grid-cols-5 gap-3 mb-8">
@@ -3633,7 +3774,7 @@ export default function Carnet() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-2xl p-10 shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
             >
-              <div className="absolute top-0 inset-x-0 h-1 bg-white/20" />
+              <div className="absolute top-0 inset-x-0 h-1 bg-[#f59e0b]/40" />
               <button
                 onClick={() => setIsLueursModalOpen(false)}
                 className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors"
@@ -3643,13 +3784,10 @@ export default function Carnet() {
 
               <div className="mb-10 flex-shrink-0">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-6 h-6 rounded-full border border-white/5 overflow-hidden opacity-20 hover:opacity-80 transition-opacity">
-                    <img
-                      src="/logo.png"
-                      alt="Logo"
-                      className="w-full h-full object-cover grayscale"
-                    />
-                  </div>
+                  <Sparkles
+                    strokeWidth={1.5}
+                    className="w-5 h-5 text-[#f59e0b]/40 shrink-0"
+                  />
                   <div className="font-mono text-[9px] uppercase tracking-[0.4em] text-[#f59e0b]/40">
                     Lueurs &amp; Éclats
                   </div>
@@ -3712,7 +3850,7 @@ export default function Carnet() {
                       >
                         <div className="font-mono text-[8px] uppercase tracking-widest text-white/40 mb-3 flex items-center justify-between gap-2">
                           <span className="flex items-center gap-2">
-                            <PrismeIcon className="w-3 h-3 text-white/20" />
+                            <CollegueMark className="w-6 h-6 text-red-500/70" />
                             <span>{i === 0 ? "Dernier Éclat" : "Éclat"}</span>
                           </span>
                           {e.answered_at && (
@@ -3763,7 +3901,7 @@ export default function Carnet() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="relative w-full max-w-lg bg-[#0a0a0a] border border-yellow-400/20 rounded-2xl p-10 shadow-2xl overflow-hidden"
             >
-              <div className="absolute top-0 inset-x-0 h-1 bg-yellow-400/40" />
+              <div className="absolute top-0 inset-x-0 h-1 bg-red-500/50" />
               <button
                 onClick={() => setIsEclatModalOpen(false)}
                 className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors"
@@ -3772,7 +3910,7 @@ export default function Carnet() {
               </button>
 
               <div className="text-center mb-8">
-                <Zap className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+                <CollegueMark className="w-14 h-14 text-red-500 mx-auto mb-4" />
                 <h3 className="text-xl font-serif text-white mb-2 italic">
                   L'Éclat
                 </h3>
@@ -3888,7 +4026,7 @@ export default function Carnet() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-[#0a0a0a] border border-yellow-400/20 rounded-2xl shadow-2xl overflow-hidden"
             >
-              <div className="absolute top-0 inset-x-0 h-1 bg-yellow-400/40" />
+              <div className="absolute top-0 inset-x-0 h-1 bg-red-500/50" />
               <button
                 onClick={() => setReadingEclat(null)}
                 className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors z-10"
@@ -3898,7 +4036,7 @@ export default function Carnet() {
               <div className="px-10 pt-10 pb-5 flex-shrink-0">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.3em] text-yellow-400/50">
-                    <PrismeIcon className="w-3.5 h-3.5 text-yellow-400/40" />
+                    <CollegueMark className="w-7 h-7 text-red-500/70" />
                     <span>L'Éclat</span>
                   </div>
                   {readingEclat.answered_at && (
@@ -4009,7 +4147,7 @@ export default function Carnet() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="relative w-full max-w-lg max-h-[85vh] flex flex-col bg-[#0a0a0a] border border-white/15 rounded-2xl shadow-2xl overflow-hidden"
             >
-              <div className="absolute top-0 inset-x-0 h-1 bg-white/20" />
+              <div className="absolute top-0 inset-x-0 h-1 bg-[#f59e0b]/40" />
               <button
                 onClick={() => setReadingLueur(null)}
                 className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors z-10"

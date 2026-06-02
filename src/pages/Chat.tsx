@@ -339,6 +339,7 @@ interface ReflectionCard {
   prisme?: string;
   date?: string;
   image_url?: string;
+  miroir?: string;
 }
 
 export const EMOTIONS = {
@@ -3016,7 +3017,36 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
           localStorage.getItem("collegue_cards") || "[]",
         );
         const cardId = crypto.randomUUID();
-        const newCard = { ...card, id: cardId, date: new Date().toISOString() };
+        // Miroir RÉGÉNÉRÉ à partir des seuls champs distillés de la carte
+        // (jamais la conversation) → respecte la règle « rien de ce qui se dit
+        // n'est enregistré ». C'est une pensée du Collègue SUR le fragment,
+        // relisible plus tard dans le Carnet. /!\ Texte = premier jet, à ta voix.
+        let miroir = "";
+        try {
+          const miroirPrompt = `Voici un fragment déposé dans le Carnet d'une personne :
+- Fragment : ${card.fragment}
+- Déplacement : ${card.deplacement}
+- Direction : ${card.direction}${card.texture_relationnelle ? `\n- Texture : ${card.texture_relationnelle}` : ""}
+
+Écris un court miroir : une pensée que tu poses sur ce fragment, à relire plus tard. Fais surgir une image juste à partir de ces éléments, accueille ce qui s'est déplacé, et termine sur une ouverture — une phrase qui continue de travailler. Ne résume pas, ne donne aucun conseil, ne pose aucune question. Deux à quatre phrases.`;
+          miroir = (
+            (await streamChat(
+              [{ role: "user", content: miroirPrompt }],
+              400,
+              () => {},
+              true, // noInjection : aucune mémoire/contexte injecté
+            )) || ""
+          ).trim();
+        } catch (e) {
+          console.error("miroir gen failed", e);
+        }
+
+        const newCard = {
+          ...card,
+          id: cardId,
+          date: new Date().toISOString(),
+          ...(miroir ? { miroir } : {}),
+        };
 
         setReflectionCard(newCard);
 

@@ -192,11 +192,11 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className={`flex items-center text-beige-faint hover:text-beige transition-colors ${hideLabel ? 'p-3 md:p-1.5' : 'gap-1.5 font-mono text-[9px] tracking-widest uppercase'}`}
+          className={`flex items-center text-beige-faint hover:text-beige transition-colors ${hideLabel ? 'p-1.5' : 'gap-1.5 font-mono text-[9px] tracking-widest uppercase'}`}
           id="key-entry-trigger-btn"
           title={hasKey ? "Déconnexion" : "Retrouver mon carnet"}
         >
-          <Fingerprint size={hideLabel ? 14 : 11} strokeWidth={hideLabel ? 1.5 : 2} className={hasKey ? "text-green/80" : ""} />
+          <Fingerprint size={hideLabel ? 13 : 11} strokeWidth={hideLabel ? 1.5 : 2} className={hasKey ? "text-green/80" : ""} />
           {!hideLabel && (hasKey ? "Déconnexion" : "Retrouver mon carnet")}
         </button>
       )}

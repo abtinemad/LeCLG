@@ -117,7 +117,7 @@ export default function Landing() {
                   a demandé moins d'animations. Cycle de 8 s. */}
               <style>{`
                 @keyframes nonRienFlicker {
-                  0% { opacity: .6; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  0% { opacity: .6; filter: brightness(1.12); }
                   4% { opacity: .6; }
                   4.3% { opacity: .12; }
                   4.7% { opacity: .6; }
@@ -125,8 +125,8 @@ export default function Landing() {
                   5.4% { opacity: .6; }
                   /* sursaut de surtension */
                   11.5% { opacity: .6; }
-                  12% { opacity: 1; text-shadow: 0 0 11px rgba(253,245,230,.7), 0 0 4px rgba(253,245,230,.5); }
-                  12.6% { opacity: .55; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  12% { opacity: 1; filter: brightness(2.0); }
+                  12.6% { opacity: .55; filter: brightness(1.12); }
                   13% { opacity: .6; }
                   19% { opacity: .6; }
                   19.3% { opacity: .08; }
@@ -136,25 +136,25 @@ export default function Landing() {
                   21.3% { opacity: .6; }
                   /* flash bref avant l'extinction (claque) */
                   36% { opacity: .6; }
-                  36.4% { opacity: 1; text-shadow: 0 0 13px rgba(253,245,230,.8), 0 0 5px rgba(253,245,230,.6); }
-                  36.8% { opacity: .6; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  36.4% { opacity: 1; filter: brightness(2.1); }
+                  36.8% { opacity: .6; filter: brightness(1.12); }
                   /* extinction complète ~2 s (38% -> 62% sur 8 s ≈ 2 s) */
                   37% { opacity: .6; }
                   37.4% { opacity: .05; }
-                  38% { opacity: 0; text-shadow: none; }
-                  62% { opacity: 0; text-shadow: none; }
+                  38% { opacity: 0; filter: brightness(.3); }
+                  62% { opacity: 0; filter: brightness(.3); }
                   62.6% { opacity: .04; }
                   /* rallumage en surtension puis stabilisation */
-                  63% { opacity: 1; text-shadow: 0 0 12px rgba(253,245,230,.75), 0 0 4px rgba(253,245,230,.5); }
-                  63.4% { opacity: .15; text-shadow: 0 0 5px rgba(253,245,230,.15); }
-                  63.9% { opacity: .6; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  63% { opacity: 1; filter: brightness(2.0); }
+                  63.4% { opacity: .15; filter: brightness(1.12); }
+                  63.9% { opacity: .6; filter: brightness(1.12); }
                   80% { opacity: .6; }
                   80.3% { opacity: .2; }
                   80.7% { opacity: .6; }
                   /* dernier sursaut fort */
                   87% { opacity: .6; }
-                  87.5% { opacity: .95; text-shadow: 0 0 10px rgba(253,245,230,.65), 0 0 4px rgba(253,245,230,.45); }
-                  88% { opacity: .6; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  87.5% { opacity: .95; filter: brightness(1.85); }
+                  88% { opacity: .6; filter: brightness(1.12); }
                   92% { opacity: .6; }
                   92.4% { opacity: .1; }
                   93.2% { opacity: .12; }
@@ -180,8 +180,8 @@ export default function Landing() {
                 }
                 .non-rien-neon {
                   animation: nonRienFlicker 8s linear infinite, nonRienShake 8s linear infinite;
-                  text-shadow: 0 0 5px rgba(253, 245, 230, 0.15);
-                  will-change: opacity, transform;
+                  filter: brightness(1.12);
+                  will-change: opacity, transform, filter;
                 }
                 @media (prefers-reduced-motion: reduce) {
                   .non-rien-neon { animation: none; opacity: .6; }

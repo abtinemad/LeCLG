@@ -74,5 +74,7 @@ export interface ReflectionCard {
   prisme?: string;
   date: string;
   user_note?: string;
+  /** Le reflet de clôture de la conversation (dernier message du Collègue). */
+  miroir?: string;
   image_url?: string;
 }

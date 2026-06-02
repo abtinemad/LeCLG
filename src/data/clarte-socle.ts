@@ -184,35 +184,35 @@ export const SECTION_GUIDE: Record<string, SectionGuide> = {
     titre: "La conversation",
     intro:
       "Ici, on avance ensemble, en cinq étapes. Tu n'as rien à préparer : pars de ce qui est là, même flou. Je ne te donnerai pas de réponses — je t'aiderai à rendre les tiennes plus claires. Quand une forme se dégage, la conversation se referme d'elle-même et dépose un fragment dans ton Carnet. Trois conversations par jour : le reste du travail se fait en toi, entre deux.",
-    concepts: ["session", "collegue", "fragment", "deplacement", "direction", "prisme"],
+    concepts: ["collegue", "session", "fragment"],
   },
 
   "carnet-fragments": {
     titre: "Les Fragments",
     intro:
       "Chaque conversation a laissé ici une carte : un fragment. C'est la mémoire de tes traversées. Tu peux les relire et ajouter, à côté de chacun, un songe — ta propre note, écrite après coup. Cette page est la matière brute ; les autres couches du Carnet la font parler.",
-    concepts: ["fragment", "deplacement", "direction", "texture", "songe", "prisme"],
+    concepts: ["fragment", "deplacement", "direction", "songe"],
   },
 
   "carnet-lien": {
     titre: "Le Lien",
     intro:
       "Cette couche range tes fragments par sphère de vie — Familiale, Sociale, Amoureuse, Professionnelle. Pour chacune, elle dégage une teinte et une intensité. Peu à peu se dessine une structure d'abord invisible : la façon dont ton vécu circule entre ces domaines. Le Lien a besoin de plusieurs fragments avant d'avoir quelque chose à dire.",
-    concepts: ["lien", "sphere", "fragment"],
+    concepts: ["lien", "sphere", "texture"],
   },
 
   "carnet-affect": {
     titre: "L'Affect",
     intro:
       "Cette couche lit le courant sous ce que tu vis : ce qui te porte, ce qui te freine, ce qui commence à émerger. Là où un Prisme éclaire un instant, l'Affect en suit le mouvement sur la durée.",
-    concepts: ["affect", "prisme", "fragment"],
+    concepts: ["affect"],
   },
 
   "carnet-elan": {
     titre: "L'Élan",
     intro:
       "Cette couche lit la trajectoire d'ensemble : la dynamique de ta pratique, la direction qu'elle prend, et la question encore en suspens qui te travaille. C'est la couche du temps long — elle se précise à mesure que les fragments s'accumulent.",
-    concepts: ["elan", "fragment", "direction"],
+    concepts: ["elan", "direction"],
   },
 
   "carnet-matrice": {

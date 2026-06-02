@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, BookOpen, Brain, Heart, Sparkle, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight, MessageCircle, History, ArrowRightLeft, Compass, Globe, Layers, Moon, Star } from 'lucide-react';
+import { Sparkles, BookOpen, Brain, Heart, Cloud, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight, MessageCircle, History, ArrowRightLeft, Compass, Globe, Layers, Moon, Star } from 'lucide-react';
 import PrismeIcon from './PrismeIcon';
+import CollegueMark from './CollegueMark';
 import { sbGet } from '../lib/worker';
 import { SECTION_GUIDE, CONCEPTS } from '../data/clarte-socle';
 import { SerpentinCanvas } from './SerpentinCanvas';
@@ -20,16 +22,6 @@ interface GuideStep {
  * Chaque page expose une carte d'intro puis une carte par concept pertinent —
  * le carrousel (les points en bas du composant) les fait défiler.
  */
-const SECTION_ICONS: Record<string, React.ReactNode> = {
-  landing: <Sparkle size={14} className="text-beige" />,
-  chat: <Brain size={14} className="text-beige" />,
-  'carnet-fragments': <BookOpen size={14} className="text-beige" />,
-  'carnet-lien': <Heart size={14} className="text-beige" />,
-  'carnet-affect': <Waves size={14} className="text-beige" />,
-  'carnet-elan': <Orbit size={14} className="text-beige" />,
-  'carnet-matrice': <Fingerprint size={14} className="text-beige" />,
-};
-
 const CONCEPT_ICONS: Record<string, React.ReactNode> = {
   collegue: <Brain size={14} className="text-beige" />,
   session: <MessageCircle size={14} className="text-beige" />,
@@ -49,13 +41,24 @@ const CONCEPT_ICONS: Record<string, React.ReactNode> = {
   eclat: <Star size={14} className="text-beige" />,
 };
 
+const SECTION_ICONS: Record<string, React.ReactNode> = {
+  landing: <Sparkles size={14} className="text-beige" />,
+  climat: <Cloud size={14} className="text-beige" />,
+  chat: <Brain size={14} className="text-beige" />,
+  'carnet-fragments': <BookOpen size={14} className="text-beige" />,
+  'carnet-lien': <Heart size={14} className="text-beige" />,
+  'carnet-affect': <Waves size={14} className="text-beige" />,
+  'carnet-elan': <Orbit size={14} className="text-beige" />,
+  'carnet-matrice': <Fingerprint size={14} className="text-beige" />,
+};
+
 const CLARITES: Record<string, GuideStep[]> = Object.fromEntries(
   Object.entries(SECTION_GUIDE).map(([section, guide]): [string, GuideStep[]] => {
     const intro: GuideStep = {
       id: `${section}-intro`,
       title: guide.titre,
       content: guide.intro,
-      icon: SECTION_ICONS[section] ?? <Sparkle size={14} className="text-beige" />,
+      icon: SECTION_ICONS[section] ?? <Sparkles size={14} className="text-beige" />,
     };
     const glossaire: GuideStep[] = guide.concepts
       .filter((key) => CONCEPTS[key])
@@ -72,6 +75,7 @@ const CLARITES: Record<string, GuideStep[]> = Object.fromEntries(
 const SECTION_COLORS: Record<string, string> = {
   landing: '#E8D5B0',
   chat: '#E8D5B0',
+  climat: '#7BA7D7',
   'carnet-fragments': '#6ba368',
   'carnet-lien': '#EA580C',
   'carnet-affect': '#7BA7D7',
@@ -353,19 +357,24 @@ const CometAnimation = ({
 };
 
 
-export const ClarteSection = ({ section, forceClose }: { section: string, forceClose?: boolean }) => {
+// Sentinelle : quand `voix` vaut ça, la boîte affiche un CollegueMark qui tourne
+// (chargement) au lieu d'un texte. Valeur improbable dans un vrai miroir.
+export const CLARTE_LOADING = "\u0000clarte-loading";
+
+export const ClarteSection = ({ section, forceClose, voix, onVoixClose }: { section: string, forceClose?: boolean, voix?: string | null, onVoixClose?: () => void }) => {
   const steps = CLARITES[section] || [];
   const [isOpen, setIsOpen] = useState(false);
-  // (a) : scintille tant que la boîte n'a jamais été ouverte (par section), mémorisé en localStorage.
-  const [hasSeen, setHasSeen] = useState(() => {
-    try { return localStorage.getItem(`clarte_seen_${section}`) === '1'; } catch { return true; }
-  });
 
   useEffect(() => {
     if (forceClose) {
       setIsOpen(false);
     }
   }, [forceClose]);
+
+  // Voix invoquée depuis le Carnet (« Signal détecté ») : la boîte s'ouvre.
+  useEffect(() => {
+    if (voix) setIsOpen(true);
+  }, [voix]);
 
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -398,33 +407,71 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
 
   const openClarte = () => {
     setIsOpen(true);
-    if (!hasSeen) {
-      try { localStorage.setItem(`clarte_seen_${section}`, '1'); } catch {}
-      setHasSeen(true);
-    }
+  };
+
+  // Fermeture : referme la boîte ET efface la voix côté parent (le bouton
+  // « Signal détecté » repassera par setCollegueVoice pour la rouvrir).
+  const close = () => {
+    setIsOpen(false);
+    onVoixClose?.();
   };
 
   if (!isOpen) {
-    return (
-      <button
-        onClick={openClarte}
-        aria-label="Qu'est-ce que c'est ?"
-        className="fixed top-20 right-4 md:right-8 z-[100] text-beige-faint hover:text-beige transition-colors group"
-      >
-        <motion.span
-          className="flex"
-          animate={hasSeen ? { opacity: 1, scale: 1 } : { opacity: [0.5, 1, 0.5], scale: [1, 1.15, 1] }}
-          transition={hasSeen ? { duration: 0.3 } : { duration: 1.9, repeat: Infinity, ease: "easeInOut" }}
+    // Portalé vers <body> pour échapper au transform de la transition de page
+    // (sinon, étant fixed dans un conteneur transformé, il dériverait avec la
+    // page). Ici : solide, immobile. Le « néon d'hôpital fatigué » ne joue que
+    // sur l'opacité et le halo — aucun transform, donc la position ne bouge pas.
+    return createPortal(
+      <>
+        <style>{`
+          @keyframes collegueNeon {
+            0%   { opacity: .9; filter: brightness(1.15); }
+            3%   { opacity: .9; filter: brightness(1.15); }
+            3.4% { opacity: .4; filter: brightness(.5); }
+            3.9% { opacity: .9; filter: brightness(1.15); }
+            6.5% { opacity: .55; filter: brightness(.7); }
+            7%   { opacity: .9; filter: brightness(1.15); }
+            17.6%{ opacity: .9; filter: brightness(1.15); }
+            18%  { opacity: 1;  filter: brightness(2.1); }
+            18.6%{ opacity: .6; filter: brightness(.85); }
+            19.2%{ opacity: .9; filter: brightness(1.15); }
+            39%  { opacity: .9; filter: brightness(1.15); }
+            39.5%{ opacity: .08; filter: brightness(.3); }
+            41%  { opacity: 0;  filter: brightness(.3); }
+            43%  { opacity: .06; filter: brightness(.3); }
+            43.6%{ opacity: .9; filter: brightness(1.15); }
+            44.2%{ opacity: .32; filter: brightness(.55); }
+            44.8%{ opacity: .9; filter: brightness(1.15); }
+            68%  { opacity: .9; filter: brightness(1.15); }
+            68.4%{ opacity: .3; filter: brightness(.5); }
+            69%  { opacity: .9; filter: brightness(1.15); }
+            85%  { opacity: .9; filter: brightness(1.15); }
+            85.4%{ opacity: 1;  filter: brightness(1.95); }
+            86%  { opacity: .9; filter: brightness(1.15); }
+            100% { opacity: .9; filter: brightness(1.15); }
+          }
+          .collegue-neon { animation: collegueNeon 6.5s linear infinite; will-change: opacity, filter; }
+          @media (prefers-reduced-motion: reduce) {
+            .collegue-neon { animation: none; opacity: .9; filter: brightness(1.1); }
+          }
+        `}</style>
+        <button
+          onClick={openClarte}
+          aria-label="Qu'est-ce que c'est ?"
+          className="fixed top-20 right-4 md:right-8 z-[100] text-beige-faint hover:text-beige transition-colors"
         >
-          <Sparkle size={20} strokeWidth={1.6} className="group-hover:scale-110 transition-transform" />
-        </motion.span>
-      </button>
+          <span className="flex collegue-neon">
+            <CollegueMark size={20} />
+          </span>
+        </button>
+      </>,
+      document.body,
     );
   }
 
   const step = steps[currentStep] ?? steps[0];
 
-  if (!step) return null;
+  if (!step && !voix) return null;
 
   const sectionColor = SECTION_COLORS[section] || '#E8D5B0';
 
@@ -434,7 +481,7 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
-      onClick={() => setIsOpen(false)}
+      onClick={close}
       className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
     >
     <motion.div
@@ -449,14 +496,50 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
 
       {/* Fermer */}
       <button
-        onClick={() => setIsOpen(false)}
+        onClick={close}
         aria-label="Fermer"
         className="absolute top-2.5 right-2.5 z-20 p-1.5 text-red-500/30 hover:text-red-500 transition-colors rounded-full hover:bg-red-500/10"
       >
         <X size={15} />
       </button>
 
-      {/* Rangée : flèche gauche · contenu · flèche droite (flèches centrées verticalement) */}
+      {/* voix = le Collègue parle d'un fragment précis (invoqué depuis le Carnet) ;
+          sinon, le carrousel de Clarté habituel. */}
+      {voix ? (
+        <div className="relative z-10 w-full pr-7">
+          <div className="flex items-center gap-2 mb-2">
+            <span style={{ color: `${sectionColor}AA` }}>
+              <CollegueMark className="w-3.5 h-3.5" />
+            </span>
+            <div className="font-mono text-[8px] tracking-[0.2em] uppercase" style={{ color: `${sectionColor}80` }}>Le collègue</div>
+            <div className="h-px flex-1" style={{ backgroundColor: `${sectionColor}20` }} />
+          </div>
+          {voix === CLARTE_LOADING ? (
+            <div className="flex justify-center py-3" style={{ color: `${sectionColor}AA` }}>
+              <style>{`
+                @keyframes collegueSpin { to { transform: rotate(360deg); } }
+                /* miroitement doré : la lumière accroche le métal qui tourne */
+                @keyframes collegueShimmer {
+                  0%, 100% { filter: brightness(0.82); }
+                  50%      { filter: brightness(1.28); }
+                }
+                /* rotation 2D + miroitement, calés sur la même durée */
+                .collegue-spin {
+                  color: #E8D5B0;
+                  animation: collegueSpin 1.1s linear infinite, collegueShimmer 1.1s ease-in-out infinite;
+                  display: inline-flex; will-change: transform;
+                }
+                @media (prefers-reduced-motion: reduce) { .collegue-spin { animation: none; color: #E8D5B0; } }
+              `}</style>
+              <span className="collegue-spin"><CollegueMark className="w-6 h-6" /></span>
+            </div>
+          ) : (
+            <div className="text-[15px] leading-relaxed font-serif italic text-pretty whitespace-pre-line" style={{ color: `${sectionColor}EE` }}>
+              « {voix} »
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="relative z-10 w-full flex items-center gap-1">
         {steps.length > 1 && (
           <button
@@ -473,13 +556,18 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
         <div className="flex-1 min-w-0 flex flex-col">
           <div className="pr-7 mb-2">
             <div className="flex items-center gap-2">
-              <div className="font-mono text-[8px] tracking-[0.2em] uppercase" style={{ color: `${sectionColor}80` }}>Clarté</div>
+              <span className="text-beige">
+                <CollegueMark className="w-4 h-4" />
+              </span>
+              <div className="font-mono text-[8px] tracking-[0.2em] uppercase text-beige">Clarté</div>
               <div className="h-px w-4" style={{ backgroundColor: `${sectionColor}20` }} />
             </div>
             <div className="flex items-center gap-2 mt-1">
-              <div className="p-0.5" style={{ color: sectionColor }}>
-                {step.icon}
-              </div>
+              {step.icon && (
+                <div className="p-0.5" style={{ color: sectionColor }}>
+                  {step.icon}
+                </div>
+              )}
               <h4 className="font-mono text-[9px] tracking-widest uppercase" style={{ color: `${sectionColor}CC` }}>{step.title}</h4>
               {steps.length > 1 && !isPermanentUnlock && (
                 <span className="font-mono text-[8px] tracking-widest uppercase ml-auto" style={{ color: `${sectionColor}66` }}>
@@ -536,6 +624,7 @@ export const ClarteSection = ({ section, forceClose }: { section: string, forceC
           </button>
         )}
       </div>
+      )}
     </motion.div>
     </motion.div>
   );
