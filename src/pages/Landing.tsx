@@ -110,31 +110,78 @@ export default function Landing() {
               >
                 Une pause au milieu du bruit, le temps d'une conversation.
               </motion.p>
-              {/* Flicker « néon en fin de vie » réservé à la pastille "non rien" :
-                  ratés brefs + une quasi-extinction, léger halo, coupé si l'utilisateur
-                  a demandé moins d'animations. */}
+              {/* Néon « en fin de vie » réservé à la pastille "non rien" : grésillement
+                  irrégulier, une extinction COMPLÈTE d'environ 2 s, et une micro-vibration
+                  synchronisée sur les ratés. Halo qui faiblit avec l'opacité. Deux
+                  animations parallèles (opacité + tremblement). Coupé si l'utilisateur
+                  a demandé moins d'animations. Cycle de 8 s. */}
               <style>{`
                 @keyframes nonRienFlicker {
-                  0%, 100% { opacity: .6; }
-                  6%, 6.4% { opacity: .6; }
-                  6.6% { opacity: .15; }
-                  6.9% { opacity: .6; }
-                  30% { opacity: .6; }
-                  30.3% { opacity: .3; }
-                  30.6% { opacity: .6; }
-                  30.9% { opacity: .2; }
-                  31.4% { opacity: .6; }
-                  62% { opacity: .6; }
-                  62.5% { opacity: .08; }
-                  63.7% { opacity: .1; }
-                  64.1% { opacity: .6; }
-                  85% { opacity: .6; }
-                  85.3% { opacity: .35; }
-                  85.6% { opacity: .6; }
+                  0% { opacity: .6; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  4% { opacity: .6; }
+                  4.3% { opacity: .12; }
+                  4.7% { opacity: .6; }
+                  5% { opacity: .28; }
+                  5.4% { opacity: .6; }
+                  /* sursaut de surtension */
+                  11.5% { opacity: .6; }
+                  12% { opacity: 1; text-shadow: 0 0 11px rgba(253,245,230,.7), 0 0 4px rgba(253,245,230,.5); }
+                  12.6% { opacity: .55; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  13% { opacity: .6; }
+                  19% { opacity: .6; }
+                  19.3% { opacity: .08; }
+                  20.2% { opacity: .1; }
+                  20.6% { opacity: .6; }
+                  20.9% { opacity: .3; }
+                  21.3% { opacity: .6; }
+                  /* flash bref avant l'extinction (claque) */
+                  36% { opacity: .6; }
+                  36.4% { opacity: 1; text-shadow: 0 0 13px rgba(253,245,230,.8), 0 0 5px rgba(253,245,230,.6); }
+                  36.8% { opacity: .6; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  /* extinction complète ~2 s (38% -> 62% sur 8 s ≈ 2 s) */
+                  37% { opacity: .6; }
+                  37.4% { opacity: .05; }
+                  38% { opacity: 0; text-shadow: none; }
+                  62% { opacity: 0; text-shadow: none; }
+                  62.6% { opacity: .04; }
+                  /* rallumage en surtension puis stabilisation */
+                  63% { opacity: 1; text-shadow: 0 0 12px rgba(253,245,230,.75), 0 0 4px rgba(253,245,230,.5); }
+                  63.4% { opacity: .15; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  63.9% { opacity: .6; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  80% { opacity: .6; }
+                  80.3% { opacity: .2; }
+                  80.7% { opacity: .6; }
+                  /* dernier sursaut fort */
+                  87% { opacity: .6; }
+                  87.5% { opacity: .95; text-shadow: 0 0 10px rgba(253,245,230,.65), 0 0 4px rgba(253,245,230,.45); }
+                  88% { opacity: .6; text-shadow: 0 0 5px rgba(253,245,230,.15); }
+                  92% { opacity: .6; }
+                  92.4% { opacity: .1; }
+                  93.2% { opacity: .12; }
+                  93.6% { opacity: .6; }
+                  100% { opacity: .6; }
+                }
+                /* tremblement seulement pendant les phases de grésillement,
+                   immobile le reste du temps (et pendant l'extinction). */
+                @keyframes nonRienShake {
+                  0%, 3.9%, 5.5%, 18.9%, 21.4%, 36.9%, 63.9%, 79.9%, 80.8%, 91.9%, 93.7%, 100% {
+                    transform: translate(0, 0);
+                  }
+                  4.2% { transform: translate(-0.6px, 0.4px); }
+                  4.9% { transform: translate(0.5px, -0.5px); }
+                  19.2% { transform: translate(0.6px, 0.3px); }
+                  19.8% { transform: translate(-0.5px, -0.4px); }
+                  20.7% { transform: translate(0.4px, 0.5px); }
+                  63.2% { transform: translate(-0.5px, 0.5px); }
+                  63.6% { transform: translate(0.4px, -0.3px); }
+                  80.5% { transform: translate(0.5px, 0.4px); }
+                  92.6% { transform: translate(-0.4px, -0.5px); }
+                  93.3% { transform: translate(0.5px, 0.3px); }
                 }
                 .non-rien-neon {
-                  animation: nonRienFlicker 5.2s linear infinite;
+                  animation: nonRienFlicker 8s linear infinite, nonRienShake 8s linear infinite;
                   text-shadow: 0 0 5px rgba(253, 245, 230, 0.15);
+                  will-change: opacity, transform;
                 }
                 @media (prefers-reduced-motion: reduce) {
                   .non-rien-neon { animation: none; opacity: .6; }
