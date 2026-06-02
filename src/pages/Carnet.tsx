@@ -88,6 +88,40 @@ const AnalysisError = ({ onRetry }: { onRetry: () => void }) => (
   </div>
 );
 
+type FragWeek = { key: string; label: string; items: { card: ReflectionCard; i: number }[] };
+
+function __isoWeekKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - day + 3);
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((date.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+  return date.getUTCFullYear() + "-W" + String(week).padStart(2, "0");
+}
+function __mondayLabel(dateStr: string): string {
+  const d = new Date(dateStr);
+  const day = (d.getDay() + 6) % 7;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - day);
+  return "Semaine du " + monday.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+}
+// Regroupe les fragments par semaine ISO (plus récents d'abord), en conservant
+// l'index d'origine dans `cards` pour que les notes / copies restent justes.
+function groupCardsByWeek(cards: ReflectionCard[]): FragWeek[] {
+  const map = new Map<string, FragWeek>();
+  cards.forEach((card, i) => {
+    if (!card || !card.date) return;
+    const k = __isoWeekKey(card.date);
+    if (!map.has(k)) map.set(k, { key: k, label: __mondayLabel(card.date), items: [] });
+    map.get(k)!.items.push({ card, i });
+  });
+  const arr = Array.from(map.values());
+  arr.forEach((w) => w.items.sort((a, b) => new Date(b.card.date).getTime() - new Date(a.card.date).getTime()));
+  arr.sort((a, b) => new Date(b.items[0].card.date).getTime() - new Date(a.items[0].card.date).getTime());
+  return arr;
+}
+
 export default function Carnet() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -102,6 +136,8 @@ export default function Carnet() {
   const [view, setView] = useState<
     "fragments" | "lien" | "affect" | "elan" | "matrice"
   >("fragments");
+  // Index de la carte affichée par semaine (feuilletage des piles).
+  const [weekFlip, setWeekFlip] = useState<Record<string, number>>({});
   const [metacognitionData, setMetacognitionData] = useState<any>(
     JSON.parse(localStorage.getItem("collegue_metacognition") || "null"),
   );
@@ -1575,7 +1611,7 @@ export default function Carnet() {
 
         {view === "fragments" ? (
           <div className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-12">
               {loading ? (
                 <div className="col-span-2 text-center py-20 font-mono text-[9px] uppercase tracking-widest opacity-40">
                   Immersion dans vos archives…
@@ -1594,7 +1630,10 @@ export default function Carnet() {
                   </p>
                 </div>
               ) : (
-                cards.map((card, i) => {
+                groupCardsByWeek(cards).map((week) => {
+                  const __n = week.items.length;
+                  const __active = Math.min(weekFlip[week.key] ?? 0, __n - 1);
+                  const { card, i } = week.items[__active];
                   const emotionKey = (
                     card.emotion ||
                     card.prisme ||
@@ -1602,12 +1641,43 @@ export default function Carnet() {
                   ).toLowerCase() as keyof typeof EMOTIONS;
                   const emotionData = EMOTIONS[emotionKey] || null;
                   const isLocked = !card.prisme;
+                  const __edOf = (k: number) => {
+                    const c = week.items[__active + k]?.card;
+                    if (!c) return null;
+                    const ek = (c.emotion || c.prisme || "").toLowerCase() as keyof typeof EMOTIONS;
+                    return EMOTIONS[ek] || null;
+                  };
+                  const __ed1 = __edOf(1);
+                  const __ed2 = __edOf(2);
                   return (
+                    <div key={week.key} className="max-w-lg mx-auto w-full px-3">
+                      <div className="flex items-baseline justify-between mb-3 px-1">
+                        <span className="font-mono text-[10px] tracking-widest uppercase text-beige-faint">{week.label}</span>
+                        <span className="font-mono text-[9px] tracking-widest text-beige-faint/50">{__n} fragment{__n > 1 ? "s" : ""}</span>
+                      </div>
+                      <div className="relative">
+                        {__n - 1 - __active >= 2 && (
+                          <div className={`absolute inset-0 rounded-lg ${__ed2 ? __ed2.bg : "bg-[#0a1a12]"} border ${__ed2 ? __ed2.border : "border-[#3a3420]"} pointer-events-none`} style={{ transform: "translateY(8px) rotate(-6deg)", zIndex: 0 }} />
+                        )}
+                        {__n - 1 - __active >= 1 && (
+                          <div className={`absolute inset-0 rounded-lg ${__ed1 ? __ed1.bg : "bg-[#0a1a12]"} border ${__ed1 ? __ed1.border : "border-[#3a3420]"} pointer-events-none`} style={{ transform: "translateY(4px) rotate(5deg)", zIndex: 1 }} />
+                        )}
+                        {/* base opaque : empêche la carte du dessus de laisser passer le fond */}
+                        <div className="absolute inset-0 rounded-lg bg-[#0a1a12] pointer-events-none" style={{ zIndex: 2 }} />
                     <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.05 }}
+                      key={card.id ?? i}
+                      initial={{ opacity: 0, x: 28, rotate: -1.5 }}
+                      animate={{ opacity: 1, x: 0, rotate: 0 }}
+                      transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                      style={{ position: "relative", zIndex: 3, touchAction: "pan-y" }}
+                      drag={__n > 1 ? "x" : false}
+                      dragSnapToOrigin
+                      dragElastic={0.18}
+                      onDragEnd={(_, info) => {
+                        if (__n <= 1) return;
+                        if (info.offset.x <= -60) setWeekFlip((st) => ({ ...st, [week.key]: (__active + 1) % __n }));
+                        else if (info.offset.x >= 60) setWeekFlip((st) => ({ ...st, [week.key]: (__active - 1 + __n) % __n }));
+                      }}
                       className={`${emotionData ? emotionData.bg : "bg-[#0a1a12]"} border ${emotionData ? emotionData.border : "border-[#3a3420]"} rounded-lg p-6 relative space-y-4 hover:border-[#3a3420]/60 transition-all`}
                     >
                       <CardReadTracker card={card} />
@@ -1716,6 +1786,7 @@ export default function Carnet() {
                           <textarea
                             value={card.user_note || ""}
                             onChange={(e) => updateCardNote(i, e.target.value)}
+                            onPointerDown={(e) => e.stopPropagation()}
                             placeholder="Déposer un songe..."
                             className="w-full bg-black/20 border border-white/5 rounded px-3 py-2 text-[11px] text-beige-faint italic outline-none focus:border-white/10 resize-none h-12 custom-scrollbar"
                           />
@@ -1773,6 +1844,15 @@ export default function Carnet() {
                         </div>
                       </div>
                     </motion.div>
+                      </div>
+                      {__n > 1 && (
+                        <div className="flex items-center justify-center gap-5 mt-4">
+                          <button onClick={() => setWeekFlip((st) => ({ ...st, [week.key]: (__active - 1 + __n) % __n }))} className="font-mono text-[15px] leading-none text-beige-faint hover:text-beige transition-colors px-2" aria-label="précédent">‹</button>
+                          <span className="font-mono text-[9px] tracking-widest text-beige-faint/60">{__active + 1} / {__n}</span>
+                          <button onClick={() => setWeekFlip((st) => ({ ...st, [week.key]: (__active + 1) % __n }))} className="font-mono text-[15px] leading-none text-beige-faint hover:text-beige transition-colors px-2" aria-label="suivant">›</button>
+                        </div>
+                      )}
+                    </div>
                   );
                 })
               )}

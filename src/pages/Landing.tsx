@@ -48,7 +48,7 @@ export default function Landing() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1.2, delay: 0.1, ease: "easeOut" }}
-            className="w-24 h-24 md:w-40 md:h-40 mb-5 md:mb-7 flex items-center justify-center"
+            className="w-28 h-28 md:w-44 md:h-44 mb-5 md:mb-7 flex items-center justify-center"
           >
             <LogoEmber className="w-full h-full" autonomous />
           </motion.div>
@@ -110,6 +110,36 @@ export default function Landing() {
               >
                 Une pause au milieu du bruit, le temps d'une conversation.
               </motion.p>
+              {/* Flicker « néon en fin de vie » réservé à la pastille "non rien" :
+                  ratés brefs + une quasi-extinction, léger halo, coupé si l'utilisateur
+                  a demandé moins d'animations. */}
+              <style>{`
+                @keyframes nonRienFlicker {
+                  0%, 100% { opacity: .6; }
+                  6%, 6.4% { opacity: .6; }
+                  6.6% { opacity: .15; }
+                  6.9% { opacity: .6; }
+                  30% { opacity: .6; }
+                  30.3% { opacity: .3; }
+                  30.6% { opacity: .6; }
+                  30.9% { opacity: .2; }
+                  31.4% { opacity: .6; }
+                  62% { opacity: .6; }
+                  62.5% { opacity: .08; }
+                  63.7% { opacity: .1; }
+                  64.1% { opacity: .6; }
+                  85% { opacity: .6; }
+                  85.3% { opacity: .35; }
+                  85.6% { opacity: .6; }
+                }
+                .non-rien-neon {
+                  animation: nonRienFlicker 5.2s linear infinite;
+                  text-shadow: 0 0 5px rgba(253, 245, 230, 0.15);
+                }
+                @media (prefers-reduced-motion: reduce) {
+                  .non-rien-neon { animation: none; opacity: .6; }
+                }
+              `}</style>
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -119,7 +149,7 @@ export default function Landing() {
                 <Link to="/chat" state={{ dayStateKey: "boucle" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">ça tourne en boucle</Link>
                 <Link to="/chat" state={{ dayStateKey: "emballe" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">ça m'emballe</Link>
                 <Link to="/chat" state={{ dayStateKey: "marre" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">y'en a marre</Link>
-                <Link to="/chat" state={{ dayStateKey: "rien" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">non rien</Link>
+                <Link to="/chat" state={{ dayStateKey: "rien" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/10 text-beige-faint hover:text-beige-dim hover:border-beige-faint/25 transition-colors ml-4 non-rien-neon">non rien</Link>
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
