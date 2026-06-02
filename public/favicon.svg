@@ -1,7 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect x="0" y="0" width="100" height="100" fill="#0a0a0a"/>
   <style>
-    .e { fill: #fdf5e6; }
+    .e { fill: #000000; }
   </style>
   <g transform="translate(1.8860 -18.1092) scale(0.162000)">
     <path class="e" d="M153.93,206.19c2.39-1.29,4.73-2.66,7.17-3.85c7.86-3.82,15.96-7.08,24.08-10.31c12.02-4.78,24.31-8.71,36.91-11.64
