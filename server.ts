@@ -90,6 +90,45 @@ const ACCESS_PEPPER = process.env.ACCESS_PEPPER as string;
 const CODE_MAX_ATTEMPTS = 5;    // essais ratés tolérés avant blocage
 const CODE_LOCK_MINUTES = 15;   // durée du blocage une fois le seuil atteint
 
+// --- Throttle dédié aux tentatives admin -------------------------------
+// Le mot de passe admin donne un accès d'export total : sa vérification est
+// protégée par un verrou par IP, en mémoire. L'admin étant unique, un reset au
+// redémarrage du conteneur est sans conséquence. On ne compte QUE les échecs :
+// une session admin légitime (plusieurs requêtes portant le mot de passe)
+// n'entame pas le compteur.
+const ADMIN_MAX_ATTEMPTS = 5;
+const ADMIN_LOCK_MINUTES = 15;
+const adminFailures = new Map<string, { count: number; until: number }>();
+
+function adminLocked(ip: string): boolean {
+  const e = adminFailures.get(ip);
+  if (!e) return false;
+  if (Date.now() > e.until) { adminFailures.delete(ip); return false; }
+  return e.count >= ADMIN_MAX_ATTEMPTS;
+}
+function recordAdminFailure(ip: string): void {
+  const now = Date.now();
+  const e = adminFailures.get(ip);
+  if (!e || now > e.until) {
+    adminFailures.set(ip, { count: 1, until: now + ADMIN_LOCK_MINUTES * 60_000 });
+  } else {
+    e.count += 1;
+  }
+}
+function clearAdminFailures(ip: string): void {
+  adminFailures.delete(ip);
+}
+
+// Comparaison à temps constant du mot de passe admin : évite de le divulguer
+// par le temps de réponse. (Canal marginal en pratique, mais c'est gratuit.)
+function isAdminPassword(pw: unknown, expected: string): boolean {
+  if (typeof pw !== "string" || !expected) return false;
+  const a = Buffer.from(pw);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 // --- Schéma réel des tables (source de vérité, aligné sur Supabase) ---
 // Toute écriture est filtrée sur ces colonnes : un champ inconnu envoyé par
 // le front est ignoré au lieu de faire échouer la requête.
@@ -500,6 +539,39 @@ app.post("/api/reflection", asyncHandler(async (req: Request, res: Response) => 
 }));
 
 
+// ── Validation stricte des paramètres de lecture (sb_read) ─────────
+// La connexion Supabase utilise la Service-Key (RLS contournée) : la seule
+// barrière est la query que le serveur construit. On n'autorise donc QUE des
+// clauses connues — filtres sur colonnes réelles, `order`, `limit` — et on
+// rejette tout ce qui pourrait élargir la requête : embeds `select=...(...)`,
+// `or=(...)`, listes `in.(...)`. Ce vocabulaire couvre exactement les
+// lectures légitimes du client (cf. sbGet).
+function validateReadParams(table: string, params: string): boolean {
+  if (!params) return true; // lecture pleine table : réservée à l'admin, déjà gardée par mot de passe
+  const cols = TABLE_COLUMNS[table] || [];
+  for (const clause of params.split("&")) {
+    if (!clause) continue;
+    if (/[(),]/.test(clause)) return false; // ni parenthèses ni virgules : ferme embeds / or / in.()
+    const eq = clause.indexOf("=");
+    if (eq < 0) return false;
+    const key = clause.slice(0, eq);
+    const val = clause.slice(eq + 1);
+    if (key === "order") {
+      const m = val.match(/^([a-z_]+)\.(asc|desc)$/);
+      if (!m || !cols.includes(m[1])) return false;
+    } else if (key === "limit") {
+      if (!/^\d+$/.test(val) || Number(val) > 1000) return false;
+    } else {
+      if (!cols.includes(key)) return false; // filtre uniquement sur une vraie colonne
+      const okOp = /^(eq|neq|gte|gt|lte|lt)\.[^(),]*$/.test(val)
+        || val === "is.null" || val === "not.is.null";
+      if (!okOp) return false;
+    }
+  }
+  return true;
+}
+
+
 // Supabase Proxy Routes (Compatibility with worker logic)
 app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   const { type, data, messages, max_tokens }: ProxyRequest = req.body;
@@ -513,6 +585,21 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   const adminPassword = process.env.ADMIN_PASSWORD || "";
 
   if (!serviceKey) throw new Error("SUPABASE_SERVICE_KEY is missing");
+
+  // Throttle dédié : toute requête portant un mot de passe est une tentative
+  // admin. On bloque l'IP après trop d'échecs ; seul un mot de passe erroné
+  // entame le compteur (une session admin valide ne le touche pas).
+  if (typeof data?.password === "string" && data.password.length > 0) {
+    const ip = req.ip || "unknown";
+    if (adminLocked(ip)) {
+      return res.status(429).json({ error: "Trop de tentatives, réessayez plus tard." });
+    }
+    if (isAdminPassword(data.password, adminPassword)) {
+      clearAdminFailures(ip);
+    } else {
+      recordAdminFailure(ip);
+    }
+  }
 
   // Extract personal_id from payload or params to forward it to Supabase as header
   const personalId =
@@ -544,7 +631,7 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   if (
     (type === "sb_insert" || type === "sb_update") &&
     personalId &&
-    !(data.password && data.password === adminPassword)
+    !isAdminPassword(data.password, adminPassword)
   ) {
     const v = await verifyAccess(personalId, data.code || "", serviceKey);
     if (!v.ok) {
@@ -620,7 +707,7 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     // exige donc le mot de passe admin pour toute mise à jour de ces tables.
     if (
       (data.table === "eclats" || data.table === "feedbacks") &&
-      (!data.password || data.password !== adminPassword)
+      !isAdminPassword(data.password, adminPassword)
     ) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -637,9 +724,13 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
   if (type === "sb_read") {
     const queryParams = data.params || "";
     const hasUserFilter = queryParams.includes("personal_id=eq.");
-    const isAdmin = data.password && data.password === adminPassword;
+    const isAdmin = isAdminPassword(data.password, adminPassword);
     if (!isAdmin && !hasUserFilter) {
       return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!validateReadParams(data.table, queryParams)) {
+      return res.status(400).json({ error: "Paramètres de lecture invalides" });
     }
 
     // Lecture utilisateur : si la clé a un compte (ligne access), le code est
@@ -827,7 +918,7 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
         console.error(`Eval proxy returned status ${response.status}: ${errorText}`);
-        return res.status(response.status).json({ error: "eval_failed", message: errorText });
+        return res.status(502).json({ error: "eval_failed" });
       }
       const data = await response.json();
       return res.json(data);
@@ -1127,7 +1218,8 @@ app.post("/api/generate-texture", asyncHandler(async (req: Request, res: Respons
 // Global Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error("API Error:", err);
-  res.status(500).json({ error: err.message || "Internal Server Error" });
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: "Internal Server Error" });
 });
 
 async function startServer() {
