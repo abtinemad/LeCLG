@@ -52,6 +52,18 @@ import { PRISME_DESCRIPTIONS } from "../data/prismes";
 // Réexport conservé pour compatibilité d'éventuels imports externes.
 export { EMOTIONS } from "../data/emotions";
 
+// Helper to normalize spheres to "Familiale", "Sociale", "Amoureuse", "Professionnelle"
+const normalizeSphere = (sphere?: string): string => {
+  if (!sphere) return "";
+  const s = sphere.trim();
+  const lower = s.toLowerCase();
+  if (lower === "amoureux" || lower === "amoureuse") return "Amoureuse";
+  if (lower === "familial" || lower === "familiale") return "Familiale";
+  if (lower === "social" || lower === "sociale") return "Sociale";
+  if (lower === "professionnel" || lower === "professionnelle") return "Professionnelle";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
 
 // Chantier robustesse de la chaîne d'analyses : une analyse qui échoue est
 // retentée un nombre borné de fois, puis — si elle échoue toujours — la
@@ -1053,23 +1065,11 @@ export default function Carnet() {
     const spheres = ["Familiale", "Sociale", "Amoureuse", "Professionnelle"];
     return spheres.map((s) => ({
       subject: s,
-      A: cards.filter((c) => c.sphere === s).length,
+      A: cards.filter((c) => normalizeSphere(c.sphere) === s).length,
       fullMark: Math.max(
         ...spheres.map(
           (sp) =>
-            cards.filter(
-              (c) =>
-                sp ===
-                (c.sphere === "Amoureux"
-                  ? "Amoureuse"
-                  : c.sphere === "Familial"
-                    ? "Familiale"
-                    : c.sphere === "Social"
-                      ? "Sociale"
-                      : c.sphere === "Professionnel"
-                        ? "Professionnelle"
-                        : c.sphere),
-            ).length,
+            cards.filter((c) => normalizeSphere(c.sphere) === sp).length,
         ),
         1,
       ),
@@ -1202,7 +1202,7 @@ export default function Carnet() {
     ];
 
     // Spheres Analysis
-    const spheres = cards.map((c) => c.sphere).filter(Boolean);
+    const spheres = cards.map((c) => normalizeSphere(c.sphere)).filter(Boolean);
     const sphereCounts: Record<string, number> = {};
     spheres.forEach((s) => (sphereCounts[s!] = (sphereCounts[s!] || 0) + 1));
     const sortedSpheres = Object.entries(sphereCounts).sort(
@@ -2085,20 +2085,21 @@ export default function Carnet() {
 
                 {unlockedBlocks.fragments_resistances ? (() => {
                    const depObs = (() => {
-                      const spheres = cards.map(c => c.sphere).filter(Boolean);
+                      const spheres = cards.map(c => normalizeSphere(c.sphere)).filter(Boolean);
                       const emptyWords = ['je ne sais pas', "rien n'a bougé", "je suis resté", "difficile à dire", "rien", "ne sais pas", "aucun"];
                       const chronological = [...cards].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                       let sphereSeq: Record<string, number> = {};
                       let foundSphere = null;
                       for (const c of chronological) {
-                         if (!c.sphere) continue;
+                         const normSp = normalizeSphere(c.sphere);
+                         if (!normSp) continue;
                          const d = (c.deplacement || '').toLowerCase().trim();
                          const words = d.split(/\s+/).filter(w => w.length > 0);
                          if (words.length < 5 || emptyWords.some(ew => d.includes(ew))) {
-                            sphereSeq[c.sphere] = (sphereSeq[c.sphere] || 0) + 1;
-                            if (sphereSeq[c.sphere] >= 3) { foundSphere = c.sphere; break; }
+                            sphereSeq[normSp] = (sphereSeq[normSp] || 0) + 1;
+                            if (sphereSeq[normSp] >= 3) { foundSphere = normSp; break; }
                          } else {
-                            sphereSeq[c.sphere] = 0;
+                            sphereSeq[normSp] = 0;
                          }
                       }
                       return foundSphere ? <div className="font-mono text-[7px] italic text-white/20">Quelque chose résiste au déplacement dans cette sphère.</div> : null;
@@ -2430,8 +2431,7 @@ export default function Carnet() {
                   {["Familiale", "Sociale", "Amoureuse", "Professionnelle"].map(
                     (s) => {
                       const isVisited = cards.some((c) => {
-                         const sp = c.sphere === "Amoureux" ? "Amoureuse" : c.sphere === "Familial" ? "Familiale" : c.sphere === "Social" ? "Sociale" : c.sphere === "Professionnel" ? "Professionnelle" : c.sphere;
-                         return sp === s;
+                         return normalizeSphere(c.sphere) === s;
                       });
 
                       if (cards.length >= 10 && !isVisited) {
@@ -2577,8 +2577,9 @@ export default function Carnet() {
                               const sphereSongesCount = { familiale:0, sociale:0, amoureuse:0, professionnelle:0 };
                               
                               cards.forEach(c => {
-                                 if (c.prisme && c.sphere) {
-                                    const s = c.sphere.toLowerCase() as keyof typeof spherePrismes;
+                                 const normSp = normalizeSphere(c.sphere);
+                                  if (c.prisme && normSp) {
+                                    const s = normalizeSphere(c.sphere).toLowerCase() as keyof typeof spherePrismes;
                                     if (spherePrismes[s] !== undefined) spherePrismes[s]++;
                                  }
                               });
@@ -2624,7 +2625,7 @@ export default function Carnet() {
                          <div className="grid grid-cols-2 gap-6 pt-4 border-t border-white/5 mt-4">
                            {["familiale", "sociale", "amoureuse", "professionnelle"].map(key => {
                                const textureCount = { tendu: 0, calme: 0 };
-                               cards.filter(c => (c.sphere||'').toLowerCase() === key).forEach(c => {
+                               cards.filter(c => normalizeSphere(c.sphere).toLowerCase() === key).forEach(c => {
                                    const t = (c.texture_relationnelle||'').toLowerCase();
                                    if(t.includes('tendu') || t.includes('pression') || t.includes('bloqué') || t.includes('lourd') || t.includes('peur') || t.includes('difficile') || t.includes('dur')) textureCount.tendu++;
                                    if(t.includes('calme') || t.includes('apaisé') || t.includes('doux') || t.includes('fluide') || t.includes('léger') || t.includes('bien')) textureCount.calme++;
@@ -2638,7 +2639,7 @@ export default function Carnet() {
                                const tensionWords = ['coincé', 'bloqué', 'pression', 'peur', 'fatigue', 'lourd', 'seul', 'dur', 'sombre', 'impossible'];
                                let hasTension = tensionWords.some(w => sSonge.includes(w));
                                
-                               const thisSpherePrismes = cards.filter(c => (c.sphere||'').toLowerCase() === key && c.prisme).map(c => c.prisme);
+                               const thisSpherePrismes = cards.filter(c => normalizeSphere(c.sphere).toLowerCase() === key && c.prisme).map(c => c.prisme);
                                const tensionPrismes = ['colere', 'peur', 'tristesse', 'degout', 'honte'];
                                
                                let hasTensionPrisme = thisSpherePrismes.some(p => tensionPrismes.includes(p as string));
@@ -2704,8 +2705,9 @@ export default function Carnet() {
                             };
 
                             const grouped = validCards.reduce((acc, card) => {
-                               const key = `${card.sphere}-${card.prisme}`;
-                               if (!acc[key]) acc[key] = { sphere: card.sphere, prisme: card.prisme, count: 0 };
+                               const normSp = normalizeSphere(card.sphere);
+                               const key = `${normSp}-${card.prisme}`;
+                               if (!acc[key]) acc[key] = { sphere: normSp, prisme: card.prisme, count: 0 };
                                acc[key].count++;
                                return acc;
                             }, {} as Record<string, any>);
