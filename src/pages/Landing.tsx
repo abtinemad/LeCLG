@@ -37,7 +37,7 @@ export default function Landing() {
       {/* pt-[56px] réserve la hauteur de la nav fixe (GlobalNav : py-3 + icônes
           + bordure ≈ 50px) pour que le contenu ne passe pas dessous. En box-border
           ce padding reste DANS le 100dvh → pas de scroll. À ajuster si la nav change. */}
-      <main className="min-h-[100dvh] max-w-[720px] mx-auto px-6 md:px-8 flex flex-col pt-[56px]">
+      <main className="min-h-[100dvh] max-w-[720px] mx-auto px-6 md:px-8 flex flex-col pt-[56px]" style={{ paddingTop: "calc(56px + env(safe-area-inset-top))" }}>
         {/* Hero — centré verticalement dans l'espace disponible (flex-1) : le
             regard respire sans être collé en haut, et le filet de pied reste en
             bas. Tout tient sur un écran de téléphone sans scroll. */}

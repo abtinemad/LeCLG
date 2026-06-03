@@ -210,3 +210,14 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+
+/* ───────── Safe-area / plein écran iOS (standalone) ───────── */
+@supports (padding-top: env(safe-area-inset-top)) {
+  #global-nav { padding-top: calc(0.75rem + env(safe-area-inset-top)); }
+  header.fixed.top-0 { padding-top: env(safe-area-inset-top); }
+}
+@media (max-width: 767px) {
+  @supports (bottom: env(safe-area-inset-bottom)) {
+    .clg-voice-fab { bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+  }
+}

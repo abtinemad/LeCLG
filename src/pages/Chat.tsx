@@ -304,17 +304,19 @@ interface Message {
   role: Role;
   content: string;
   ts?: string;
-  isDictated?: boolean;
 }
 
 interface EvalResult {
+  // Raisonnement court généré AVANT les autres champs (force le modèle à
+  // juger après réflexion). Non exploité côté front — présent pour debug.
+  raisonnement?: string;
   situation: boolean;
   ressenti: boolean;
   demande: boolean;
   diffraction: boolean;
   diffraction_sans_partage: boolean;
   equilibre: boolean;
-  crisis: boolean;
+  crise: boolean;
   mots_cles: string[];
   emotional_charge: number;
   collegue_posture: number;
@@ -323,7 +325,7 @@ interface EvalResult {
   // Drapeau silencieux (Option B) : la situation touche manifestement à une
   // décision médicale. Optionnel — absent tant que le prompt d'eval du worker
   // ne le renvoie pas (le bandeau reste alors simplement inactif).
-  orientation_clinique?: boolean;
+  routage_sante?: boolean;
   // Drapeau silencieux : la personne s'installe dans le blâme global d'un
   // tiers. Optionnel — absent tant que l'eval du worker ne le renvoie pas.
   projection?: boolean;
@@ -538,10 +540,10 @@ export default function Chat() {
   >(null);
   const [carnetPulse, setCarnetPulse] = useState(false);
   const [crisisDetected, setCrisisDetected] = useState(false);
-  // Orientation clinique (Option B) : une décision médicale est clairement en
+  // Routage santé (Option B) : une décision médicale est clairement en
   // jeu. Sticky une fois posé — on n'oriente pas par à-coups. Affiche une note
   // sobre vers un professionnel ; ne remplace jamais le filet de crise (3114).
-  const [orientationClinique, setOrientationClinique] = useState(false);
+  const [routageSante, setRoutageSante] = useState(false);
   // Projection : la personne s'enferme dans le blâme de l'autre. Non sticky —
   // reflète l'état courant ; sert à souffler au bot de déprojeter (jamais
   // montré à la personne). Repasse à false dès qu'elle n'y est plus.
@@ -557,8 +559,6 @@ export default function Chat() {
   );
   const [lastActivity, setLastActivity] = useState<number>(Date.now());
   const [pastReflections, setPastReflections] = useState<ReflectionCard[]>([]);
-  const [hasDictatedCurrentMessage, setHasDictatedCurrentMessage] =
-    useState(false);
 
   // Reprise session
   const [resumeCardToOffer, setResumeCardToOffer] =
@@ -691,7 +691,7 @@ export default function Chat() {
       showEnded,
       closingPhase,
       crisisDetected,
-      orientationClinique,
+      routageSante,
       projectionDetected,
       diffractionSansPartage,
       motsCles,
@@ -708,7 +708,7 @@ export default function Chat() {
     showEnded,
     closingPhase,
     crisisDetected,
-    orientationClinique,
+    routageSante,
     projectionDetected,
     diffractionSansPartage,
     motsCles,
@@ -726,7 +726,7 @@ export default function Chat() {
     setShowEnded(state.showEnded ?? false);
     setClosingPhase(state.closingPhase ?? "none");
     setCrisisDetected(state.crisisDetected ?? false);
-    setOrientationClinique(state.orientationClinique ?? false);
+    setRoutageSante(state.routageSante ?? state.orientationClinique ?? false);
     setProjectionDetected(state.projectionDetected ?? false);
     setDiffractionSansPartage(state.diffractionSansPartage ?? false);
     setMotsCles(state.motsCles || []);
@@ -1000,7 +1000,6 @@ export default function Chat() {
         for (let i = 0; i < e.results.length; i++) {
           if (e.results[i].isFinal) finals += e.results[i][0].transcript;
         }
-        if (finals) setHasDictatedCurrentMessage(true);
         setInputText(dictationBase.current + finals);
       };
       recognition.current.onerror = () => setIsListening(false);
@@ -2207,22 +2206,26 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
           );
           return;
         }
-        const raw = data.content[0].text
+        // Le worker préremplit le tour assistant avec "{", donc la réponse
+        // commence APRÈS l'accolade ouvrante : on la recolle avant de parser.
+        // On reste tolérant si jamais le modèle renvoie l'objet complet.
+        let raw = data.content[0].text
           .replace(/```json|```/g, "")
           .trim();
+        if (!raw.startsWith("{")) raw = "{" + raw;
         const result: EvalResult = JSON.parse(raw);
 
         // Crise
-        if (result.crisis === true && !crisisDetected) {
+        if (result.crise === true && !crisisDetected) {
           setCrisisDetected(true);
           setFlowIntensity("chaos");
         }
 
-        // Orientation clinique (Option B) — sticky : une fois une décision
+        // Routage santé (Option B) — sticky : une fois une décision
         // médicale détectée, la note vers un professionnel reste posée pour
         // le reste de la session (rien ne la remet à false).
-        if (result.orientation_clinique === true) {
-          setOrientationClinique(true);
+        if (result.routage_sante === true) {
+          setRoutageSante(true);
         }
 
         // Projection — non sticky : reflète l'état courant. Quand la personne
@@ -2280,7 +2283,7 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
           // Pas un miroir de l'émotion de la personne — une réaction de qqn
           // qui écoute. Priorité du plus marquant au plus discret.
           let nextEye: EyeExpression = "pensif";
-          if (result.crisis === true || userCharge >= 3) {
+          if (result.crise === true || userCharge >= 3) {
             nextEye = "alerte"; // une bascule, qqch surgit : « je l'ai entendu »
           } else if (aiPosture >= 2) {
             nextEye = "interrogateur"; // le collègue pousse : « regarde en toi »
@@ -2407,9 +2410,7 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
       role: "user",
       content: text,
       ts: new Date().toISOString(),
-      isDictated: hasDictatedCurrentMessage,
     };
-    setHasDictatedCurrentMessage(false);
     const updatedMessages = [...messages, newMsg];
     setMessages(updatedMessages);
 
@@ -3322,7 +3323,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
       {/* Spacer for fixed header */}
       <div
         className="shrink-0"
-        style={{ height: sessionActive && !showEnded ? "100px" : "52px" }}
+        style={{ height: sessionActive && !showEnded ? "calc(100px + env(safe-area-inset-top))" : "calc(52px + env(safe-area-inset-top))" }}
       />
 
       {/* Messages */}
@@ -3797,14 +3798,6 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                         <LogoEmber className="w-full h-full scale-[1.6]" expression={eyeExpression} />
                       </motion.span>
                     )}
-                    {m.isDictated && (
-                      <div className="absolute -top-3 -right-2 bg-[#161512] px-1.5 py-0.5 rounded-full border border-green/20 flex items-center gap-1 z-10 shadow-sm">
-                        <Lips className="w-2.5 h-2.5 text-green" />
-                        <span className="font-mono text-[6px] uppercase tracking-widest text-green/60">
-                          Dictée clinique
-                        </span>
-                      </div>
-                    )}
                     {m.content ? (
                       m.role === "assistant" ? (
                         <RichText content={m.content} />
@@ -3866,13 +3859,13 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
       </main>
 
       {/* Footer */}
-      <footer className="shrink-0 bg-bg border-t border-border relative z-10">
+      <footer className="shrink-0 bg-bg border-t border-border relative z-10 pb-[env(safe-area-inset-bottom)]">
         <div className="absolute top-[-48px] inset-x-0 h-12 bg-gradient-to-b from-transparent to-bg pointer-events-none" />
 
         {/* Bandeaux d'orientation — barre fixe au-dessus de la saisie, HORS du
             flux des messages (sinon ils bloquent le défilement). La crise prime
-            sur l'orientation clinique. */}
-        {sessionActive && !showEnded && (crisisDetected || orientationClinique) && (
+            sur le routage santé. */}
+        {sessionActive && !showEnded && (crisisDetected || routageSante) && (
           <div className="border-b border-border px-4 md:px-8 py-2">
             {crisisDetected ? (
               <div className="max-w-[620px] mx-auto flex items-center justify-between gap-4">

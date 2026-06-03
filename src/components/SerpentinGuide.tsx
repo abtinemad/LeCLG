@@ -458,10 +458,10 @@ export const ClarteSection = ({ section, forceClose, voix, onVoixClose }: { sect
         <button
           onClick={openClarte}
           aria-label="Qu'est-ce que c'est ?"
-          className="fixed top-20 right-4 md:right-8 z-[100] text-beige-faint hover:text-beige transition-colors"
+          className="clg-voice-fab fixed right-4 md:right-8 bottom-8 md:bottom-auto md:top-20 z-[100] p-3 text-beige-faint hover:text-beige transition-colors"
         >
           <span className="flex collegue-neon">
-            <CollegueMark size={20} />
+            <CollegueMark size={28} />
           </span>
         </button>
       </>,

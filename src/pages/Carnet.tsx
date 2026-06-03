@@ -1564,7 +1564,7 @@ export default function Carnet() {
   );
 
   return (
-    <div className="min-h-screen bg-bg text-beige-dim font-serif pt-[48px]">
+    <div className="min-h-screen bg-bg text-beige-dim font-serif pt-[48px]" style={{ paddingTop: "calc(48px + env(safe-area-inset-top))" }}>
       <header className="fixed top-0 left-0 right-0 border-b border-border bg-bg/90 backdrop-blur-md z-[9999]">
         <div className="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
