@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
@@ -178,6 +178,51 @@ function groupCardsByWeek(cards: ReflectionCard[]): FragWeek[] {
   arr.forEach((w) => w.items.sort((a, b) => new Date(b.card.date).getTime() - new Date(a.card.date).getTime()));
   arr.sort((a, b) => new Date(b.items[0].card.date).getTime() - new Date(a.items[0].card.date).getTime());
   return arr;
+}
+
+function LienSphereDeck({ cards }: { cards: ReactNode[] }) {
+  const [active, setActive] = useState(0);
+  const n = cards.length;
+  if (n === 0) return null;
+  const idx = Math.min(active, n - 1);
+  const go = (dir: number) => setActive((a) => (Math.min(a, n - 1) + dir + n) % n);
+  return (
+    <div className="md:hidden max-w-sm mx-auto w-full">
+      <div className="relative">
+        {n - 1 - idx >= 2 && (
+          <div className="absolute inset-0 rounded-lg bg-[#1a1814] border border-white/10 pointer-events-none" style={{ transform: "translateY(8px) rotate(-5deg)", zIndex: 0 }} />
+        )}
+        {n - 1 - idx >= 1 && (
+          <div className="absolute inset-0 rounded-lg bg-[#1a1814] border border-white/10 pointer-events-none" style={{ transform: "translateY(4px) rotate(4deg)", zIndex: 1 }} />
+        )}
+        <div className="absolute inset-0 rounded-lg bg-[#1a1814] pointer-events-none" style={{ zIndex: 2 }} />
+        <motion.div
+          key={idx}
+          initial={{ opacity: 0, x: 28, rotate: -1.5 }}
+          animate={{ opacity: 1, x: 0, rotate: 0 }}
+          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          style={{ position: "relative", zIndex: 3, touchAction: "pan-y" }}
+          drag={n > 1 ? "x" : false}
+          dragSnapToOrigin
+          dragElastic={0.18}
+          onDragEnd={(_, info) => {
+            if (n <= 1) return;
+            if (info.offset.x <= -60) go(1);
+            else if (info.offset.x >= 60) go(-1);
+          }}
+        >
+          {cards[idx]}
+        </motion.div>
+      </div>
+      {n > 1 && (
+        <div className="flex items-center justify-center gap-5 mt-4">
+          <button onClick={() => go(-1)} className="font-mono text-[15px] leading-none text-beige-faint hover:text-beige transition-colors px-2" aria-label="précédent">‹</button>
+          <span className="font-mono text-[9px] tracking-widest text-beige-faint/60">{idx + 1} / {n}</span>
+          <button onClick={() => go(1)} className="font-mono text-[15px] leading-none text-beige-faint hover:text-beige transition-colors px-2" aria-label="suivant">›</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Carnet() {
@@ -2440,7 +2485,7 @@ export default function Carnet() {
             ) : lienData ? (
               <>
                 {/* Lien Graphique */}
-                <div className="mb-12 h-[300px] w-full max-w-lg mx-auto relative group flex flex-col items-center justify-center">
+                <div className="mb-8 h-[220px] w-full max-w-sm mx-auto relative group flex flex-col items-center justify-center">
                   <div className="absolute inset-0 bg-[#EA580C]/5 blur-2xl rounded-full -z-10 group-hover:bg-[#EA580C]/10 transition-colors" />
                   <ResponsiveContainer
                     width="100%"
@@ -2492,121 +2537,130 @@ export default function Carnet() {
                   </ResponsiveContainer>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {["Familiale", "Sociale", "Amoureuse", "Professionnelle"].map(
-                    (s) => {
-                      const isVisited = cards.some((c) => {
-                         return normalizeSphere(c.sphere) === s;
-                      });
+                {(() => {
+                  const renderSphereCard = (s: string) => {
+                    const isVisited = cards.some((c) => {
+                       return normalizeSphere(c.sphere) === s;
+                    });
 
-                      if (cards.length >= 10 && !isVisited) {
-                         return (
-                           <div key={s} className="bg-[#1a1814]/30 border-dashed border border-white/10 p-6 rounded-lg flex flex-col h-full transition-all duration-500">
-                             <div className="flex justify-between items-center mb-6">
-                               <h3 className="font-mono text-[11px] tracking-widest uppercase opacity-40 text-white/40">
-                                 {s}
-                               </h3>
-                             </div>
-                             <div className="font-mono text-[7px] text-white/30">Cette sphère n'a pas encore été visitée.</div>
+                    if (cards.length >= 10 && !isVisited) {
+                       return (
+                         <div key={s} className="bg-[#1a1814]/30 border-dashed border border-white/10 p-6 rounded-lg flex flex-col h-full transition-all duration-500">
+                           <div className="flex justify-between items-center mb-6">
+                             <h3 className="font-mono text-[11px] tracking-widest uppercase opacity-40 text-white/40">
+                               {s}
+                             </h3>
                            </div>
-                         );
-                      }
+                           <div className="font-mono text-[7px] text-white/30">Cette sphère n'a pas encore été visitée.</div>
+                         </div>
+                       );
+                    }
 
-                      const key = s.toLowerCase();
-                      const data = lienData[s] || lienData[key];
-                      if (!data) return null;
-                      const theme = getEmotionTheme(data.teinte);
-                      const isDefault = theme.isDefault;
+                    const key = s.toLowerCase();
+                    const data = lienData[s] || lienData[key];
+                    if (!data) return null;
+                    const theme = getEmotionTheme(data.teinte);
+                    const isDefault = theme.isDefault;
 
-                      return (
+                    return (
+                      <div
+                        key={s}
+                        className="bg-[#1a1814] border p-6 rounded-lg flex flex-col h-full transform hover:scale-[1.02] transition-all duration-500 group relative overflow-hidden"
+                        style={{
+                          borderColor: isDefault
+                            ? "rgba(245, 158, 11, 0.1)"
+                            : `${theme.hex}33`,
+                        }}
+                      >
+                        {/* Glow effect matching emotion color */}
                         <div
-                          key={s}
-                          className="bg-[#1a1814] border p-6 rounded-lg flex flex-col h-full transform hover:scale-[1.02] transition-all duration-500 group relative overflow-hidden"
+                          className="absolute -inset-px opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none blur-xl -z-10"
                           style={{
-                            borderColor: isDefault
-                              ? "rgba(245, 158, 11, 0.1)"
-                              : `${theme.hex}33`,
+                            background: `radial-gradient(circle at center, ${theme.hex}11, transparent 70%)`,
                           }}
-                        >
-                          {/* Glow effect matching emotion color */}
+                        />
+
+                        <div className="flex justify-between items-center mb-6">
+                          <h3
+                            className="font-mono text-[11px] tracking-widest uppercase transition-colors opacity-60 group-hover:opacity-100"
+                            style={{ color: theme.hex }}
+                          >
+                            {s}
+                          </h3>
                           <div
-                            className="absolute -inset-px opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none blur-xl -z-10"
-                            style={{
-                              background: `radial-gradient(circle at center, ${theme.hex}11, transparent 70%)`,
-                            }}
-                          />
-
-                          <div className="flex justify-between items-center mb-6">
-                            <h3
-                              className="font-mono text-[11px] tracking-widest uppercase transition-colors opacity-60 group-hover:opacity-100"
-                              style={{ color: theme.hex }}
-                            >
-                              {s}
-                            </h3>
-                            <div
-                              className="text-[11px] font-mono opacity-20"
-                              style={{ color: theme.hex }}
-                            >
-                              {data.intensite}%
-                            </div>
-                          </div>
-                          <div className="h-0.5 bg-white/5 mb-6 overflow-hidden">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${data.intensite}%` }}
-                              className="h-full transition-colors duration-500"
-                              style={{ backgroundColor: `${theme.hex}66` }}
-                            />
-                          </div>
-                          <div className="flex-1 space-y-3 max-h-56 overflow-y-auto custom-scrollbar pr-1">
-                            {data.fragments?.map((f: string, i: number) => (
-                              <div
-                                key={i}
-                                className="text-[14px] font-serif italic text-beige-faint/80 border-l pl-3 leading-relaxed transition-colors duration-500"
-                                style={{ borderLeftColor: `${theme.hex}1a` }}
-                              >
-                                {f}
-                              </div>
-                            ))}
-                          </div>
-                          <div className="mt-6 pt-4 border-t border-white/5">
-                            <div
-                              className="font-mono text-[7px] uppercase mb-1 italic opacity-30"
-                              style={{ color: theme.hex }}
-                            >
-                              Teinte dominante
-                            </div>
-                            <div
-                              className="text-[13px] italic transition-colors duration-500 mb-4"
-                              style={{ color: theme.hex }}
-                            >
-                              {data.teinte}
-                            </div>
-
-                            <div className="pt-2 border-t border-white/5">
-                              <div className="flex items-center gap-1.5 mb-1.5 opacity-40">
-                                <Feather className="w-2 h-2" />
-                                <span className="font-mono text-[6px] uppercase tracking-widest">
-                                  Songe
-                                </span>
-                              </div>
-                              <textarea
-                                value={
-                                  sphereSonges[s] || sphereSonges[key] || ""
-                                }
-                                onChange={(e) =>
-                                  updateSphereSonge(s, e.target.value)
-                                }
-                                placeholder="Déposer un songe..."
-                                className="w-full bg-black/40 border border-white/5 rounded px-2 py-1 text-[9px] text-beige-faint italic outline-none focus:border-white/10 resize-none h-12 custom-scrollbar"
-                              />
-                            </div>
+                            className="text-[12px] font-mono font-medium opacity-70 group-hover:opacity-100 transition-colors"
+                            style={{ color: theme.hex }}
+                          >
+                            {data.intensite}%
                           </div>
                         </div>
-                      );
-                    },
-                  )}
-                </div>
+                        <div className="h-0.5 bg-white/5 mb-6 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${data.intensite}%` }}
+                            className="h-full transition-colors duration-500"
+                            style={{ backgroundColor: `${theme.hex}66` }}
+                          />
+                        </div>
+                        <div className="flex-1 space-y-3 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+                          {data.fragments?.map((f: string, i: number) => (
+                            <div
+                              key={i}
+                              className="text-[14px] font-serif italic text-beige-faint/80 border-l pl-3 leading-relaxed transition-colors duration-500"
+                              style={{ borderLeftColor: `${theme.hex}1a` }}
+                            >
+                              {f}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-6 pt-4 border-t border-white/5">
+                          <div
+                            className="font-mono text-[7px] uppercase mb-1 italic opacity-30"
+                            style={{ color: theme.hex }}
+                          >
+                            Teinte dominante
+                          </div>
+                          <div
+                            className="text-[13px] italic transition-colors duration-500 mb-4"
+                            style={{ color: theme.hex }}
+                          >
+                            {data.teinte}
+                          </div>
+
+                          <div className="pt-2 border-t border-white/5">
+                            <div className="flex items-center gap-1.5 mb-1.5 opacity-40">
+                              <Feather className="w-2 h-2" />
+                              <span className="font-mono text-[6px] uppercase tracking-widest">
+                                Songe
+                              </span>
+                            </div>
+                            <textarea
+                              value={
+                                sphereSonges[s] || sphereSonges[key] || ""
+                              }
+                              onChange={(e) =>
+                                updateSphereSonge(s, e.target.value)
+                              }
+                              placeholder="Déposer un songe..."
+                              className="w-full bg-black/40 border border-white/5 rounded px-2 py-1 text-[9px] text-beige-faint italic outline-none focus:border-white/10 resize-none h-12 custom-scrollbar"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  };
+                  const sphereCards = ["Familiale", "Sociale", "Amoureuse", "Professionnelle"]
+                    .map(renderSphereCard)
+                    .filter(Boolean);
+                  return (
+                    <>
+                      <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {sphereCards}
+                      </div>
+                      <LienSphereDeck cards={sphereCards} />
+                    </>
+                  );
+                })()}
                 {unlockedBlocks.lien_structure ? (
                   <div className="py-12 border-t border-white/5 text-center mt-12">
                     <div className="font-mono text-[8px] uppercase tracking-[0.5em] text-white/20 mb-4">
