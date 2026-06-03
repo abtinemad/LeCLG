@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { motion, useInView } from 'motion/react';
-import { useNavigate } from 'react-router-dom';
+import { useGoBack } from '../lib/useGoBack';
 import { ArrowLeft, History, Heart, Waves, Orbit, Fingerprint, Sparkles } from 'lucide-react';
 import { PaymentWrapper } from '../components/PaymentModal';
 
@@ -27,7 +27,7 @@ const Step = ({ number, title, desc, note, index }: { number: string; title: str
 };
 
 export default function QuestCeQueCest() {
-  const navigate = useNavigate();
+  const goBack = useGoBack();
 
   return (
     <div className="relative min-h-screen">
@@ -36,7 +36,7 @@ export default function QuestCeQueCest() {
 
       <main className="max-w-[720px] mx-auto px-6 md:px-8 pt-24 pb-32">
         <button
-          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))}
+          onClick={goBack}
           className="inline-flex items-center gap-2 font-mono text-[9px] tracking-widest uppercase text-beige-faint hover:text-beige transition-colors mb-12"
         >
           <ArrowLeft size={10} />

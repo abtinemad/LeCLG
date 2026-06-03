@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import Landing from './pages/Landing';
 import Chat from './pages/Chat';
@@ -20,18 +19,20 @@ const PAGE_TRANSITION = { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const };
 function AnimatedRoutes() {
   const location = useLocation();
 
-  // Au changement de route, on repart en haut de page (sinon une nouvelle page
-  // peut s'afficher déjà scrollée). Le chat gère son propre défilement interne.
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "auto" });
-  }, [location.pathname]);
-
   return (
     // Le motion.div keyé sur le pathname EST l'enfant direct d'AnimatePresence :
     // c'est lui qui porte l'`exit`, donc la sortie de l'ancienne page se joue
     // bien avant l'entrée de la nouvelle (`mode="wait"`). On fige `location`
     // sur Routes pour que l'ancienne page reste rendue le temps de sa sortie.
-    <AnimatePresence mode="wait" initial={false}>
+    // `onExitComplete` se déclenche une fois l'ancienne page entièrement sortie,
+    // juste avant que la nouvelle entre : on remet en haut dans ce creux
+    // invisible, jamais pendant que l'ancienne page est encore affichée (sinon
+    // elle saute brutalement vers le haut sous les yeux — l'« image fantôme »).
+    <AnimatePresence
+      mode="wait"
+      initial={false}
+      onExitComplete={() => window.scrollTo({ top: 0, behavior: "auto" })}
+    >
       <motion.div
         key={location.pathname}
         initial={{ opacity: 0, y: 8 }}

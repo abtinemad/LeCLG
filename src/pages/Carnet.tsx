@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useGoBack } from "../lib/useGoBack";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ArrowLeft,
@@ -228,6 +229,7 @@ function LienSphereDeck({ cards }: { cards: ReactNode[] }) {
 export default function Carnet() {
   const navigate = useNavigate();
   const location = useLocation();
+  const goBack = useGoBack();
   const [cards, setCards] = useState<ReflectionCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [personalId, setPersonalId] = useState(
@@ -1569,7 +1571,7 @@ export default function Carnet() {
         <div className="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))}
+              onClick={goBack}
               className="p-1 hover:bg-white/10 rounded-full transition-colors"
               title="Retour"
             >

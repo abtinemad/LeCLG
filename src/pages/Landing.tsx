@@ -224,14 +224,15 @@ export default function Landing() {
         {/* Filet — discret, en pied de page */}
         <footer className="mt-4 pb-6 text-center">
           <p className="font-mono text-[8px] tracking-widest text-beige-faint/40 uppercase leading-[1.9] max-w-[340px] mx-auto">
-            Le collègue n'est pas un outil de soin. En cas de crise, le{" "}
+            Le collègue n'est pas un outil de soin.
+            <br />
+            En cas de crise&nbsp;:{" "}
             <a
               href="tel:3114"
               className="underline decoration-dotted underline-offset-2 hover:text-beige-faint transition-colors"
             >
               3114
-            </a>{" "}
-            est disponible 24h/24.
+            </a>, 24h/24.
           </p>
         </footer>
       </main>

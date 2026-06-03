@@ -43,7 +43,7 @@ L'application apprend à "connaître" les patterns du sujet au fil des sessions 
 - **Frontend** : React 19, Vite, Tailwind CSS, Motion (React) pour les animations.
 - **Backend** : Node.js (Express) agissant comme proxy sécurisé.
 - **IA** : architecture hybride — Claude (Anthropic) pour le dialogue du collègue et l'évaluation des étapes ; Gemini 3.5 Flash (Google) pour les analyses du Carnet/Matrice, les cartes de réflexion et la génération de contenu poétique.
-- **Persistance** : Hybride LocalStorage (immédiat) et Supabase (optionnel, pour la continuité multi-appareils).
+- **Persistance** : LocalStorage pour l'état immédiat de session, Supabase pour le Carnet (cartes extraites, analyses, prismes). Le code à 6 chiffres étant obligatoire dès l'onboarding, le Carnet est rattaché à une clé dès la première session et la continuité multi-appareils est native. Les conversations elles-mêmes ne sont jamais persistées (garantie au niveau base : la colonne `messages` de `sessions` est contrainte à rester vide) — seule la structure extraite est stockée.
 
 ### Schéma de Données : La Matrice
 La Matrice est le cœur métacognitif de l'app. Elle synthétise le trajet long :
