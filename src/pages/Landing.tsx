@@ -338,12 +338,15 @@ export default function Landing() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.575 }}
-                className="flex flex-col items-center gap-4 md:gap-5 mb-6 md:mb-9"
+                className="flex flex-col items-center gap-5 md:gap-6 mb-6 md:mb-9"
               >
-                {/* Action primaire : une seule entrée claire. */}
-                <Link to="/chat" className="font-mono text-[11px] tracking-widest uppercase text-bg bg-beige px-10 py-4 rounded-sm hover:opacity-85 transition-opacity">Déposer un truc</Link>
+                {/* Action primaire + sa réassurance, collées. */}
+                <div className="flex flex-col items-center gap-2">
+                  <Link to="/chat" className="font-mono text-[11px] tracking-widest uppercase text-bg bg-beige px-10 py-4 rounded-sm hover:opacity-85 transition-opacity">Déposer un truc</Link>
+                  <span className="font-mono text-[8px] tracking-widest text-beige-faint/50 italic">Anonyme et confidentiel</span>
+                </div>
 
-                {/* Entrée secondaire, discrète : par un état. */}
+                {/* Entrée secondaire, discrète : des exemples d'états. */}
                 <div className="flex flex-col items-center gap-2.5">
                   <span className="font-mono text-[9px] tracking-widest uppercase text-beige-faint/55">par exemple :</span>
                   <div className="day-picker flex flex-wrap items-center justify-center gap-2 max-w-[480px]">
@@ -352,8 +355,6 @@ export default function Landing() {
                     <Link to="/chat" state={{ dayStateKey: "boucle" }} onClick={(e) => onPick("boucle", e)} {...fxHandlers("boucle")} className={"font-mono text-[10px] tracking-wide px-3.5 py-2 rounded-sm border border-transparent text-beige-faint hover:bg-beige/5 hover:text-beige hover:border-beige-faint/30 transition-colors" + fxOf("boucle")}>ça tourne en boucle</Link>
                   </div>
                 </div>
-
-                <span className="font-mono text-[8px] tracking-widest text-beige-faint/50 italic">Anonyme et confidentiel</span>
               </motion.div>
             </>
           )}
