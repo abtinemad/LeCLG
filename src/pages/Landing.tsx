@@ -338,22 +338,22 @@ export default function Landing() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.575 }}
-                className="flex flex-col items-center gap-3 mb-6 md:mb-9"
+                className="flex flex-col items-center gap-4 md:gap-5 mb-6 md:mb-9"
               >
-                <div className="day-picker flex flex-wrap items-center justify-center gap-2.5 max-w-[520px]">
-                  <Link to="/chat" state={{ dayStateKey: "marre" }} onClick={(e) => onPick("marre", e)} {...fxHandlers("marre")} className={"font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-full border border-beige-faint/15 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors" + fxOf("marre")}>Y'EN A MAAAARRE!</Link>
-                  <Link to="/chat" state={{ dayStateKey: "flou" }} onClick={(e) => onPick("flou", e)} {...fxHandlers("flou")} className={"font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-full border border-beige-faint/15 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors" + fxOf("flou")}>c'est flou</Link>
-                  <Link to="/chat" state={{ dayStateKey: "boucle" }} onClick={(e) => onPick("boucle", e)} {...fxHandlers("boucle")} className={"font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-full border border-beige-faint/15 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors" + fxOf("boucle")}>ça tourne en boucle</Link>
-                </div>
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.65 }}
-                className="flex flex-col items-center gap-3 md:gap-4"
-              >
+                {/* Action primaire : une seule entrée claire. */}
                 <Link to="/chat" className="font-mono text-[11px] tracking-widest uppercase text-bg bg-beige px-10 py-4 rounded-sm hover:opacity-85 transition-opacity">Déposer un truc</Link>
-                <span className="font-mono text-[8px] tracking-widest text-beige-faint italic">Anonyme et confidentiel</span>
+
+                {/* Entrée secondaire, discrète : par un état. */}
+                <div className="flex flex-col items-center gap-2.5">
+                  <span className="font-mono text-[9px] tracking-widest uppercase text-beige-faint/55">par exemple :</span>
+                  <div className="day-picker flex flex-wrap items-center justify-center gap-2 max-w-[480px]">
+                    <Link to="/chat" state={{ dayStateKey: "marre" }} onClick={(e) => onPick("marre", e)} {...fxHandlers("marre")} className={"font-mono text-[10px] tracking-wide px-3.5 py-2 rounded-sm border border-transparent text-beige-faint hover:bg-beige/5 hover:text-beige hover:border-beige-faint/30 transition-colors" + fxOf("marre")}>Y'EN A MAAAARRE!</Link>
+                    <Link to="/chat" state={{ dayStateKey: "flou" }} onClick={(e) => onPick("flou", e)} {...fxHandlers("flou")} className={"font-mono text-[10px] tracking-wide px-3.5 py-2 rounded-sm border border-transparent text-beige-faint hover:bg-beige/5 hover:text-beige hover:border-beige-faint/30 transition-colors" + fxOf("flou")}>c'est flou</Link>
+                    <Link to="/chat" state={{ dayStateKey: "boucle" }} onClick={(e) => onPick("boucle", e)} {...fxHandlers("boucle")} className={"font-mono text-[10px] tracking-wide px-3.5 py-2 rounded-sm border border-transparent text-beige-faint hover:bg-beige/5 hover:text-beige hover:border-beige-faint/30 transition-colors" + fxOf("boucle")}>ça tourne en boucle</Link>
+                  </div>
+                </div>
+
+                <span className="font-mono text-[8px] tracking-widest text-beige-faint/50 italic">Anonyme et confidentiel</span>
               </motion.div>
             </>
           )}
@@ -364,7 +364,12 @@ export default function Landing() {
 
         {/* Lien discret — qu'est-ce que c'est */}
         <div className="text-center pt-6 pb-2">
-          <Link to="/quest-ce-que-cest" className="font-mono text-[8px] tracking-widest uppercase text-beige-faint/30 hover:text-beige-faint transition-colors">
+          <style>{`
+            @keyframes questTwinkle { 0%, 100% { opacity: .5; } 50% { opacity: .82; } }
+            .quest-twinkle { animation: questTwinkle 4.5s ease-in-out infinite; }
+            @media (prefers-reduced-motion: reduce) { .quest-twinkle { animation: none; opacity: .62; } }
+          `}</style>
+          <Link to="/quest-ce-que-cest" className="quest-twinkle font-mono text-[9px] tracking-widest uppercase text-beige-faint hover:text-beige transition-colors">
             Qu'est-ce que c'est ?
           </Link>
         </div>

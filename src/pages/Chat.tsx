@@ -152,8 +152,20 @@ const COLD_OPENER =
 // rencontre cet état d'emblée. Comme l'opener nomme l'état et reste dans
 // l'historique, le modèle calibre le ton du reste de la session tout seul.
 // Libellés et phrases = la voix de l'app, à réécrire librement.
-const DAY_PROMPT = "Plutôt lequel, là, maintenant ?";
+// Regroupement des pastilles par registre, pour aérer le sélecteur (chunking).
+// « rien » reste à part, en bas.
+const DAY_GROUPS: string[][] = [
+  ["penser", "flou", "pastrop", "autre"], // ouvert / à tâtons
+  ["marre", "coince", "boucle", "comptes"], // à chaud / ça pousse
+  ["emballe", "eclaire"], // élan / éclaircie
+];
 const DAY_STATES: { key: string; label: string; opener: string }[] = [
+  {
+    key: "penser",
+    label: "juste un truc banal",
+    opener:
+      "Bonjour. Un truc banal, alors — et c'est souvent là que ça se loge. Pas besoin que ce soit grave pour qu'on le pose. Dites-le comme il vient ; on regardera, sans en faire trop.",
+  },
   {
     key: "marre",
     label: "y'en a marre",
@@ -207,12 +219,6 @@ const DAY_STATES: { key: string; label: string; opener: string }[] = [
     label: "…c'est autre chose",
     opener:
       "Bonjour. Pas besoin de savoir d'où vous arrivez. Posez-vous un instant, et dites ce qui vient en premier — on cheminera à partir de là.",
-  },
-  {
-    key: "penser",
-    label: "truc banal",
-    opener:
-      "Bonjour. Un truc banal, alors — et c'est souvent là que ça se loge. Pas besoin que ce soit grave pour qu'on le pose. Dites-le comme il vient ; on regardera, sans en faire trop.",
   },
   {
     key: "rien",
@@ -609,6 +615,27 @@ export default function Chat() {
         label
       );
     return label;
+  };
+  // Rendu d'une pastille à partir de sa clé. Allégée : au repos, texte seul
+  // (bord réservé mais transparent, pas de fond) ; au survol, un fond doux,
+  // un bord ténu et le texte qui s'éclaire. L'aération des groupes fait le reste.
+  const renderChip = (key: string) => {
+    const s = DAY_STATES.find((x) => x.key === key);
+    if (!s) return null;
+    const baseText = key === "rien" ? "text-beige-faint" : "text-beige-dim";
+    return (
+      <button
+        key={s.key}
+        onClick={() => onPick(s.key)}
+        {...fxHandlers(s.key)}
+        className={
+          `bg-transparent ${baseText} border border-transparent font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-sm hover:bg-beige/5 hover:text-beige hover:border-beige-faint/30 transition-colors` +
+          fxOf(s.key)
+        }
+      >
+        {pastilleContent(s.key, s.label, activeFx === s.key)}
+      </button>
+    );
   };
   // Modale de retour, accessible depuis l'écran de fin de séance.
   const [isRetourModalOpen, setIsRetourModalOpen] = useState(false);
@@ -3804,13 +3831,15 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                           90% { transform: translate(-.5px, .4px) rotate(-.4deg); }
                         }
                         .marre-vibre { animation: marreVibre .35s linear infinite; }
-                        /* « juste penser » : une respiration lente, le pôle calme —
-                           le texte s'éclaircit et se voile doucement. */
-                        @keyframes penserSouffle {
-                          0%, 100% { opacity: .55; }
-                          50% { opacity: 1; }
+                        /* « juste un truc banal » : un haussement d'épaules nonchalant —
+                           l'air de rien, une montée + léger tangage + retour, longue pause. */
+                        @keyframes banalShrug {
+                          0%, 40% { transform: translateY(0) rotate(0deg); }
+                          52% { transform: translateY(-2px) rotate(-1.2deg); }
+                          64% { transform: translateY(-2px) rotate(1.2deg); }
+                          78%, 100% { transform: translateY(0) rotate(0deg); }
                         }
-                        .penser-fx { animation: penserSouffle 2.2s ease-in-out infinite; }
+                        .penser-fx { animation: banalShrug 2.2s ease-in-out infinite; }
                         /* Pas de flash de surbrillance au tap sur mobile. */
                         .day-picker button { -webkit-tap-highlight-color: transparent; }
                         /* « …c'est autre chose » : les points de tête s'égrènent —
@@ -3856,39 +3885,22 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                           .coince-fx { animation: none; }
                         }
                       `}</style>
-                      <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-beige-faint">
-                        {DAY_PROMPT}
-                      </div>
-                      <div className="flex flex-wrap items-center justify-center gap-2">
-                        {DAY_STATES.filter((s) => s.key !== "rien").map((s) => (
-                          <button
-                            key={s.key}
-                            onClick={() => onPick(s.key)}
-                            {...fxHandlers(s.key)}
-                            className={
-                              "bg-transparent text-beige-dim border border-beige-faint/15 font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-full hover:text-beige hover:border-beige-faint/40 transition-colors" +
-                              fxOf(s.key)
-                            }
+                      <p className="font-serif italic text-lg text-beige-dim text-center px-4">
+                        C'est quoi, là, maintenant&nbsp;?
+                      </p>
+                      <div className="flex flex-col items-center gap-5 w-full">
+                        {DAY_GROUPS.map((group, gi) => (
+                          <div
+                            key={gi}
+                            className="flex flex-wrap items-center justify-center gap-2"
                           >
-                            {pastilleContent(s.key, s.label, activeFx === s.key)}
-                          </button>
+                            {group.map((key) => renderChip(key))}
+                          </div>
                         ))}
                       </div>
                       {/* « non rien » — seule, tout en bas (néon à l'éveil) */}
-                      <div className="mt-2 flex items-center justify-center">
-                        {DAY_STATES.filter((s) => s.key === "rien").map((s) => (
-                          <button
-                            key={s.key}
-                            onClick={() => onPick(s.key)}
-                            {...fxHandlers(s.key)}
-                            className={
-                              "bg-transparent text-beige-faint border border-beige-faint/15 font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-full hover:text-beige hover:border-beige-faint/40 transition-colors" +
-                              fxOf(s.key)
-                            }
-                          >
-                            {s.label}
-                          </button>
-                        ))}
+                      <div className="mt-1 flex items-center justify-center">
+                        {renderChip("rien")}
                       </div>
                     </div>
                   )}
