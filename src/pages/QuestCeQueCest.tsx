@@ -113,7 +113,7 @@ export default function QuestCeQueCest() {
           
           <div className="space-y-6 max-w-[640px] mb-12">
             <p className="text-[18px] leading-[1.8] text-beige-dim antialiased">
-              C'est la mémoire de votre trajectoire. Pas une archive figée, mais un sol qui se forme : chaque session y dépose sa couche.
+              C'est la mémoire de votre cheminement. Pas une archive figée, mais un sol qui se forme : chaque session y dépose sa couche.
             </p>
             <p className="text-[18px] leading-[1.8] text-beige-dim antialiased">
               Ses sections en lisent chacune une profondeur différente — de la surface encore mouvante jusqu'aux strates les plus profondes.
