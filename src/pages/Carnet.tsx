@@ -27,6 +27,7 @@ import {
   Activity,
   MessageCircle,
   Smartphone,
+  RotateCw,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -257,6 +258,18 @@ export default function Carnet() {
   const [voiceRead, setVoiceRead] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem("collegue_voice_read") || "{}"); } catch { return {}; }
   });
+  // Fragment dont la fenêtre « reprendre la réflexion » est ouverte (null = fermée).
+  const [resumeConfirm, setResumeConfirm] = useState<ReflectionCard | null>(null);
+  // Reprend un fragment : on le mémorise (localStorage survit au reload/re-render,
+  // contrairement à location.state) puis on ouvre le chat dessus.
+  const resumeFragment = (card: ReflectionCard) => {
+    try {
+      localStorage.setItem("collegue_resume_fragment", JSON.stringify(card));
+    } catch (err) {
+      console.warn("resume fragment store failed", err);
+    }
+    navigate("/chat", { state: { resumeFragment: card } });
+  };
   const markVoiceRead = (key: string) => {
     setVoiceRead((prev) => {
       if (prev[key]) return prev;
@@ -1929,8 +1942,8 @@ export default function Carnet() {
                           <span>
                             {new Date(card.date).toLocaleDateString("fr-FR", {
                               day: "2-digit",
-                              month: "long",
-                              year: "numeric",
+                              month: "2-digit",
+                              year: "2-digit",
                             })}
                           </span>
                           <button
@@ -1977,11 +1990,23 @@ export default function Carnet() {
                               <button
                                 onClick={(e) => { e.stopPropagation(); openVoice(card, card.id || `idx-${i}`); }}
                                 onPointerDown={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm border border-beige-faint/25 hover:border-beige-faint/50 transition-colors"
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm border transition-colors ${
+                                  voiceRead[card.id || `idx-${i}`]
+                                    ? "border-beige-faint/45 hover:border-beige-faint/70"
+                                    : "border-green/50 hover:border-green/80"
+                                }`}
                                 title="Signal capté — toucher pour entendre le collègue"
                               >
-                                <span className="w-1 h-1 rounded-full bg-beige-faint/70 animate-pulse" />
-                                <span className="text-[8px] font-mono uppercase tracking-tighter text-beige-faint">
+                                <span className={`w-1.5 h-1.5 rounded-full ${
+                                  voiceRead[card.id || `idx-${i}`]
+                                    ? "bg-beige-faint"
+                                    : "bg-green animate-pulse"
+                                }`} />
+                                <span className={`text-[9px] font-mono uppercase tracking-tighter ${
+                                  voiceRead[card.id || `idx-${i}`]
+                                    ? "text-beige-dim"
+                                    : "text-green animate-pulse"
+                                }`}>
                                   Signal capté
                                 </span>
                               </button>
@@ -1990,11 +2015,23 @@ export default function Carnet() {
                             <button
                               onClick={(e) => { e.stopPropagation(); openVoice(card, card.id || `idx-${i}`); }}
                               onPointerDown={(e) => e.stopPropagation()}
-                              className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm border border-beige-faint/25 hover:border-beige-faint/50 transition-colors"
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm border transition-colors ${
+                                voiceRead[card.id || `idx-${i}`]
+                                  ? "border-beige-faint/45 hover:border-beige-faint/70"
+                                  : "border-red/50 hover:border-red/80"
+                              }`}
                               title="Signal détecté — toucher pour entendre le collègue"
                             >
-                              <span className="w-1 h-1 rounded-full bg-beige-faint/70 animate-pulse" />
-                              <span className="text-[8px] font-mono uppercase tracking-tighter text-beige-faint">
+                              <span className={`w-1.5 h-1.5 rounded-full ${
+                                voiceRead[card.id || `idx-${i}`]
+                                  ? "bg-beige-faint"
+                                  : "bg-red animate-pulse"
+                              }`} />
+                              <span className={`text-[9px] font-mono uppercase tracking-tighter ${
+                                voiceRead[card.id || `idx-${i}`]
+                                  ? "text-beige-dim"
+                                  : "text-red animate-pulse"
+                              }`}>
                                 Signal détecté
                               </span>
                             </button>
@@ -2061,7 +2098,7 @@ export default function Carnet() {
                       <div className="flex justify-between items-center pt-2 border-t border-[#3a3420]/30">
                         <div className="flex items-center gap-2">
                           {card.texture_relationnelle && (
-                            <span className="font-mono text-[7px] uppercase tracking-widest text-green/50">
+                            <span className="font-mono text-[10px] uppercase tracking-widest text-green/60">
                               Résonance : {card.texture_relationnelle}
                             </span>
                           )}
@@ -2070,25 +2107,12 @@ export default function Carnet() {
                         <div className="flex gap-2">
                           {isLocked && (
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Le fragment de reprise passe par localStorage :
-                                // location.state ne survit pas à un reload ni à
-                                // un re-render mal timé. localStorage, si.
-                                try {
-                                  localStorage.setItem(
-                                    "collegue_resume_fragment",
-                                    JSON.stringify(card),
-                                  );
-                                } catch (err) {
-                                  console.warn("resume fragment store failed", err);
-                                }
-                                navigate('/chat', { state: { resumeFragment: card } });
-                              }}
+                              onClick={(e) => { e.stopPropagation(); setResumeConfirm(card); }}
                               onPointerDown={(e) => e.stopPropagation()}
-                              className="px-4 py-2 rounded-md text-[10px] font-mono uppercase tracking-wide border border-[#EA580C]/50 text-[#EA580C] hover:bg-[#EA580C]/10 transition-colors"
+                              className="p-2 rounded-md border border-beige-faint/25 text-beige-faint hover:text-beige hover:border-beige-faint/50 hover:bg-beige/5 transition-colors"
+                              title="Reprendre cette réflexion"
                             >
-                              Reprendre ce fragment
+                              <RotateCw className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
@@ -4306,6 +4330,62 @@ export default function Carnet() {
                 <p className="text-[15px] font-serif text-beige-faint leading-loose whitespace-pre-wrap text-center">
                   {readingLueur.text}
                 </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {resumeConfirm && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setResumeConfirm(null)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-md bg-[#0a0a0a] border border-beige-faint/20 rounded-2xl p-8 shadow-2xl"
+            >
+              <button
+                onClick={() => setResumeConfirm(null)}
+                className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-beige-faint/40" />
+              </button>
+
+              <div className="text-center">
+                <RotateCw className="w-9 h-9 text-beige-faint mx-auto mb-5" />
+                <h3 className="text-xl font-serif italic text-beige mb-3">
+                  Reprendre cette réflexion ?
+                </h3>
+                <p className="text-[13px] text-beige-faint/80 leading-relaxed max-w-sm mx-auto">
+                  Allez au bout des cinq étapes pour déverrouiller le prisme : il décompose
+                  un faisceau complexe en rayons distincts, perceptibles et analysables —
+                  un signe de clairvoyance sur le mouvement en cours.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2.5 mt-8">
+                <button
+                  onClick={() => {
+                    const card = resumeConfirm;
+                    setResumeConfirm(null);
+                    if (card) resumeFragment(card);
+                  }}
+                  className="w-full text-center font-mono text-[11px] tracking-widest uppercase text-bg bg-beige px-8 py-3.5 rounded-sm hover:opacity-85 transition-opacity"
+                >
+                  Reprendre
+                </button>
+                <button
+                  onClick={() => setResumeConfirm(null)}
+                  className="w-full text-center font-mono text-[11px] tracking-widest uppercase text-beige-faint border border-beige-faint/20 px-8 py-3 rounded-sm hover:text-beige-dim hover:border-beige-faint/40 transition-colors"
+                >
+                  Plus tard
+                </button>
               </div>
             </motion.div>
           </div>

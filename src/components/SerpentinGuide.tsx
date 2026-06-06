@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, BookOpen, Brain, Heart, Cloud, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight, MessageCircle, History, ArrowRightLeft, Compass, Globe, Layers, Moon, Star } from 'lucide-react';
+import { Sparkles, BookOpen, Brain, Heart, Cloud, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight, MessageCircle, History, ArrowRightLeft, Compass, Globe, Layers, Moon, Star, Lightbulb } from 'lucide-react';
 import PrismeIcon from './PrismeIcon';
 import CollegueMark from './CollegueMark';
 import { sbGet } from '../lib/worker';
@@ -11,7 +11,7 @@ import { SerpentinCanvas } from './SerpentinCanvas';
 interface GuideStep {
   id: string;
   title: string;
-  content: string;
+  content: React.ReactNode;
   icon: React.ReactNode;
 }
 
@@ -71,6 +71,41 @@ const CLARITES: Record<string, GuideStep[]> = Object.fromEntries(
     return [section, [intro, ...glossaire]];
   })
 );
+
+// Landing : didacticiel d'accueil en deux fiches, indépendant du socle —
+// (1) la voix du collègue, joignable à tout moment via le logo ;
+// (2) l'invitation à se poser et choisir son état, si l'envie vient.
+CLARITES['landing'] = [
+  {
+    id: 'landing-voix',
+    title: "Besoin d'un éclairage ?",
+    content: (
+      <>
+        À tout moment, appuyez sur{' '}
+        <CollegueMark className="inline-block w-4 h-4 align-[-0.2em] mx-0.5" />{' '}
+        : le collègue vous éclaire.
+      </>
+    ),
+    icon: <Lightbulb size={14} className="text-beige" />,
+  },
+  {
+    id: 'landing-etat',
+    title: 'Un écho',
+    content:
+      "Si quelque chose vous traverse, posez-vous un instant, et choisissez l'état qui résonne en vous. Rien ne presse.",
+    icon: (
+      <span className="font-mono text-[13px] leading-none text-beige">?</span>
+    ),
+  },
+  {
+    id: 'landing-plus',
+    title: "Pas d'écho ?",
+    content: "Appuyez sur DÉPOSER UN TRUC : un autre état résonnera peut-être.",
+    icon: (
+      <span className="font-mono text-[15px] leading-none text-beige">+</span>
+    ),
+  },
+];
 
 const SECTION_COLORS: Record<string, string> = {
   landing: '#E8D5B0',
@@ -383,6 +418,23 @@ export const ClarteSection = ({ section, forceClose, voix, onVoixClose }: { sect
   // Changer de page : retour à la première fiche (l'intro).
   useEffect(() => {
     setCurrentStep(0);
+  }, [section]);
+
+  // Didacticiel : à la première venue dans une section, la boîte de Clarté
+  // s'ouvre d'elle-même pour expliquer. Une seule fois par section (mémorisé
+  // dans localStorage) — ensuite elle reste fermée par défaut.
+  useEffect(() => {
+    if (!steps.length || forceClose) return;
+    try {
+      const key = `collegue_clarte_seen_${section}`;
+      if (!localStorage.getItem(key)) {
+        setIsOpen(true);
+        localStorage.setItem(key, '1');
+      }
+    } catch {
+      /* localStorage indisponible : on n'ouvre pas, sans bloquer */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
 
   // On lit seulement le "plan" du carnet : en mode Reconnaissance, la boîte

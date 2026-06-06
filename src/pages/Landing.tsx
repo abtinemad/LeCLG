@@ -1,8 +1,19 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ClarteSection } from '../components/SerpentinGuide';
 import { LogoEmber } from '../components/LogoEmber';
+
+// Effet par pastille du landing — éteint au repos, révélé au survol/focus
+// (desktop) ou par rotation lente (tactile).
+const FX_CLASS: Record<string, string> = {
+  marre: 'marre-vibre',
+  flou: 'flou-vacille',
+  boucle: 'boucle-run',
+};
+// Durée pendant laquelle la pastille choisie continue son animation (les autres
+// figées) avant l'ouverture du chat.
+const FOCUS_MS = 2200;
 
 export default function Landing() {
   // Une conversation est en cours dès qu'une session est ouverte (l'ouverture
@@ -27,6 +38,46 @@ export default function Landing() {
   const setAside = () => {
     localStorage.removeItem('collegue_chat_state');
     setOpenConversation(false);
+  };
+
+  // Effets de pastille éteints au repos. Allumés au survol/focus (desktop) ou
+  // par rotation lente une-à-la-fois (tactile, pas de survol).
+  const [activeFx, setActiveFx] = useState<string | null>(null);
+  const [canHover] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(hover: hover)').matches
+      : true,
+  );
+  // Sélection en cours (tactile) : gèle la rotation pendant les ~5 s de focus.
+  const [picking, setPicking] = useState(false);
+  const fxOf = (key: string) =>
+    activeFx === key && FX_CLASS[key] ? ' ' + FX_CLASS[key] : '';
+  const fxHandlers = (key: string) =>
+    canHover
+      ? {
+          onMouseEnter: () => setActiveFx(key),
+          onMouseLeave: () => setActiveFx((p) => (p === key ? null : p)),
+          onFocus: () => setActiveFx(key),
+          onBlur: () => setActiveFx((p) => (p === key ? null : p)),
+        }
+      : {};
+  // Tactile : aucune animation au repos. L'animation ne joue qu'au tap.
+  const navigate = useNavigate();
+  const [prefersReduced] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false,
+  );
+  const onPick = (key: string, e: { preventDefault: () => void }) => {
+    if (canHover || prefersReduced) return; // desktop : le Link navigue normalement
+    e.preventDefault();
+    if (picking) return;
+    setActiveFx(key); // la choisie garde son animation
+    setPicking(true); // gèle la rotation -> les autres se figent
+    window.setTimeout(
+      () => navigate('/chat', { state: { dayStateKey: key } }),
+      FOCUS_MS,
+    );
   };
 
   return (
@@ -183,20 +234,117 @@ export default function Landing() {
                   filter: brightness(1.12);
                   will-change: opacity, transform, filter;
                 }
+                /* Deux fréquences superposées pour une braise vacillante :
+                   braiseHeat = dérive LENTE de la zone chaude (background-position) ;
+                   braiseVacille = grésillement RAPIDE et irrégulier de l'incandescence
+                   (filter), micro-chutes suivies de flambées. Propriétés distinctes
+                   -> elles se composent. Aucun halo externe. */
+                @keyframes braiseHeat {
+                  0%   { background-position: 50% 16%; }
+                  20%  { background-position: 50% 40%; }
+                  38%  { background-position: 50% 30%; }
+                  55%  { background-position: 50% 62%; }
+                  72%  { background-position: 50% 44%; }
+                  88%  { background-position: 50% 72%; }
+                  100% { background-position: 50% 16%; }
+                }
+                @keyframes braiseVacille {
+                  0%   { filter: brightness(1) saturate(1.04); }
+                  7%   { filter: brightness(1.24) saturate(1.2); }
+                  11%  { filter: brightness(.9) saturate(.97); }
+                  16%  { filter: brightness(1.14) saturate(1.12); }
+                  23%  { filter: brightness(.85) saturate(.93); }
+                  26%  { filter: brightness(1.31) saturate(1.27); }
+                  34%  { filter: brightness(1.02) saturate(1.05); }
+                  44%  { filter: brightness(1.2) saturate(1.16); }
+                  50%  { filter: brightness(.89) saturate(.96); }
+                  58%  { filter: brightness(1.17) saturate(1.12); }
+                  64%  { filter: brightness(.95) saturate(1); }
+                  71%  { filter: brightness(1.29) saturate(1.24); }
+                  77%  { filter: brightness(.87) saturate(.94); }
+                  82%  { filter: brightness(1.19) saturate(1.14); }
+                  90%  { filter: brightness(1.01) saturate(1.05); }
+                  95%  { filter: brightness(1.23) saturate(1.18); }
+                  100% { filter: brightness(1) saturate(1.04); }
+                }
+                .braise-comptes {
+                  background: linear-gradient(180deg, #d98a3e 0%, #b85a37 28%, #9c4338 52%, #b34a2c 74%, #d97b34 100%);
+                  background-size: 100% 240%;
+                  -webkit-background-clip: text;
+                  background-clip: text;
+                  -webkit-text-fill-color: transparent;
+                  color: transparent;
+                  animation: braiseHeat 7s ease-in-out infinite, braiseVacille 1.55s linear infinite;
+                  will-change: filter, background-position;
+                }
+                /* « ça tourne en boucle » : un arc lumineux NET court sur le liseret
+                   (anneau conique masqué sur le bord), à vitesse constante. Aussi fin
+                   que la bordure. */
+                @property --boucle-a {
+                  syntax: "<angle>";
+                  inherits: false;
+                  initial-value: 0deg;
+                }
+                .boucle-run { position: relative; }
+                .boucle-run::before {
+                  content: "";
+                  position: absolute;
+                  inset: 0;
+                  border-radius: inherit;
+                  padding: 1px;
+                  background: conic-gradient(from var(--boucle-a), transparent 0 70%, rgba(207,194,177,.85) 82%, #fff8ea 90%, transparent 97% 100%);
+                  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+                  -webkit-mask-composite: xor;
+                  mask-composite: exclude;
+                  pointer-events: none;
+                  animation: boucleSpin 1.5s linear infinite;
+                }
+                @keyframes boucleSpin { to { --boucle-a: 360deg; } }
+                /* « c'est flou » : la pastille floute, vacille et se déforme. */
+                @keyframes flouVacille {
+                  0%   { filter: blur(.8px); transform: scale(1) skewX(0deg); }
+                  22%  { filter: blur(1.7px); transform: scale(1.015) skewX(.8deg); }
+                  41%  { filter: blur(.6px); transform: scale(.992) skewX(-.6deg); }
+                  60%  { filter: blur(1.5px); transform: scale(1.012) skewX(.5deg); }
+                  78%  { filter: blur(.9px); transform: scale(.997) skewX(-.4deg); }
+                  100% { filter: blur(.8px); transform: scale(1) skewX(0deg); }
+                }
+                .flou-vacille { animation: flouVacille 2.2s ease-in-out infinite; }
+                /* « y'en a marre » : la forme finale (capitales + !) qui vibre. */
+                @keyframes marreVibre {
+                  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+                  10% { transform: translate(-.6px, .5px) rotate(-.4deg); }
+                  20% { transform: translate(.6px, -.5px) rotate(.4deg); }
+                  30% { transform: translate(-.5px, -.4px) rotate(-.3deg); }
+                  40% { transform: translate(.5px, .5px) rotate(.3deg); }
+                  50% { transform: translate(-.6px, .3px) rotate(-.4deg); }
+                  60% { transform: translate(.6px, -.4px) rotate(.4deg); }
+                  70% { transform: translate(-.4px, .5px) rotate(-.3deg); }
+                  80% { transform: translate(.5px, -.5px) rotate(.3deg); }
+                  90% { transform: translate(-.5px, .4px) rotate(-.4deg); }
+                }
+                .marre-vibre { animation: marreVibre .35s linear infinite; }
+                /* Pas de flash de surbrillance au tap sur mobile. */
+                .day-picker a { -webkit-tap-highlight-color: transparent; }
                 @media (prefers-reduced-motion: reduce) {
                   .non-rien-neon { animation: none; opacity: .6; }
+                  .braise-comptes { animation: none; background-position: 50% 50%; filter: brightness(1.06) saturate(1.08); }
+                  .boucle-run::before { animation: none; opacity: .5; }
+                  .flou-vacille { animation: none; filter: blur(1px); }
+                  .marre-vibre { animation: none; }
                 }
               `}</style>
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.575 }}
-                className="flex flex-wrap items-center justify-center gap-2.5 mb-6 md:mb-9 max-w-[520px]"
+                className="flex flex-col items-center gap-3 mb-6 md:mb-9"
               >
-                <Link to="/chat" state={{ dayStateKey: "boucle" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">ça tourne en boucle</Link>
-                <Link to="/chat" state={{ dayStateKey: "emballe" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">ça m'emballe</Link>
-                <Link to="/chat" state={{ dayStateKey: "marre" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/20 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors">y'en a marre</Link>
-                <Link to="/chat" state={{ dayStateKey: "rien" }} className="font-mono text-[12px] tracking-wide px-4 py-2 rounded-full border border-beige-faint/10 text-beige-faint hover:text-beige-dim hover:border-beige-faint/25 transition-colors ml-4 non-rien-neon">non rien</Link>
+                <div className="day-picker flex flex-wrap items-center justify-center gap-2.5 max-w-[520px]">
+                  <Link to="/chat" state={{ dayStateKey: "marre" }} onClick={(e) => onPick("marre", e)} {...fxHandlers("marre")} className={"font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-full border border-beige-faint/15 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors" + fxOf("marre")}>Y'EN A MAAAARRE!</Link>
+                  <Link to="/chat" state={{ dayStateKey: "flou" }} onClick={(e) => onPick("flou", e)} {...fxHandlers("flou")} className={"font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-full border border-beige-faint/15 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors" + fxOf("flou")}>c'est flou</Link>
+                  <Link to="/chat" state={{ dayStateKey: "boucle" }} onClick={(e) => onPick("boucle", e)} {...fxHandlers("boucle")} className={"font-mono text-[11px] tracking-wide px-4 py-2.5 rounded-full border border-beige-faint/15 text-beige-dim hover:text-beige hover:border-beige-faint/40 transition-colors" + fxOf("boucle")}>ça tourne en boucle</Link>
+                </div>
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, y: 16 }}

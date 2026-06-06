@@ -402,20 +402,20 @@ export function LogoEmber({
           // — fermeture LONGUE : l'œil se ferme et reste clos un moment (1,5–3,5 s)
           //   avant de rouvrir doucement. Un repos, sans changement de lumière.
           beatTime = beat(1.5 + Math.random() * 2, 1.4);
-          next = 3500 + Math.random() * 4500;
-        } else if (roll < 0.17) {
+          next = 6000 + Math.random() * 6000;
+        } else if (roll < 0.15) {
           // — clin appuyé / long : l'œil reste fermé un instant (lassitude)
           beatTime = beat(0.25 + Math.random() * 0.3, 1.15);
-          next = 2800 + Math.random() * 4200;
-        } else if (roll < 0.29) {
-          // — rafale « poussière » : 2 à 4 clins rapprochés
-          burstLeft = 1 + Math.floor(Math.random() * 3);
+          next = 5500 + Math.random() * 6000;
+        } else if (roll < 0.21) {
+          // — rafale « poussière » : 2 à 3 clins rapprochés (rare)
+          burstLeft = 1 + Math.floor(Math.random() * 2);
           beatTime = beat(0, 0.7);
           next = beatTime + 90 + Math.random() * 90;
         } else {
           // — clin simple ordinaire
           beatTime = beat(0.04, 1);
-          next = 2500 + Math.random() * 4500;
+          next = 5000 + Math.random() * 6000;
         }
       }
       timeout = setTimeout(blink, next);
