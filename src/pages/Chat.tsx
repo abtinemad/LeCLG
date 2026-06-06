@@ -210,9 +210,9 @@ const DAY_STATES: { key: string; label: string; opener: string }[] = [
   },
   {
     key: "penser",
-    label: "juste penser",
+    label: "truc banal",
     opener:
-      "Bonjour. Juste penser, alors — pas un problème à dénouer, l'envie de réfléchir, simplement. C'est l'usage le plus juste qu'on puisse en faire. Par quoi vous avez envie de commencer ? On prend le temps.",
+      "Bonjour. Un truc banal, alors — et c'est souvent là que ça se loge. Pas besoin que ce soit grave pour qu'on le pose. Dites-le comme il vient ; on regardera, sans en faire trop.",
   },
   {
     key: "rien",
