@@ -27,6 +27,7 @@ import {
   MessagesSquare,
   Smartphone,
   RotateCw,
+  LogOut,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -239,6 +240,16 @@ export default function Carnet() {
   const [showKey, setShowKey] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem("collegue_personal_id");
+      localStorage.removeItem("collegue_access_code");
+    } catch {
+      /* ignore */
+    }
+    navigate("/");
+  };
   const [view, setView] = useState<
     "fragments" | "lien" | "affect" | "elan" | "matrice"
   >("fragments");
@@ -1728,6 +1739,7 @@ export default function Carnet() {
                   </p>
 
                   {personalId && (
+                    <>
                     <div className="mt-3 pt-3 border-t border-border/60">
                       <button
                         onClick={() => setShowQr((v) => !v)}
@@ -1757,6 +1769,38 @@ export default function Carnet() {
                         </div>
                       )}
                     </div>
+                    <div className="mt-3 pt-3 border-t border-border/60">
+                      {!confirmLogout ? (
+                        <button
+                          onClick={() => setConfirmLogout(true)}
+                          className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-beige-faint hover:text-red transition-colors"
+                        >
+                          <LogOut size={12} strokeWidth={1.5} />
+                          Se déconnecter
+                        </button>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-[10px] text-red/80 italic leading-relaxed">
+                            Sans votre phrase de clé, vous perdrez l'accès à ce carnet. Confirmer la déconnexion ?
+                          </p>
+                          <div className="flex items-center gap-4">
+                            <button
+                              onClick={handleLogout}
+                              className="font-mono text-[9px] uppercase tracking-[0.16em] text-red hover:text-heart transition-colors"
+                            >
+                              Confirmer
+                            </button>
+                            <button
+                              onClick={() => setConfirmLogout(false)}
+                              className="font-mono text-[9px] uppercase tracking-[0.16em] text-beige-faint hover:text-beige transition-colors"
+                            >
+                              Annuler
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    </>
                   )}
                 </div>
               )}

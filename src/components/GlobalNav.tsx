@@ -10,6 +10,12 @@ export function GlobalNav() {
   const isLanding = location.pathname === '/';
   const isClimat = location.pathname === '/climat';
 
+  // Connecté = une clé personnelle est présente sur l'appareil. Recalculé à
+  // chaque rendu (la nav re-rend sur changement de route, donc login/logout
+  // — qui passent par une navigation — sont reflétés).
+  const hasKey =
+    typeof window !== 'undefined' && !!localStorage.getItem('collegue_personal_id');
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-[9999] flex justify-between items-center px-4 md:px-6 py-3 bg-bg/90 backdrop-blur-md border-b border-white/5" id="global-nav">
       <Link to="/" className="flex items-center group" id="global-nav-logo-link">
@@ -18,10 +24,21 @@ export function GlobalNav() {
       
       {isLanding ? (
         <div className="flex items-center gap-3" id="global-nav-landing-links">
-           <Link to="/climat" className="transition-colors flex items-center p-1.5 text-beige-faint hover:text-beige" title="Climat collectif" id="nav-link-climat-landing">
+          <Link to="/climat" className="transition-colors flex items-center p-1.5 text-beige-faint hover:text-beige" title="Climat collectif" id="nav-link-climat-landing">
             <Cloud size={13} strokeWidth={1.5} />
           </Link>
-          <KeyEntry className="flex items-center" hideLabel />
+          {hasKey ? (
+            <Link to="/carnet" className="transition-colors flex items-center p-1.5 text-beige-faint hover:text-beige" title="Carnet" id="nav-link-carnet-landing">
+              <BookOpen size={13} strokeWidth={1.5} />
+            </Link>
+          ) : (
+            <>
+              <Link to="/chat" className="font-mono text-[9px] tracking-[0.16em] uppercase text-beige-faint hover:text-beige transition-colors flex items-center" id="nav-link-commencer">
+                Commencer
+              </Link>
+              <KeyEntry className="flex items-center" hideLabel />
+            </>
+          )}
         </div>
       ) : isClimat ? (
         <div className="flex items-center gap-3" id="global-nav-links">
