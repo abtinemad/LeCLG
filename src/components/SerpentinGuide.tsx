@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, BookOpen, Heart, Cloud, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight, MessageCircle, History, ArrowRightLeft, Compass, Globe, Layers, Moon, Star, Lightbulb } from 'lucide-react';
+import { Sparkles, BookOpen, Heart, Cloud, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight, MessagesSquare, History, ArrowRightLeft, Compass, Globe, Layers, Moon, Star, Lightbulb } from 'lucide-react';
 import PrismeIcon from './PrismeIcon';
 import CollegueMark from './CollegueMark';
 import { sbGet } from '../lib/worker';
@@ -23,8 +23,8 @@ interface GuideStep {
  * le carrousel (les points en bas du composant) les fait défiler.
  */
 const CONCEPT_ICONS: Record<string, React.ReactNode> = {
-  collegue: <MessageCircle size={14} className="text-beige" />,
-  session: <MessageCircle size={14} className="text-beige" />,
+  collegue: <MessagesSquare size={14} className="text-beige" />,
+  session: <MessagesSquare size={14} className="text-beige" />,
   fragment: <History size={14} className="text-beige" />,
   carnet: <BookOpen size={14} className="text-beige" />,
   deplacement: <ArrowRightLeft size={14} className="text-beige" />,
@@ -44,7 +44,7 @@ const CONCEPT_ICONS: Record<string, React.ReactNode> = {
 const SECTION_ICONS: Record<string, React.ReactNode> = {
   landing: <Sparkles size={14} className="text-beige" />,
   climat: <Cloud size={14} className="text-beige" />,
-  chat: <MessageCircle size={14} className="text-beige" />,
+  chat: <MessagesSquare size={14} className="text-beige" />,
   'carnet-fragments': <BookOpen size={14} className="text-beige" />,
   'carnet-lien': <Heart size={14} className="text-beige" />,
   'carnet-affect': <Waves size={14} className="text-beige" />,

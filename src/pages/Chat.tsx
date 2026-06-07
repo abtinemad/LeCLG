@@ -12,7 +12,7 @@ import {
   Cloud,
   Feather,
   Gem,
-  MessageCircle,
+  MessagesSquare,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { sbInsert, sbUpdate, sbGet } from "../lib/worker";
@@ -3305,7 +3305,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               className={`transition-colors flex items-center p-1.5 ${location.pathname === "/chat" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
               title="Penser"
             >
-              <MessageCircle size={13} strokeWidth={1.5} />
+              <MessagesSquare size={13} strokeWidth={1.5} />
             </Link>
             <Link
               ref={carnetIconRef}
@@ -4065,7 +4065,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                 onClick={() => setIsRetourModalOpen(true)}
                 className="flex items-center gap-2 font-mono text-[9px] tracking-widest uppercase text-beige-faint/50 hover:text-beige-faint transition-colors"
               >
-                <MessageCircle className="w-3 h-3" />
+                <MessagesSquare className="w-3 h-3" />
                 Faire un retour
               </button>
 

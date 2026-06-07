@@ -24,7 +24,7 @@ import {
   X,
   Feather,
   Activity,
-  MessageCircle,
+  MessagesSquare,
   Smartphone,
   RotateCw,
 } from "lucide-react";
@@ -1679,7 +1679,7 @@ export default function Carnet() {
               className={`transition-colors flex items-center p-1.5 ${location.pathname === "/chat" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
               title="Penser"
             >
-              <MessageCircle size={13} strokeWidth={1.5} />
+              <MessagesSquare size={13} strokeWidth={1.5} />
             </Link>
             <Link
               to="/carnet"
@@ -1872,7 +1872,7 @@ export default function Carnet() {
               className="group flex flex-col items-center gap-2 transition-all"
               title="Faire un retour"
             >
-              <MessageCircle strokeWidth={1.5} className="w-5 h-5 text-beige/10 group-hover:text-beige/60 transition-all" />
+              <MessagesSquare strokeWidth={1.5} className="w-5 h-5 text-beige/10 group-hover:text-beige/60 transition-all" />
             </button>
           </div>
         </div>
@@ -1938,7 +1938,7 @@ export default function Carnet() {
                     to="/chat"
                     className="font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-beige-faint hover:text-beige ring-1 ring-beige-faint/20 bg-white/[0.02]"
                   >
-                    <MessageCircle size={10} strokeWidth={1.5} />
+                    <MessagesSquare size={10} strokeWidth={1.5} />
                     <span>penser</span>
                   </Link>
                   <p className="italic text-beige-faint opacity-40 text-[14px]">
@@ -3785,7 +3785,7 @@ export default function Carnet() {
                     {/* STRUCTURE DU MOUVEMENT COGNITIF */}
                     <div className="space-y-6 md:border-l border-white/5 md:pl-12">
                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-matrice inline-flex items-center gap-2">
-                          <MessageCircle className="w-3 h-3" />
+                          <MessagesSquare className="w-3 h-3" />
                           Mouvement Cognitif
                        </div>
                        {(() => {

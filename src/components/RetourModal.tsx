@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, MessageCircle } from "lucide-react";
+import { X, MessagesSquare } from "lucide-react";
 import { sbGet, sbInsert } from "../lib/worker";
 
 interface RetourModalProps {
@@ -97,7 +97,7 @@ export function RetourModal({ open, onClose, personalId }: RetourModalProps) {
             </button>
 
             <div className="px-10 pt-10 pb-2 flex-shrink-0 text-center">
-              <MessageCircle className="w-7 h-7 text-beige/40 mx-auto mb-3" />
+              <MessagesSquare className="w-7 h-7 text-beige/40 mx-auto mb-3" />
               <h3 className="text-lg font-serif text-beige mb-2 italic">
                 Un retour
               </h3>
