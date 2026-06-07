@@ -201,12 +201,12 @@ export default function QuestCeQueCest() {
                   <PaymentWrapper
                     paypalUrl="https://www.paypal.com/donate/?business=REDACTED&no_recurring=0&currency_code=EUR"
                     title="Évolution"
-                    amount="5€ / mois ou soutien libre"
+                    amount="Soutien libre"
                     color="text-evolution"
                   >
                     <h3 className="font-mono text-[11px] tracking-widest uppercase text-evolution cursor-pointer">Évolution</h3>
                   </PaymentWrapper>
-                  <span className="font-mono text-[9px] text-evolution/50 uppercase tracking-widest">5€ / mois</span>
+                  <span className="font-mono text-[9px] text-evolution/50 uppercase tracking-widest">Soutien libre</span>
                 </div>
                 <p className="text-[16px] text-beige-dim leading-relaxed">
                   Accès illimité aux analyses évolutives.
@@ -225,7 +225,7 @@ export default function QuestCeQueCest() {
                     <span>Mode Reconnaissance — L'Aboutissement</span>
                   </div>
                   <p className="text-[14px] text-beige leading-relaxed italic border-l border-green/30 pl-4 py-1">
-                    « L'abonnement Évolution finance le développement et les coûts d'API. Après un an de pratique et les 10 Prismes découverts, l'abonnement se transforme en <strong>mode Reconnaissance</strong>. L'accès devient gratuit et permanent. Pas une récompense — une reconnaissance du passage d'un mouvement à une posture d'équilibre. »
+                    « L'abonnement Évolution finance le développement et les coûts d'API. Après un an de pratique et les 16 Prismes découverts, l'abonnement se transforme en <strong>mode Reconnaissance</strong>. L'accès devient gratuit et permanent. Pas une récompense — une reconnaissance du passage d'un mouvement à une posture d'équilibre. »
                   </p>
                 </div>
               </div>

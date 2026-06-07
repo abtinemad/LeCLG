@@ -458,9 +458,9 @@ export default function Carnet() {
   ) => {
     if (!personalId || currentPlan === "reconnaissance") return;
 
-    // Condition 1: 10 Prismes
+    // Condition 1: les 16 Prismes
     const uniquePrismes = new Set(cards.map((c) => c.prisme).filter(Boolean));
-    const has10Prismes = uniquePrismes.size >= 10;
+    const hasAllPrismes = uniquePrismes.size >= 16;
 
     // Condition 2: All sections active
     const hasAllSections = !!(
@@ -477,7 +477,7 @@ export default function Carnet() {
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     const hasOneYear = createdDate <= oneYearAgo;
 
-    if (has10Prismes && hasAllSections && hasOneYear) {
+    if (hasAllPrismes && hasAllSections && hasOneYear) {
       try {
         const existing = await sbGet("carnet", `personal_id=eq.${personalId}`);
         if (existing && existing.length > 0) {
