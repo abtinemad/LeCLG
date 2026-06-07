@@ -29,3 +29,12 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
+
+// Service worker — uniquement en production (jamais dans l'aperçu Vite/dev, où
+// il interférerait avec le HMR). Rend la PWA installable de façon fiable et
+// fournit un hors-ligne sûr. Voir public/sw.js pour la stratégie de cache.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
