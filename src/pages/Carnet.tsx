@@ -1269,6 +1269,15 @@ export default function Carnet() {
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
       ),
     );
+
+    // Réaligne le cache local sur ce qu'on vient de charger (cloud inclus).
+    // Climat lit `collegue_cards` en direct (zéro API pour l'effet de
+    // décryptage) ; sans ça, sur un nouvel appareil les prismes pourtant
+    // débloqués côté cloud restaient invisibles au radar.
+    try {
+      localStorage.setItem("collegue_cards", JSON.stringify(cardsWithIds));
+    } catch {}
+
     setLoading(false);
   };
 

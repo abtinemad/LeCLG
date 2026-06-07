@@ -74,7 +74,14 @@ export const CONCEPTS: Record<string, Concept> = {
     terme: "Les Prismes",
     gloss: "Une lentille qui décompose ce que tu traverses pour le rendre lisible.",
     definition:
-      "Un Prisme décompose ce que tu vis en une lumière qu'on peut lire — comme un prisme sépare la lumière en couleurs. Ce n'est rien à corriger : c'est un signal, une indication de la direction où regarder. Il y en a dix ; tu les rencontres un à un, au fil de tes conversations, et c'est à toi de reconnaître ce que chacun éclaire.",
+      "Un Prisme décompose ce que tu vis en nuances qu'on peut lire — comme un prisme sépare la lumière en couleurs. Tu en déverrouilles un en validant les cinq étapes d'une conversation : le signe qu'une émotion a été traversée avec lucidité. Il permet alors de décrypter cette émotion — en toi, mais aussi chez l'autre. Ce n'est rien à corriger : c'est un signal à prendre en compte.",
+  },
+
+  harmonie: {
+    terme: "L'harmonie",
+    gloss: "Lire une émotion sans la déformer, en soi comme chez les autres.",
+    definition:
+      "Savoir lire les émotions, les accueillir et les rendre sans les déformer, en soi comme chez les autres : ainsi l'émotion relie au lieu de diviser, et rapproche la communauté de son harmonie.",
   },
 
   sphere: {
@@ -177,7 +184,7 @@ export const SECTION_GUIDE: Record<string, SectionGuide> = {
     titre: "Le Climat",
     intro:
       "Le Climat, c'est la météo émotionnelle collective — l'air du temps de celles et ceux qui viennent penser ici, toi compris, sans que personne ne soit reconnaissable. Pas ton état à toi, mais ce qui traverse l'ensemble en ce moment : ce qui pèse, ce qui s'allège. Une façon de se rappeler qu'on n'est jamais seul à traverser ce qu'on traverse.",
-    concepts: [],
+    concepts: ["prisme", "harmonie"],
   },
 
   chat: {

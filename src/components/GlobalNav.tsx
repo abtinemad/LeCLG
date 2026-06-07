@@ -1,9 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, MessagesSquare, Cloud } from 'lucide-react';
+import { BookOpen, MessagesSquare, Cloud, ArrowLeft } from 'lucide-react';
+import { useGoBack } from '../lib/useGoBack';
 import { KeyEntry } from './KeyEntry';
 
 export function GlobalNav() {
   const location = useLocation();
+  const goBack = useGoBack();
 
   if (location.pathname === '/admin') return null;
 
@@ -18,9 +20,16 @@ export function GlobalNav() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-[9999] flex justify-between items-center px-4 md:px-6 py-3 bg-bg/90 backdrop-blur-md border-b border-white/5" id="global-nav">
-      <Link to="/" className="flex items-center group" id="global-nav-logo-link">
-        <span className="font-mono text-[11px] tracking-[0.14em] uppercase text-beige-faint group-hover:text-beige-dim transition-colors">Le collègue</span>
-      </Link>
+      <div className="flex items-center gap-2">
+        {!isLanding && (
+          <button onClick={goBack} className="flex items-center text-beige-faint hover:text-beige transition-colors -ml-1 p-1" title="Retour" aria-label="Retour" id="global-nav-back">
+            <ArrowLeft size={15} strokeWidth={1.5} />
+          </button>
+        )}
+        <Link to="/" className="flex items-center group" id="global-nav-logo-link">
+          <span className="font-mono text-[11px] tracking-[0.14em] uppercase text-beige-faint group-hover:text-beige-dim transition-colors">Le collègue</span>
+        </Link>
+      </div>
       
       {isLanding ? (
         <div className="flex items-center gap-3" id="global-nav-landing-links">
