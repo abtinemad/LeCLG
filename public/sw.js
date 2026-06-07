@@ -14,7 +14,7 @@
 //
 // En cas de changement d'assets statiques non hashés (icônes, manifest),
 // incrémenter CACHE (v1 -> v2) pour purger l'ancien.
-const CACHE = "lecollegue-v2";
+const CACHE = "lecollegue-v3";
 const SHELL = "/index.html";
 
 self.addEventListener("install", (event) => {
