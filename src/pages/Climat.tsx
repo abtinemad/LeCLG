@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { EMOTIONS } from '../data/emotions';
+import { EMOTIONS, SPHERES } from '../data/emotions';
 import { 
   Cloud, 
   Sun, 
@@ -11,6 +11,8 @@ import {
   Activity,
   Tornado,
   CloudFog,
+  CalendarRange,
+  LayoutGrid,
   Lock
 } from 'lucide-react';
 import { ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis } from 'recharts';
@@ -71,10 +73,10 @@ function useDecrypt(text: string, revealed: boolean, animate: boolean) {
   return display;
 }
 
-function CryptLabel({ text, revealed, animate, className }: { text: string; revealed: boolean; animate: boolean; className?: string }) {
+function CryptLabel({ text, revealed, animate, className, color, colorHidden }: { text: string; revealed: boolean; animate: boolean; className?: string; color?: string; colorHidden?: string }) {
   const display = useDecrypt(text, revealed, animate);
   return (
-    <span className={className} style={{ color: revealed ? "#cfc2b1" : "#6a6258" }}>
+    <span className={className} style={{ color: revealed ? (color ?? "#cfc2b1") : (colorHidden ?? "#6a6258") }}>
       {display}
     </span>
   );
@@ -98,9 +100,21 @@ const normPrisme = (s: string) =>
     .toLowerCase()
     .trim();
 
+// Normalise une valeur de sphère (stockage hétérogène : "amoureux"/"Amoureuse"…)
+// vers la clé canonique de SPHERES (familiale/sociale/amoureuse/professionnelle).
+const normSphereKey = (sphere?: string): string => {
+  const lower = (sphere || "").trim().toLowerCase();
+  if (lower.startsWith("amoureu")) return "amoureuse";
+  if (lower.startsWith("famil")) return "familiale";
+  if (lower.startsWith("soci")) return "sociale";
+  if (lower.startsWith("profession")) return "professionnelle";
+  return "";
+};
+
 export default function Climat() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'maintenant' | 'variations'>('maintenant');
 
   // Prismes débloqués par la personne = clés distinctes présentes dans ses cartes
   // (cache local, lecture synchrone, zéro API). Sert de clé de décryptage des labels.
@@ -273,6 +287,48 @@ export default function Climat() {
     return <circle key={`dot-${index}`} cx={cx} cy={cy} r={3} fill={payload.color} stroke="#0a0a0a" strokeWidth={1} />;
   };
 
+  // ── Variations · Microclimat (émotion × sphère) ──────────────────────────
+  // emotionsBySphere peut arriver avec des clés hétérogènes : on re-normalise
+  // et on fusionne, puis on classe les émotions de chaque sphère.
+  const ebs = (data.emotionsBySphere || {}) as Record<string, Record<string, number>>;
+  const sphereAgg: Record<string, Record<string, number>> = {};
+  Object.keys(ebs).forEach((rawSphere) => {
+    const k = normSphereKey(rawSphere);
+    if (!k) return;
+    if (!sphereAgg[k]) sphereAgg[k] = {};
+    const emos = ebs[rawSphere] || {};
+    Object.keys(emos).forEach((emo) => {
+      sphereAgg[k][emo] = (sphereAgg[k][emo] || 0) + (emos[emo] || 0);
+    });
+  });
+  const microclimats = (Object.entries(SPHERES) as [string, any][]).map(([skey, sval]) => {
+    const counts = sphereAgg[skey] || {};
+    const sorted = Object.entries(counts).sort((a, b) => (b[1] as number) - (a[1] as number));
+    const total = sorted.reduce((s, [, c]) => s + (c as number), 0);
+    const top = sorted.slice(0, 3).map(([k, c]) => {
+      const emItem = (EMOTIONS as any)[k];
+      return {
+        key: k,
+        color: emItem?.color || '#3a3420',
+        label: emItem ? emItem.label.replace(/\s*\(Prisme\)/, '') : k,
+        value: c as number,
+        revealed: unlockedPrismes.has(k) || k === mainEmotion,
+        animate: unlockedPrismes.has(k) && k !== mainEmotion && !seenPrismes.has(k),
+      };
+    });
+    return { skey, label: sval.label, color: sval.color, total, top };
+  });
+
+  // ── Variations · Saisons (timeline hebdomadaire) ─────────────────────────
+  const timeline = (Array.isArray(data.timeline) ? data.timeline : []) as any[];
+  const maxWeekTotal = timeline.reduce((m, b) => Math.max(m, b.total || 0), 0) || 1;
+  const fmtWeek = (iso: string) => {
+    const d = new Date(iso);
+    return isNaN(d.getTime())
+      ? iso
+      : `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  };
+
   return (
     <div className="relative min-h-screen">
       {/* Grain Overlay */}
@@ -289,13 +345,26 @@ export default function Climat() {
           {/* Page Title & description */}
           <div className="mb-16">
             <h1 className="font-serif italic text-[36px] md:text-[44px] font-medium text-beige leading-tight mb-4">
-              Climat ambiant
+              Climat
             </h1>
             <p className="text-[15px] text-beige-faint leading-relaxed font-mono tracking-wide">
               Une représentation anonymisée des courants qui circulent au travers de la communauté. Des teintes singulières, une résonance commune.
             </p>
           </div>
 
+          {/* Onglets : Maintenant (snapshot) / Variations (Saisons + Microclimat) */}
+          <div className="flex items-center gap-6 mb-12">
+            <button onClick={() => setView('maintenant')} className={`relative font-mono text-[11px] tracking-widest uppercase transition-colors pb-1 ${view === 'maintenant' ? 'text-beige' : 'text-beige-faint hover:text-beige'}`}>
+              Maintenant
+              {view === 'maintenant' && <motion.div layoutId="climat-tab-pill" className="absolute -bottom-0.5 left-0 right-0 h-px bg-beige/50" />}
+            </button>
+            <button onClick={() => setView('variations')} className={`relative font-mono text-[11px] tracking-widest uppercase transition-colors pb-1 ${view === 'variations' ? 'text-beige' : 'text-beige-faint hover:text-beige'}`}>
+              Variations
+              {view === 'variations' && <motion.div layoutId="climat-tab-pill" className="absolute -bottom-0.5 left-0 right-0 h-px bg-beige/50" />}
+            </button>
+          </div>
+
+          {view === 'maintenant' && (
           <section className="space-y-16">
             <div className="space-y-4">
               <div className="flex items-center gap-4">
@@ -459,6 +528,97 @@ export default function Climat() {
               </div>
             </div>
           </section>
+          )}
+
+          {view === 'variations' && (
+          <section className="space-y-16">
+            {/* Saisons — évolution dans le temps (couleur Élan / blanc) */}
+            <div className="space-y-8">
+              <div className="space-y-3">
+                <div className="flex flex-col w-fit gap-1.5">
+                  <div className="flex items-center gap-4">
+                    <CalendarRange className="w-4 h-4 text-[#FAF9F6]" />
+                    <h4 className="font-mono text-[9px] tracking-widest uppercase text-[#FAF9F6]">Saisons</h4>
+                  </div>
+                  <div className="h-px bg-[#FAF9F6]/40" />
+                </div>
+                <p className="font-mono text-[9px] tracking-wide text-beige-faint/60 leading-relaxed max-w-2xl">
+                  Comment l'humeur de la communauté se déplace, semaine après semaine.
+                </p>
+              </div>
+              {timeline.length < 2 ? (
+                <p className="font-mono text-[10px] text-beige-faint/40 italic">
+                  Pas encore assez de recul pour lire une évolution — reviens dans quelque temps.
+                </p>
+              ) : (
+                <div>
+                  <div className="flex items-end gap-1 h-28">
+                    {timeline.map((b) => {
+                      const c = (EMOTIONS as any)[b.dominant]?.color || '#3a3420';
+                      const ratio = (b.total || 0) / maxWeekTotal;
+                      const emItem = (EMOTIONS as any)[b.dominant];
+                      const label = emItem ? emItem.label.replace(/\s*\(Prisme\)/, '') : (b.dominant || '');
+                      const revealed = unlockedPrismes.has(b.dominant) || b.dominant === mainEmotion;
+                      const animate = unlockedPrismes.has(b.dominant) && b.dominant !== mainEmotion && !seenPrismes.has(b.dominant);
+                      return (
+                        <div
+                          key={b.period}
+                          className="flex-1 rounded-sm transition-all flex items-end justify-center overflow-hidden"
+                          style={{ backgroundColor: c, height: `${30 + 70 * ratio}%` }}
+                          title={`${fmtWeek(b.period)} · ${b.total}`}
+                        >
+                          <CryptLabel text={label} revealed={revealed} animate={animate} color="rgba(10,10,10,0.8)" colorHidden="rgba(10,10,10,0.55)" className="font-mono text-[8px] uppercase tracking-wide [writing-mode:vertical-rl] rotate-180 py-1.5" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between mt-2 font-mono text-[8px] uppercase tracking-widest text-beige-faint/40">
+                    <span>{fmtWeek(timeline[0].period)}</span>
+                    <span>{fmtWeek(timeline[timeline.length - 1].period)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Microclimat — émotion × sphère (couleur Matrice / mauve) */}
+            <div className="space-y-8">
+              <div className="space-y-3">
+                <div className="flex flex-col w-fit gap-1.5">
+                  <div className="flex items-center gap-4">
+                    <LayoutGrid className="w-4 h-4 text-matrice" />
+                    <h4 className="font-mono text-[9px] tracking-widest uppercase text-matrice">Microclimat</h4>
+                  </div>
+                  <div className="h-px bg-matrice/40" />
+                </div>
+                <p className="font-mono text-[9px] tracking-wide text-beige-faint/60 leading-relaxed max-w-2xl">
+                  Comment les différentes sphères de vie sont vécues par la communauté.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {microclimats.map((mc) => (
+                  <div key={mc.skey} className="bg-[#0e0d08] border border-[#3a3420] border-l-2 rounded-sm p-4 space-y-3" style={{ borderLeftColor: mc.color }}>
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: mc.color }} />
+                      <h5 className="font-mono text-xs tracking-widest uppercase" style={{ color: mc.color }}>{mc.label}</h5>
+                    </div>
+                    {mc.top.length === 0 ? (
+                      <p className="font-mono text-[10px] text-beige-faint/30">—</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {mc.top.map((e) => (
+                          <span key={e.key} className="inline-flex items-center gap-1.5 bg-[#0a0a0a] border border-white/5 rounded-sm px-2 py-1">
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: e.color }} />
+                            <CryptLabel text={e.label} revealed={e.revealed} animate={e.animate} className="font-mono text-[9px] uppercase tracking-wide" />
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+          )}
         </motion.div>
       </main>
     </div>

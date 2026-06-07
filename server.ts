@@ -1174,27 +1174,65 @@ app.get("/api/climate", asyncHandler(async (req: Request, res: Response) => {
     result = await sbRequest("GET", "sessions?select=*", null, serviceKey);
   } catch (e: any) {
     console.error("Failed to fetch sessions at all", e.message);
-    return res.json({ emotions: {}, spheres: {}, totalSessions: 0, error: e.message });
+    return res.json({ emotions: {}, spheres: {}, emotionsBySphere: {}, timeline: [], totalSessions: 0, error: e.message });
   }
 
   const stats: any = {
-    emotions: {},
-    spheres: {},
+    emotions: {},          // { emotion: count }            (marginal — inchangé)
+    spheres: {},           // { sphere: count }             (marginal — inchangé)
+    emotionsBySphere: {},  // { sphere: { emotion: count } } (levier 3 — Microclimats)
+    timeline: [],          // [{ period, total, emotions, dominant }] (levier 1 — Saisons)
     totalSessions: result ? result.length : 0
   };
+
+  // Buckets temporels par semaine (clé = lundi UTC, YYYY-MM-DD).
+  const weekly: any = {};
 
   if (result && Array.isArray(result)) {
     result.forEach((s: any) => {
       const decrypted = decField(s.reflection_card);
       const reflectionCard = decrypted || (s.data && typeof s.data === 'object' ? s.data.reflection_card : null);
-      if (reflectionCard) {
-        const emotion = (reflectionCard.prisme || reflectionCard.rune || reflectionCard.emotion || "").toLowerCase();
-        const sphere = reflectionCard.sphere;
-        if (emotion) stats.emotions[emotion] = (stats.emotions[emotion] || 0) + 1;
-        if (sphere) stats.spheres[sphere] = (stats.spheres[sphere] || 0) + 1;
+      if (!reflectionCard) return;
+
+      const emotion = (reflectionCard.prisme || reflectionCard.rune || reflectionCard.emotion || "").toLowerCase();
+      const sphere = reflectionCard.sphere;
+
+      // Marginaux (inchangés)
+      if (emotion) stats.emotions[emotion] = (stats.emotions[emotion] || 0) + 1;
+      if (sphere) stats.spheres[sphere] = (stats.spheres[sphere] || 0) + 1;
+
+      // Croisement émotion × sphère (levier 3)
+      if (emotion && sphere) {
+        if (!stats.emotionsBySphere[sphere]) stats.emotionsBySphere[sphere] = {};
+        stats.emotionsBySphere[sphere][emotion] = (stats.emotionsBySphere[sphere][emotion] || 0) + 1;
+      }
+
+      // Temporel (levier 1) — on tolère plusieurs noms de colonne date.
+      const rawDate = s.started_at || s.created_at || s.inserted_at || s.createdAt || s.created || reflectionCard.date || null;
+      if (emotion && rawDate) {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) {
+          const dow = (d.getUTCDay() + 6) % 7; // 0 = lundi
+          const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dow));
+          const key = monday.toISOString().slice(0, 10);
+          if (!weekly[key]) weekly[key] = { total: 0, emotions: {} };
+          weekly[key].total += 1;
+          weekly[key].emotions[emotion] = (weekly[key].emotions[emotion] || 0) + 1;
+        }
       }
     });
   }
+
+  // Timeline triée chronologiquement, avec l'émotion dominante de chaque semaine.
+  stats.timeline = Object.keys(weekly).sort().map((period) => {
+    const b = weekly[period];
+    let dominant: string | null = null;
+    let max = -1;
+    for (const emo of Object.keys(b.emotions)) {
+      if (b.emotions[emo] > max) { max = b.emotions[emo]; dominant = emo; }
+    }
+    return { period, total: b.total, emotions: b.emotions, dominant };
+  });
 
   res.json(stats);
 }));

@@ -35,6 +35,27 @@ Chaque session se clôture par une **Carte de Réflexion** (Fragment, Déplaceme
 ### La Matrice & La Mémoire de Résonance
 L'application apprend à "connaître" les patterns du sujet au fil des sessions sans jamais lever l'anonymat (voir section technique).
 
+### Le Climat — La résonance collective
+Le **Climat** est le pendant communautaire du Carnet : un miroir **anonyme et agrégé** de la météo affective de tous les membres. Là où le Carnet rend le sujet à lui-même, le Climat lui dit qu'il n'est pas seul. Aucun contenu de conversation n'y entre — uniquement la **métadonnée** extraite des cartes de réflexion (l'émotion dominante, la sphère, l'horodatage), agrégée sans jamais pouvoir être reliée à une personne.
+
+**Le principe : décrypter, pas surveiller.** Les couleurs sont toujours visibles, mais les **noms** des émotions restent chiffrés (grésillés) tant que l'utilisateur n'a pas débloqué le **Prisme** correspondant — à l'exception de l'émotion dominante du collectif, toujours lisible comme point d'ancrage. C'est la posture phénoménologique rendue littérale : on ne *lit* que ce qu'on a soi-même traversé en conscience. Le Climat déplace la lumière, il ne nomme pas à la place du sujet. Le Climat ne se cristallise qu'à partir de **3 sessions distinctes** ; en deçà, il affiche « Climat en formation ».
+
+**Le pipeline (anonyme).** La route `GET /api/climate` lit la table `sessions`, déchiffre chaque carte côté serveur et ne renvoie que des comptages agrégés : tally par émotion, par sphère, le croisement **émotion × sphère**, et une **timeline hebdomadaire** (bucketée via `started_at`). Aucune donnée individuelle ne transite ; le front ne reçoit jamais qu'un nuage agrégé.
+
+Le Climat se lit en **deux onglets**, qui reprennent le miroir de l'individu (les sections empruntent les couleurs des onglets du Carnet) :
+
+**Onglet « Maintenant » — le climat à l'instant** (couleurs des onglets primaires) :
+- **Résonance commune** — l'émotion qui prédomine et fait écho au plus de monde, affichée en grand et teintée. Le cœur du « tu n'es pas seul ».
+- **Relevé des courants** *(vert / Fragments)* — les 16 émotions classées par présence, du plus dense au plus ténu.
+- **Rose des vents** *(terracotta / Lien)* — un radar à 16 axes dont le remplissage radial **fond les pigments des émotions dominantes** en une seule teinte : la couleur d'ensemble du climat, fonction de l'intensité et de la diversité des émotions qui le traversent.
+- **Mouvement d'ensemble** *(ardoise / Affect)* — trois souffles : **Rafales** (ce qui souffle fort), **Dépressions** (ce qui se creuse), **Brises** (ce qui effleure). Le climat ne se comprend qu'en entier : pas seulement ce qui gronde, mais aussi ce qui murmure et ce qui manque.
+
+**Onglet « Variations » — le climat en profondeur** (couleurs des onglets profonds Élan & Matrice) :
+- **Saisons** *(blanc / Élan)* — comment l'humeur de la communauté se déplace, semaine après semaine : un ruban d'une barre par semaine, la couleur donnant la dominante de la semaine, la hauteur l'activité, et le nom de la dominante inscrit dans la barre (chiffré selon les Prismes débloqués).
+- **Microclimat** *(mauve / Matrice)* — comment chaque sphère de vie (familiale, sociale, amoureuse, professionnelle) est vécue par la communauté : une carte par sphère, montrant ses émotions dominantes.
+
+**Ce que le Climat ne fait pas (par choix).** Aucune cartographie d'un individu — l'anonymat l'interdit — ni score, ni mesure clinique. La population est auto-sélectionnée, et la grille de 16 émotions reste une lentille, pas le territoire. La mesure du *déplacement* affectif d'une conversation (état d'entrée → état de sortie, c.-à-d. l'efficacité du robot) est un chantier distinct, volontairement tenu à l'écart du Climat.
+
 ---
 
 ## 3. Présentation Technique
