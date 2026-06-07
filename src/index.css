@@ -204,43 +204,55 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
+  /* shadcn — mappé sur la matière chaude du produit. Surface réelle : le Toaster
+     (sonner), les anneaux de focus, et tout futur composant shadcn. Les bordures
+     restent en blanc-alpha : c'est le filet en usage explicite partout (border-white/10),
+     donc aucun changement de bordure. */
+  --background: #0a0a0a;        /* bg */
+  --foreground: #fdf5e6;        /* beige */
+  --card: #111009;              /* bg-alt */
+  --card-foreground: #fdf5e6;
+  --popover: #111009;           /* bg-alt — fond des toasts */
+  --popover-foreground: #fdf5e6;
+  --primary: #fdf5e6;           /* beige */
+  --primary-foreground: #0a0a0a;
+  --secondary: #1e1d1a;
+  --secondary-foreground: #fdf5e6;
+  --muted: #1e1d1a;
+  --muted-foreground: #988e80;  /* beige-faint */
+  --accent: #1e1d1a;
+  --accent-foreground: #fdf5e6;
+  --destructive: #8a4848;       /* red socle */
+  --border: oklch(1 0 0 / 10%); /* blanc-alpha — inchangé (= border-white/10) */
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --ring: #988e80;              /* focus chaud (beige-faint) */
+  --chart-1: #6ba368;           /* green */
+  --chart-2: #84979f;           /* slate */
+  --chart-3: #c8794f;           /* clay */
+  --chart-4: #9d74a3;           /* plum */
+  --chart-5: #d98a3e;           /* ember */
+  --sidebar: #111009;
+  --sidebar-foreground: #fdf5e6;
+  --sidebar-primary: #fdf5e6;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #1e1d1a;
+  --sidebar-accent-foreground: #fdf5e6;
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: #988e80;
 }
 
 /* ───────── Safe-area / plein écran iOS (standalone) ───────── */
 @supports (padding-top: env(safe-area-inset-top)) {
   #global-nav { padding-top: calc(0.75rem + env(safe-area-inset-top)); }
   header.fixed.top-0 { padding-top: env(safe-area-inset-top); }
+}
+/* En plein écran (display: fullscreen), la barre système est masquée : on
+   n'a plus à réserver son espace en haut. On annule l'inset pour que la nav
+   et les headers remontent jusqu'au bord supérieur (sinon une bande vide
+   reste en haut sur Android, qui rapporte encore l'inset en fullscreen). */
+@media all and (display-mode: fullscreen) {
+  #global-nav { padding-top: 0.75rem; }
+  header.fixed.top-0 { padding-top: 0; }
 }
 @media (max-width: 767px) {
   @supports (bottom: env(safe-area-inset-bottom)) {
