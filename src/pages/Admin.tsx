@@ -287,7 +287,7 @@ export default function Admin() {
               ${view === 'eclats' ? 'bg-[#141210] text-beige border-l-2 border-l-beige' : 'text-beige-faint hover:bg-[#0f0e0c]'}`}
           >
             <span>✧ Éclats</span>
-            {eclats.length > 0 && <span className="bg-yellow-400/20 text-yellow-500 px-1.5 py-0.5 rounded-full text-[7px]">{eclats.length}</span>}
+            {eclats.length > 0 && <span className="bg-evolution/20 text-evolution px-1.5 py-0.5 rounded-full text-[7px]">{eclats.length}</span>}
           </button>
 
           <button 
@@ -308,12 +308,12 @@ export default function Admin() {
                     key={e.id}
                     onClick={() => setSelectedEclatId(e.id)}
                     className={`px-5 py-4 cursor-pointer transition-colors hover:bg-[#0f0e0c]
-                      ${selectedEclatId === e.id ? 'bg-[#141210] border-l-2 border-l-yellow-400' : ''}`}
+                      ${selectedEclatId === e.id ? 'bg-[#141210] border-l-2 border-l-evolution' : ''}`}
                   >
-                    <div className="text-[9px] text-yellow-400/60 tracking-wider mb-1.5 flex justify-between">
+                    <div className="text-[9px] text-evolution/60 tracking-wider mb-1.5 flex justify-between">
                       <span>{date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                       {e.answered_at
-                        ? <span className="text-[7px] uppercase tracking-wider text-emerald-500/70 not-italic">✓ Répondu</span>
+                        ? <span className="text-[7px] uppercase tracking-wider text-green/70 not-italic">✓ Répondu</span>
                         : <span className="text-[7px] uppercase opacity-40 italic">En attente</span>}
                     </div>
                     <div className="font-serif text-xs text-[#8a8278] italic line-clamp-2">
@@ -335,7 +335,7 @@ export default function Admin() {
                     <div className="text-[9px] text-[#5a5548] tracking-wider mb-1.5 flex justify-between">
                       <span>{date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                       {f.answered_at
-                        ? <span className="text-[7px] uppercase tracking-wider text-emerald-500/70 not-italic">✓ Répondu</span>
+                        ? <span className="text-[7px] uppercase tracking-wider text-green/70 not-italic">✓ Répondu</span>
                         : <span className="text-[7px] uppercase opacity-40 italic">En attente</span>}
                     </div>
                     <div className="font-serif text-xs text-[#8a8278] italic line-clamp-2">
@@ -412,21 +412,21 @@ export default function Admin() {
                   <div className="ml-auto">
                     {selectedEclat.answered_at ? (
                       <>
-                        <div className="text-[8px] tracking-widest uppercase text-emerald-500/50 mb-1">Répondu le</div>
-                        <div className="text-sm text-emerald-500/80">{new Date(selectedEclat.answered_at).toLocaleString('fr-FR')}</div>
+                        <div className="text-[8px] tracking-widest uppercase text-green/50 mb-1">Répondu le</div>
+                        <div className="text-sm text-green/80">{new Date(selectedEclat.answered_at).toLocaleString('fr-FR')}</div>
                       </>
                     ) : (
                       <>
                         <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Statut</div>
-                        <div className="text-sm text-yellow-400/70">En attente de réponse</div>
+                        <div className="text-sm text-evolution/70">En attente de réponse</div>
                       </>
                     )}
                   </div>
                 </div>
 
                 <div className="mb-10">
-                  <div className="text-[8px] tracking-widest uppercase text-yellow-400/40 mb-3 ml-1">Demande spécifique</div>
-                  <div className="bg-[#141208] border border-yellow-400/10 rounded-lg p-6 font-serif italic text-lg leading-relaxed text-beige">
+                  <div className="text-[8px] tracking-widest uppercase text-evolution/40 mb-3 ml-1">Demande spécifique</div>
+                  <div className="bg-[#141208] border border-evolution/10 rounded-lg p-6 font-serif italic text-lg leading-relaxed text-beige">
                     "{selectedEclat.request_text}"
                   </div>
                 </div>
@@ -437,7 +437,7 @@ export default function Admin() {
                     {selectedEclat.matrice_snapshot ? (
                       <div className="space-y-4">
                         <div>
-                          <div className="text-[7px] uppercase tracking-widest text-[#EA580C]/60 mb-2">Schéma Central</div>
+                          <div className="text-[7px] uppercase tracking-widest text-lien/60 mb-2">Schéma Central</div>
                           <div className="text-sm italic text-beige-faint leading-relaxed">"{selectedEclat.matrice_snapshot.schema_central}"</div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -467,8 +467,8 @@ export default function Admin() {
                             );
                           })}
                        </div>
-                       <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded">
-                          <div className="text-[7px] tracking-widest uppercase text-blue-400/60 mb-2">Élan (Direction)</div>
+                       <div className="bg-slate/5 border border-slate/10 p-4 rounded">
+                          <div className="text-[7px] tracking-widest uppercase text-slate/60 mb-2">Élan (Direction)</div>
                           <div className="text-xs italic text-beige-faint">"{selectedEclat.elan_snapshot?.direction || 'Non évalué'}"</div>
                        </div>
                     </div>
@@ -479,7 +479,7 @@ export default function Admin() {
                     answered_at marque la demande comme répondue ; le Carnet
                     de la personne lit response_text et l'affiche. */}
                 <div className="mt-12 pt-8 border-t border-[#1e1d1a]">
-                  <div className="text-[8px] tracking-widest uppercase text-yellow-400/40 mb-3 ml-1">
+                  <div className="text-[8px] tracking-widest uppercase text-evolution/40 mb-3 ml-1">
                     Réponse — métabolisation humaine
                   </div>
                   <textarea
@@ -487,7 +487,7 @@ export default function Admin() {
                     onChange={(e) => setEclatResponse(e.target.value)}
                     placeholder="Écrire la réponse à cette demande d'Éclat…"
                     rows={12}
-                    className="w-full bg-[#141208] border border-yellow-400/10 rounded-lg p-6 font-serif text-base leading-relaxed text-beige outline-none resize-y focus:border-yellow-400/30 placeholder:text-[#5a5548] placeholder:italic"
+                    className="w-full bg-[#141208] border border-evolution/10 rounded-lg p-6 font-serif text-base leading-relaxed text-beige outline-none resize-y focus:border-evolution/30 placeholder:text-[#5a5548] placeholder:italic"
                   />
                   <div className="flex items-center justify-between gap-6 mt-4">
                     <div className="text-[9px] text-beige-faint leading-relaxed">
@@ -502,7 +502,7 @@ export default function Admin() {
                     <button
                       onClick={publishEclatResponse}
                       disabled={!eclatResponse.trim() || eclatSaving}
-                      className="flex-shrink-0 bg-yellow-400 text-black px-5 py-2 font-mono text-[9px] uppercase tracking-widest rounded hover:bg-yellow-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="flex-shrink-0 bg-evolution text-black px-5 py-2 font-mono text-[9px] uppercase tracking-widest rounded hover:bg-evolution transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       {eclatSaving
                         ? 'Publication…'
@@ -518,7 +518,7 @@ export default function Admin() {
                     <div className="text-[8px] tracking-widest uppercase text-beige-faint ml-1">
                       Réponses de la personne
                       {selectedEclat.replies_closed && (
-                        <span className="ml-2 text-emerald-500/50 normal-case tracking-normal">· clôturé</span>
+                        <span className="ml-2 text-green/50 normal-case tracking-normal">· clôturé</span>
                       )}
                     </div>
                     <button
@@ -526,7 +526,7 @@ export default function Admin() {
                       disabled={eclatClosing}
                       className={`flex-shrink-0 px-4 py-1.5 border font-mono text-[8px] uppercase tracking-widest rounded transition-colors disabled:opacity-30 ${
                         selectedEclat.replies_closed
-                          ? 'border-emerald-500/30 text-emerald-500/70 hover:bg-emerald-500/5'
+                          ? 'border-green/30 text-green/70 hover:bg-green/5'
                           : 'border-white/10 text-beige-faint hover:bg-white/5'
                       }`}
                     >
@@ -579,13 +579,13 @@ export default function Admin() {
                   <div className="ml-auto">
                     {selectedFeedback.answered_at ? (
                       <>
-                        <div className="text-[8px] tracking-widest uppercase text-emerald-500/50 mb-1">Répondu le</div>
-                        <div className="text-sm text-emerald-500/80">{new Date(selectedFeedback.answered_at).toLocaleString('fr-FR')}</div>
+                        <div className="text-[8px] tracking-widest uppercase text-green/50 mb-1">Répondu le</div>
+                        <div className="text-sm text-green/80">{new Date(selectedFeedback.answered_at).toLocaleString('fr-FR')}</div>
                       </>
                     ) : (
                       <>
                         <div className="text-[8px] tracking-widest uppercase text-beige-faint mb-1">Statut</div>
-                        <div className="text-sm text-yellow-400/70">En attente de réponse</div>
+                        <div className="text-sm text-evolution/70">En attente de réponse</div>
                       </>
                     )}
                   </div>
@@ -662,7 +662,7 @@ export default function Admin() {
                     <div className="flex justify-between items-start mb-4">
                       <div className="font-mono text-[8px] tracking-[0.16em] uppercase text-[#4a4028]">Carte de réflexion générée</div>
                       {selectedSession.reflection_card.prisme && (
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 font-mono text-[7px] uppercase">
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-evolution/10 border border-evolution/20 text-evolution font-mono text-[7px] uppercase">
                           <PrismeIcon rainbow={false} className="w-2 h-2" />
                           Prisme débloqué
                         </div>

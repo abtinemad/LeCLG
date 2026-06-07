@@ -1119,7 +1119,7 @@ Retourne un JSON pur : { "mouvement": "", "direction": "", "question": "" }`;
 
 const EVAL_PRISME_PROMPT = `Tu es un décodeur d'émotions primitives (les Prismes). Analyse la carte courante (fragment, déplacement, direction).
 Les Prismes sont un signal riche qui permet de se diriger, mais parfois difficile à décoder.
-Associe la carte à l'un des 10 Prismes suivants : Joie, Tristesse, Colère, Peur, Confiance, Dégoût, Anticipation, Surprise, Honte, Mélancolie.
+Associe la carte à l'un des 16 Prismes suivants : Joie, Tristesse, Colère, Peur, Confiance, Dégoût, Anticipation, Surprise, Honte, Mélancolie, Envie, Soulagement, Gratitude, Jalousie, Amour, Culpabilité.
 Retourne un JSON pur : { "prisme": "NomDuPrisme" } ou { "prisme": null } si aucune correspondance claire.`;
 
 const EVAL_LUEUR_PROMPT = `Tu reçois le matériau d'un mois de pratique, spécifiquement centré sur les Songes et l'Élan. Ce sont tes sources principales.

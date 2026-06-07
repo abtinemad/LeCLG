@@ -19,12 +19,12 @@ interface PrismeIconProps extends React.SVGProps<SVGSVGElement> {
 
 // les 6 arêtes du prisme, chacune sa couleur (rouge -> violet, de gauche à droite)
 const SEGMENTS: { d: string; color: string }[] = [
-  { d: 'M8 7 L3 19', color: '#E8554E' },    // face avant — arête gauche
-  { d: 'M3 19 L13 19', color: '#F2994A' },  // face avant — base
-  { d: 'M13 19 L8 7', color: '#F2D94E' },   // face avant — arête droite
-  { d: 'M8 7 L16 4', color: '#6BBF59' },    // crête (profondeur)
-  { d: 'M13 19 L21 16', color: '#4A90D9' }, // arête droite (profondeur)
-  { d: 'M16 4 L21 16', color: '#9B59B6' },  // face arrière droite
+  { d: 'M8 7 L3 19', color: 'var(--color-heart)' },    // face avant — arête gauche
+  { d: 'M3 19 L13 19', color: 'var(--color-clay)' },  // face avant — base
+  { d: 'M13 19 L8 7', color: 'var(--color-ember)' },   // face avant — arête droite
+  { d: 'M8 7 L16 4', color: 'var(--color-green)' },    // crête (profondeur)
+  { d: 'M13 19 L21 16', color: 'var(--color-slate)' }, // arête droite (profondeur)
+  { d: 'M16 4 L21 16', color: 'var(--color-plum)' },  // face arrière droite
 ];
 
 const PrismeIcon: React.FC<PrismeIconProps> = ({

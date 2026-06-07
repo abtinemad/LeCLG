@@ -21,6 +21,32 @@
   --color-red: #8a4848;
   --color-red-dim: #2a1a1a;
   --color-border: #1e1d1a;
+
+  /* ── Accents : pigments ravivés, accordés au socle mat ──
+     Deux étages. PRIMITIVES = la matière brute. ALIAS = le SENS :
+     les composants référencent l'alias (text-matrice, text-lien…),
+     jamais le hex — on retune une teinte en un seul endroit. */
+
+  /* Primitives */
+  --color-clay:  #c8794f; /* terre cuite   (ex #EA580C) */
+  --color-slate: #7e9fab; /* bleu ardoise  (ex #7BA7D7) */
+  --color-plum:  #9d74a3; /* prune         (ex #8B5CF6) */
+  --color-ember: #e08e3c; /* braise        (ex #f59e0b) */
+  --color-lum:   #f2e8d2; /* beige lumineux (ex blanc brut) */
+  --color-heart: #b85f54; /* brique vive   (ex red-400)  */
+
+  /* Alias sémantiques — Carnet */
+  --color-fragments: var(--color-green);
+  --color-lien:      var(--color-clay);
+  --color-affect:    var(--color-slate);
+  --color-elan:      var(--color-lum);
+  --color-matrice:   var(--color-plum);
+
+  /* Alias sémantiques — transverses */
+  --color-positive:  var(--color-green);
+  --color-crise:     var(--color-red);   /* réservé : le favicon arrête de l'emprunter */
+  --color-soutien:   var(--color-heart);
+  --color-evolution: var(--color-ember);
 }
 
 @layer base {

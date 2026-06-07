@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, BookOpen, Brain, Heart, Cloud, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight, MessageCircle, History, ArrowRightLeft, Compass, Globe, Layers, Moon, Star, Lightbulb } from 'lucide-react';
+import { Sparkles, BookOpen, Heart, Cloud, X, Waves, Orbit, Fingerprint, ChevronLeft, ChevronRight, MessageCircle, History, ArrowRightLeft, Compass, Globe, Layers, Moon, Star, Lightbulb } from 'lucide-react';
 import PrismeIcon from './PrismeIcon';
 import CollegueMark from './CollegueMark';
 import { sbGet } from '../lib/worker';
@@ -23,7 +23,7 @@ interface GuideStep {
  * le carrousel (les points en bas du composant) les fait défiler.
  */
 const CONCEPT_ICONS: Record<string, React.ReactNode> = {
-  collegue: <Brain size={14} className="text-beige" />,
+  collegue: <MessageCircle size={14} className="text-beige" />,
   session: <MessageCircle size={14} className="text-beige" />,
   fragment: <History size={14} className="text-beige" />,
   carnet: <BookOpen size={14} className="text-beige" />,
@@ -44,7 +44,7 @@ const CONCEPT_ICONS: Record<string, React.ReactNode> = {
 const SECTION_ICONS: Record<string, React.ReactNode> = {
   landing: <Sparkles size={14} className="text-beige" />,
   climat: <Cloud size={14} className="text-beige" />,
-  chat: <Brain size={14} className="text-beige" />,
+  chat: <MessageCircle size={14} className="text-beige" />,
   'carnet-fragments': <BookOpen size={14} className="text-beige" />,
   'carnet-lien': <Heart size={14} className="text-beige" />,
   'carnet-affect': <Waves size={14} className="text-beige" />,
@@ -110,12 +110,12 @@ CLARITES['landing'] = [
 const SECTION_COLORS: Record<string, string> = {
   landing: '#E8D5B0',
   chat: '#E8D5B0',
-  climat: '#7BA7D7',
+  climat: '#7e9fab',
   'carnet-fragments': '#6ba368',
-  'carnet-lien': '#EA580C',
-  'carnet-affect': '#7BA7D7',
-  'carnet-elan': '#FAF9F6',
-  'carnet-matrice': '#8B5CF6',
+  'carnet-lien': '#c8794f',
+  'carnet-affect': '#7e9fab',
+  'carnet-elan': '#f2e8d2',
+  'carnet-matrice': '#9d74a3',
 };
 
 export type SerpentinEmotion = 'calm' | 'agitated' | 'heavy' | 'bright' | 'mysterious' | 'permanent_unlock';
@@ -157,7 +157,7 @@ const CometAnimation = ({
     if (emotion === 'permanent_unlock') {
       import('canvas-confetti').then((confetti) => {
         const end = Date.now() + (3 * 1000);
-        const colors = ['#6ba368', '#f5f5f4', '#EA580C', '#7BA7D7'];
+        const colors = ['#6ba368', '#f5f5f4', '#c8794f', '#7e9fab'];
 
         (function frame() {
           confetti.default({
@@ -550,7 +550,7 @@ export const ClarteSection = ({ section, forceClose, voix, onVoixClose }: { sect
       <button
         onClick={close}
         aria-label="Fermer"
-        className="absolute top-2.5 right-2.5 z-20 p-1.5 text-red-500/30 hover:text-red-500 transition-colors rounded-full hover:bg-red-500/10"
+        className="absolute top-2.5 right-2.5 z-20 p-1.5 text-red/30 hover:text-red transition-colors rounded-full hover:bg-red/10"
       >
         <X size={15} />
       </button>
@@ -734,10 +734,10 @@ export const PrismeExplainer = ({
                 onClick={onClose}
                 className="group flex flex-col items-center gap-2 transition-all"
               >
-                <div className="w-8 h-8 rounded-full border border-red-500/20 flex items-center justify-center group-hover:bg-red-500/10 transition-colors">
-                  <X size={14} className="text-red-500/60" />
+                <div className="w-8 h-8 rounded-full border border-red/20 flex items-center justify-center group-hover:bg-red/10 transition-colors">
+                  <X size={14} className="text-red/60" />
                 </div>
-                <span className="font-mono text-[8px] uppercase tracking-widest text-red-500/40 group-hover:text-red-500/80">Fermer la clarté</span>
+                <span className="font-mono text-[8px] uppercase tracking-widest text-red/40 group-hover:text-red/80">Fermer la clarté</span>
               </button>
             </div>
           </motion.div>

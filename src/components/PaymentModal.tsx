@@ -65,10 +65,10 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[420px] z-[210] p-6 lg:p-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`bg-[#0a0a0a] border border-white/10 p-8 shadow-2xl relative`}>
+            <div className={`bg-bg border border-white/10 p-8 shadow-2xl relative`}>
               <button
                 onClick={onClose}
-                className="absolute top-4 right-4 text-white/30 hover:text-white/80 transition-colors cursor-pointer"
+                className="absolute top-4 right-4 text-beige/30 hover:text-beige/80 transition-colors cursor-pointer"
                 title="Fermer"
               >
                 <X size={20} strokeWidth={1.5} />
@@ -88,12 +88,12 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
                     onClick={() => setOpenMethod(openMethod === "classic" ? null : "classic")}
                     className="w-full flex items-center justify-between p-4 group cursor-pointer"
                   >
-                    <span className="font-mono text-[11px] uppercase tracking-widest text-white/70 group-hover:text-white transition-colors">
+                    <span className="font-mono text-[11px] uppercase tracking-widest text-beige/70 group-hover:text-beige transition-colors">
                       Paiement classique
                     </span>
                     <ChevronDown
                       size={16}
-                      className={`text-white/40 transition-transform ${openMethod === "classic" ? "rotate-180" : ""}`}
+                      className={`text-beige/40 transition-transform ${openMethod === "classic" ? "rotate-180" : ""}`}
                     />
                   </button>
                   {openMethod === "classic" && (
@@ -110,9 +110,9 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
                           <div className="w-8 h-8 rounded-full bg-[#003087] flex items-center justify-center text-white font-bold italic">
                             P
                           </div>
-                          <span className="font-sans text-sm text-white group-hover:text-white transition-colors">Payer avec PayPal</span>
+                          <span className="font-sans text-sm text-beige group-hover:text-beige transition-colors">Payer avec PayPal</span>
                         </div>
-                        <ExternalLink size={16} className="text-white/40 group-hover:text-white/80 transition-colors" />
+                        <ExternalLink size={16} className="text-beige/40 group-hover:text-beige/80 transition-colors" />
                       </a>
                       )}
 
@@ -123,13 +123,13 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
                             W
                           </div>
                           <div className="flex flex-col">
-                            <span className="font-sans text-sm text-white transition-colors">Payer avec Wero</span>
-                            <span className="font-mono text-[13px] text-white/50">{WERO_NUMBER}</span>
+                            <span className="font-sans text-sm text-beige transition-colors">Payer avec Wero</span>
+                            <span className="font-mono text-[13px] text-beige/50">{WERO_NUMBER}</span>
                           </div>
                         </div>
                         <button
                           onClick={() => handleCopy(WERO_NUMBER, "Wero")}
-                          className="p-2 bg-black/40 hover:bg-black border border-white/10 text-white/50 hover:text-white transition-all rounded-sm flex items-center justify-center cursor-pointer"
+                          className="p-2 bg-black/40 hover:bg-black border border-white/10 text-beige/50 hover:text-beige transition-all rounded-sm flex items-center justify-center cursor-pointer"
                           title="Copier le numéro"
                         >
                           {copied === "Wero" ? <CheckCircle2 size={14} className="text-green" /> : <Copy size={14} />}
@@ -149,12 +149,12 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
                     onClick={() => setOpenMethod(openMethod === "crypto" ? null : "crypto")}
                     className="w-full flex items-center justify-between p-4 group cursor-pointer"
                   >
-                    <span className="font-mono text-[11px] uppercase tracking-widest text-white/70 group-hover:text-white transition-colors">
+                    <span className="font-mono text-[11px] uppercase tracking-widest text-beige/70 group-hover:text-beige transition-colors">
                       Cryptomonnaie
                     </span>
                     <ChevronDown
                       size={16}
-                      className={`text-white/40 transition-transform ${openMethod === "crypto" ? "rotate-180" : ""}`}
+                      className={`text-beige/40 transition-transform ${openMethod === "crypto" ? "rotate-180" : ""}`}
                     />
                   </button>
                   {openMethod === "crypto" && (
@@ -163,14 +163,14 @@ export function PaymentModal({ isOpen, onClose, paypalUrl, title, amount, color 
                         <div key={crypto.name} className="flex flex-col gap-2 p-4 bg-white/5 border border-white/5 hover:border-white/10 transition-colors relative group">
                           <div className="flex items-center gap-2">
                             <Bitcoin size={16} className="text-yellow-500/80" strokeWidth={1.5} />
-                            <span className="font-mono text-[13px] text-white/80">{crypto.name}</span>
+                            <span className="font-mono text-[13px] text-beige/80">{crypto.name}</span>
                           </div>
                           <div className="font-mono text-[13px] text-beige-faint break-all pr-12">
                             {crypto.address}
                           </div>
                           <button
                             onClick={() => handleCopy(crypto.address, crypto.name)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-black/40 hover:bg-black border border-white/10 text-white/50 hover:text-white transition-all rounded-sm flex items-center justify-center cursor-pointer"
+                            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-black/40 hover:bg-black border border-white/10 text-beige/50 hover:text-beige transition-all rounded-sm flex items-center justify-center cursor-pointer"
                             title="Copier l'adresse"
                           >
                             {copied === crypto.name ? <CheckCircle2 size={14} className="text-green" /> : <Copy size={14} />}

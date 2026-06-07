@@ -97,8 +97,8 @@ export function RetourModal({ open, onClose, personalId }: RetourModalProps) {
             </button>
 
             <div className="px-10 pt-10 pb-2 flex-shrink-0 text-center">
-              <MessageCircle className="w-7 h-7 text-white/40 mx-auto mb-3" />
-              <h3 className="text-lg font-serif text-white mb-2 italic">
+              <MessageCircle className="w-7 h-7 text-beige/40 mx-auto mb-3" />
+              <h3 className="text-lg font-serif text-beige mb-2 italic">
                 Un retour
               </h3>
               <p className="text-[11px] text-beige-faint/60 leading-relaxed max-w-sm mx-auto italic">
@@ -122,11 +122,11 @@ export function RetourModal({ open, onClose, personalId }: RetourModalProps) {
                 <div className="flex items-center justify-between gap-4">
                   <span className="font-mono text-[8px] italic leading-relaxed">
                     {status === "error" ? (
-                      <span className="text-red-400">
+                      <span className="text-red">
                         Échec de l'envoi — réessayer.
                       </span>
                     ) : status === "sent" ? (
-                      <span className="text-green-400/70">Retour envoyé.</span>
+                      <span className="text-green/70">Retour envoyé.</span>
                     ) : null}
                   </span>
                   <button
@@ -141,11 +141,11 @@ export function RetourModal({ open, onClose, personalId }: RetourModalProps) {
 
               {(loading || myFeedbacks.length > 0) && (
                 <div className="mt-8 pt-6 border-t border-white/5 space-y-3">
-                  <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-white/25">
+                  <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-beige/25">
                     Vos retours
                   </div>
                   {loading && myFeedbacks.length === 0 ? (
-                    <div className="text-[11px] text-white/20 italic font-mono py-2">
+                    <div className="text-[11px] text-beige/20 italic font-mono py-2">
                       Chargement…
                     </div>
                   ) : (
@@ -154,7 +154,7 @@ export function RetourModal({ open, onClose, personalId }: RetourModalProps) {
                         key={f.id}
                         className="p-4 rounded-lg bg-white/[0.03] border border-white/5"
                       >
-                        <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-white/25 mb-2">
+                        <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-beige/25 mb-2">
                           {f.created_at
                             ? new Date(f.created_at).toLocaleDateString(
                                 "fr-FR",
@@ -166,15 +166,15 @@ export function RetourModal({ open, onClose, personalId }: RetourModalProps) {
                               )
                             : ""}
                         </div>
-                        <p className="text-[13px] font-serif text-white/70 leading-relaxed whitespace-pre-wrap">
+                        <p className="text-[13px] font-serif text-beige/70 leading-relaxed whitespace-pre-wrap">
                           {f.message}
                         </p>
                         {f.response_text && (
                           <div className="mt-3 pt-3 border-t border-white/5">
-                            <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-white/30 mb-1.5">
+                            <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-beige/30 mb-1.5">
                               Réponse du collègue
                             </div>
-                            <p className="text-[13px] font-serif italic text-white/85 leading-relaxed whitespace-pre-wrap">
+                            <p className="text-[13px] font-serif italic text-beige/85 leading-relaxed whitespace-pre-wrap">
                               {f.response_text}
                             </p>
                           </div>

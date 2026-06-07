@@ -109,7 +109,7 @@ export default function Restore() {
                 <ArrowRight size={16} />
               </button>
             </div>
-            {error && <p className="text-[10px] text-red-400/80 mt-2.5">{error}</p>}
+            {error && <p className="text-[10px] text-red/80 mt-2.5">{error}</p>}
             <p className="text-[10px] text-beige-faint italic leading-relaxed mt-4">
               Le scan ne donne que la clé. Votre code reste connu de vous seul.
             </p>

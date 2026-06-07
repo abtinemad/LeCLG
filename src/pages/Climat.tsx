@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useGoBack } from '../lib/useGoBack';
+import { EMOTIONS } from '../data/emotions';
 import { 
   ArrowLeft,
   Cloud, 
@@ -30,24 +31,19 @@ export default function Climat() {
       .catch(() => setLoading(false));
   }, []);
 
+  // Icône météo par émotion ; la teinte vient de la source (EMOTIONS), à 40 %.
+  const CLIMATE_ICONS: Record<string, typeof Sun> = {
+    joie: Sun, tristesse: Cloud, colere: Wind, peur: Umbrella,
+  };
   const getClimateIcon = (mainEmotion: string) => {
-    switch(mainEmotion) {
-      case 'joie': return <Sun className="text-yellow-500/40" size={32} />;
-      case 'tristesse': return <Cloud className="text-blue-400/40" size={32} />;
-      case 'colere': return <Wind className="text-red-400/40" size={32} />;
-      case 'peur': return <Umbrella className="text-purple-400/40" size={32} />;
-      default: return <Wind className="text-beige-faint/40" size={32} />;
-    }
+    const Icon = CLIMATE_ICONS[mainEmotion] ?? Wind;
+    const c = EMOTIONS[mainEmotion as keyof typeof EMOTIONS]?.color;
+    return <Icon size={32} className={c ? "" : "text-beige-faint/40"} style={c ? { color: c, opacity: 0.4 } : {}} />;
   };
 
-  const EMOTIONS_CONFIG: Record<string, { color: string; border: string; label: string }> = {
-    joie: { color: "#EA580C", border: "border-[#EA580C]/30", label: "Joie" },
-    tristesse: { color: "#60A5FA", border: "border-[#60A5FA]/30", label: "Tristesse" },
-    colere: { color: "#F87171", border: "border-[#F87171]/30", label: "Colère" },
-    peur: { color: "#C084FC", border: "border-[#C084FC]/30", label: "Peur" },
-    surprise: { color: "#34D399", border: "border-[#34D399]/30", label: "Surprise" },
-    degoût: { color: "#A8A29E", border: "border-[#A8A29E]/30", label: "Dégoût" }
-  };
+  // EMOTIONS_CONFIG supprimé : couleurs/bordures/labels viennent de la source
+  // unique (EMOTIONS). Au passage, la clé accentuée « degoût » — qui ne matchait
+  // jamais la clé « degout » du reste du système — disparaît.
 
   if (loading) {
     return (
@@ -93,7 +89,7 @@ export default function Climat() {
 
   const sortedEmotions = [...emotionEntries].sort((a,b) => (b[1] as number) - (a[1] as number));
   const mainEmotion = sortedEmotions[0] ? sortedEmotions[0][0] : '...';
-  const em = EMOTIONS_CONFIG[mainEmotion] || null;
+  const em = EMOTIONS[mainEmotion as keyof typeof EMOTIONS] || null;
 
   return (
     <div className="relative min-h-screen">
@@ -150,12 +146,12 @@ export default function Climat() {
                   <h4 className="font-mono text-[9px] tracking-widest uppercase text-beige-faint/60">Topographie des affects</h4>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  {Object.entries(EMOTIONS_CONFIG).slice(0, 4).map(([key, emItem]) => {
+                  {Object.entries(EMOTIONS).slice(0, 4).map(([key, emItem]) => {
                     const value = data.emotions[key] || 0;
                     const hasData = value > 0;
                     return (
                       <div key={key} className={`bg-[#0e0d08] border ${hasData ? emItem.border : 'border-[#3a3420] opacity-30'} p-4 rounded-sm transition-opacity`}>
-                        <div className="font-mono text-[8px] uppercase text-beige-faint mb-1">{emItem.label}</div>
+                        <div className="font-mono text-[8px] uppercase text-beige-faint mb-1">{emItem.label.replace(/\s*\(Prisme\)/, "")}</div>
                         <div className="text-xl" style={{ color: hasData ? emItem.color : 'inherit' }}>{value}</div>
                       </div>
                     );

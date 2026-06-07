@@ -124,8 +124,8 @@ export default function QuestCeQueCest() {
             {/* Fragments */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <History className="w-4 h-4 text-green" />
-                <h3 className="font-mono text-[11px] uppercase tracking-widest text-green">Fragments</h3>
+                <History className="w-4 h-4 text-fragments" />
+                <h3 className="font-mono text-[11px] uppercase tracking-widest text-fragments">Fragments</h3>
               </div>
               <p className="text-[14px] leading-relaxed text-beige-faint italic">La trace de chaque session — ce qui s'est dit, ce qui a bougé, et la direction prise en repartant.</p>
             </div>
@@ -133,8 +133,8 @@ export default function QuestCeQueCest() {
             {/* Lien */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Heart className="w-4 h-4 text-[#EA580C]" />
-                <h3 className="font-mono text-[11px] uppercase tracking-widest text-[#EA580C]">Lien</h3>
+                <Heart className="w-4 h-4 text-lien" />
+                <h3 className="font-mono text-[11px] uppercase tracking-widest text-lien">Lien</h3>
               </div>
               <p className="text-[14px] leading-relaxed text-beige-faint italic">L'état de vos liens — amoureux, familiaux, sociaux, professionnels : ce qui se tend, ce qui se répare, ce qui tient.</p>
             </div>
@@ -142,8 +142,8 @@ export default function QuestCeQueCest() {
             {/* Affect */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Waves className="w-4 h-4 text-[#7BA7D7]" />
-                <h3 className="font-mono text-[11px] uppercase tracking-widest text-[#7BA7D7]">Affect</h3>
+                <Waves className="w-4 h-4 text-affect" />
+                <h3 className="font-mono text-[11px] uppercase tracking-widest text-affect">Affect</h3>
               </div>
               <p className="text-[14px] leading-relaxed text-beige-faint italic">La tonalité émotionnelle qui revient d'une session à l'autre, au-delà des hauts et des bas de chaque jour.</p>
             </div>
@@ -151,8 +151,8 @@ export default function QuestCeQueCest() {
             {/* Élan */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Orbit className="w-4 h-4 text-white" />
-                <h3 className="font-mono text-[11px] uppercase tracking-widest text-white">Élan</h3>
+                <Orbit className="w-4 h-4 text-elan" />
+                <h3 className="font-mono text-[11px] uppercase tracking-widest text-elan">Élan</h3>
               </div>
               <p className="text-[14px] leading-relaxed text-beige-faint italic">Le sens vers lequel vous allez en ce moment — une période d'ouverture, de repli, ou de reconstruction.</p>
             </div>
@@ -160,8 +160,8 @@ export default function QuestCeQueCest() {
             {/* Matrice */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Fingerprint className="w-4 h-4 text-[#8B5CF6]" />
-                <h3 className="font-mono text-[11px] uppercase tracking-widest text-[#8B5CF6]">Matrice</h3>
+                <Fingerprint className="w-4 h-4 text-matrice" />
+                <h3 className="font-mono text-[11px] uppercase tracking-widest text-matrice">Matrice</h3>
               </div>
               <p className="text-[14px] leading-relaxed text-beige-faint italic">La couche la plus profonde, ce qui structure tout le reste : la tension de fond, votre manière de tenir, et l'exigence qui vous met en mouvement.</p>
             </div>
@@ -197,22 +197,22 @@ export default function QuestCeQueCest() {
               {/* Évolution */}
               <div className="space-y-5">
                 <div className="flex items-center gap-2 group">
-                  <Sparkles size={24} className="text-[#f59e0b] opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
+                  <Sparkles size={24} className="text-evolution opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
                   <PaymentWrapper
                     paypalUrl="https://www.paypal.com/donate/?business=REDACTED&no_recurring=0&currency_code=EUR"
                     title="Évolution"
                     amount="5€ / mois ou soutien libre"
-                    color="text-[#f59e0b]"
+                    color="text-evolution"
                   >
-                    <h3 className="font-mono text-[11px] tracking-widest uppercase text-[#f59e0b] cursor-pointer">Évolution</h3>
+                    <h3 className="font-mono text-[11px] tracking-widest uppercase text-evolution cursor-pointer">Évolution</h3>
                   </PaymentWrapper>
-                  <span className="font-mono text-[9px] text-[#f59e0b]/50 uppercase tracking-widest">5€ / mois</span>
+                  <span className="font-mono text-[9px] text-evolution/50 uppercase tracking-widest">5€ / mois</span>
                 </div>
                 <p className="text-[16px] text-beige-dim leading-relaxed">
                   Accès illimité aux analyses évolutives.
                 </p>
-                <div className="p-5 bg-[#f59e0b]/5 border border-[#f59e0b]/20 rounded-xl space-y-3">
-                  <div className="font-mono text-[8px] uppercase tracking-[0.3em] text-[#f59e0b]">
+                <div className="p-5 bg-evolution/5 border border-evolution/20 rounded-xl space-y-3">
+                  <div className="font-mono text-[8px] uppercase tracking-[0.3em] text-evolution">
                     L'analyse évolutive
                   </div>
                   <p className="text-[14px] text-beige-dim leading-relaxed">
@@ -233,13 +233,13 @@ export default function QuestCeQueCest() {
               {/* Soutien Libre */}
               <div className="space-y-3 border-t border-border/30 pt-8">
                 <div className="flex items-center gap-2 group">
-                  <Heart size={18} className="text-red-400 opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
+                  <Heart size={18} className="text-soutien opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
                   <PaymentWrapper
                     paypalUrl="https://www.paypal.com/donate/?business=REDACTED&no_recurring=0&currency_code=EUR"
                     title="Soutien"
-                    color="text-red-400"
+                    color="text-soutien"
                   >
-                    <h3 className="font-mono text-[11px] tracking-widest uppercase text-red-400 cursor-pointer">Soutien</h3>
+                    <h3 className="font-mono text-[11px] tracking-widest uppercase text-soutien cursor-pointer">Soutien</h3>
                   </PaymentWrapper>
                 </div>
                 <p className="text-[13px] text-beige-faint antialiased leading-relaxed italic">

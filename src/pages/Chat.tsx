@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useGoBack } from "../lib/useGoBack";
+import { EMOTIONS } from "../data/emotions";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Download,
   ArrowUp,
   Check,
   ArrowLeft,
-  Brain,
   BookOpen,
   Cloud,
   Feather,
@@ -376,68 +376,6 @@ interface ReflectionCard {
   miroir?: string;
 }
 
-export const EMOTIONS = {
-  joie: {
-    label: "Joie (Prisme)",
-    color: "#FACC15",
-    bg: "bg-[#FACC15]/10",
-    border: "border-[#FACC15]/40",
-  },
-  tristesse: {
-    label: "Tristesse (Prisme)",
-    color: "#60A5FA",
-    bg: "bg-[#60A5FA]/10",
-    border: "border-[#60A5FA]/40",
-  },
-  colere: {
-    label: "Colère (Prisme)",
-    color: "#F87171",
-    bg: "bg-[#F87171]/10",
-    border: "border-[#F87171]/40",
-  },
-  peur: {
-    label: "Peur (Prisme)",
-    color: "#A78BFA",
-    bg: "bg-[#A78BFA]/10",
-    border: "border-[#A78BFA]/40",
-  },
-  degout: {
-    label: "Dégoût (Prisme)",
-    color: "#4ADE80",
-    bg: "bg-[#4ADE80]/10",
-    border: "border-[#4ADE80]/40",
-  },
-  surprise: {
-    label: "Surprise (Prisme)",
-    color: "#FB923C",
-    bg: "bg-[#FB923C]/10",
-    border: "border-[#FB923C]/40",
-  },
-  confiance: {
-    label: "Confiance (Prisme)",
-    color: "#22D3EE",
-    bg: "bg-[#22D3EE]/10",
-    border: "border-[#22D3EE]/40",
-  },
-  anticipation: {
-    label: "Anticipation (Prisme)",
-    color: "#F472B6",
-    bg: "bg-[#F472B6]/10",
-    border: "border-[#F472B6]/40",
-  },
-  honte: {
-    label: "Honte (Prisme)",
-    color: "#94A3B8",
-    bg: "bg-[#94A3B8]/10",
-    border: "border-[#94A3B8]/40",
-  },
-  melancolie: {
-    label: "Mélancolie (Prisme)",
-    color: "#8B5CF6",
-    bg: "bg-[#8B5CF6]/10",
-    border: "border-[#8B5CF6]/40",
-  },
-} as const;
 
 // ============================================================
 // SERPENTIN — constantes (portées depuis index.html)
@@ -2678,7 +2616,7 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
         particleCount: 150,
         spread: 100,
         origin: { y: 0.5 },
-        colors: ["#E8D5B0", "#6BA368", "#f5f5f4", "#EA580C"],
+        colors: ["#E8D5B0", "#6BA368", "#f5f5f4", "#c8794f"],
       });
     }
 
@@ -3080,9 +3018,9 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
 
     const isEquilibreReached = validatedSteps.has(4);
     const prismeInstruction = isEquilibreReached
-      ? `6. Une emotion : Le signal affectif dominant détecté. Choisis UNIQUEMENT parmi : "joie", "tristesse", "colere", "peur", "degout", "surprise", "confiance", "anticipation", "honte", "melancolie".
+      ? `6. Une emotion : Le signal affectif dominant détecté. Choisis UNIQUEMENT parmi : "joie", "tristesse", "colere", "peur", "degout", "surprise", "confiance", "anticipation", "honte", "melancolie", "envie", "soulagement", "gratitude", "jalousie", "amour", "culpabilite".
 7. Un prisme : Répète la même valeur que l'emotion ici, car l'état d'équilibre est atteint.`
-      : `6. Une emotion : Le signal affectif dominant détecté. Choisis UNIQUEMENT parmi : "joie", "tristesse", "colere", "peur", "degout", "surprise", "confiance", "anticipation", "honte", "melancolie".
+      : `6. Une emotion : Le signal affectif dominant détecté. Choisis UNIQUEMENT parmi : "joie", "tristesse", "colere", "peur", "degout", "surprise", "confiance", "anticipation", "honte", "melancolie", "envie", "soulagement", "gratitude", "jalousie", "amour", "culpabilite".
 7. Un prisme : Laisse ce champ vide ("") car l'état d'équilibre n'a pas été pleinement stabilisé.`;
 
     const prompt = `Voici la conversation qui vient de s'achever :
@@ -3367,7 +3305,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
               className={`transition-colors flex items-center p-1.5 ${location.pathname === "/chat" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
               title="Penser"
             >
-              <Brain size={13} strokeWidth={1.5} />
+              <MessageCircle size={13} strokeWidth={1.5} />
             </Link>
             <Link
               ref={carnetIconRef}
@@ -3512,7 +3450,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                     </button>
                   </div>
                   {codeError && (
-                    <p className="text-[12px] text-red-400/80">{codeError}</p>
+                    <p className="text-[12px] text-red/80">{codeError}</p>
                   )}
                   <p className="text-[12px] leading-relaxed text-beige-faint/70">
                     Votre clé de carnet vous sera montrée à la fin de l'échange,
@@ -3999,7 +3937,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                               className={`px-2 py-1 rounded-sm text-[7px] font-mono uppercase tracking-tighter transition-all border ${emotionData.bg} ${emotionData.border} text-beige w-fit flex items-center gap-2`}
                             >
                               {!isLocked && (
-                                <Gem className="w-2.5 h-2.5 text-yellow-500/60" />
+                                <Gem className="w-2.5 h-2.5 text-evolution/60" />
                               )}
                               {isLocked
                                 ? "Résonance identifiée"

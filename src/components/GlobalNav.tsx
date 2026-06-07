@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, Brain, Cloud } from 'lucide-react';
+import { BookOpen, MessageCircle, Cloud } from 'lucide-react';
 import { KeyEntry } from './KeyEntry';
 
 export function GlobalNav() {
@@ -22,7 +22,7 @@ export function GlobalNav() {
             <Cloud size={13} strokeWidth={1.5} />
           </Link>
           <Link to="/chat" className="transition-colors flex items-center p-1.5 text-beige-faint hover:text-beige" title="Converser" id="nav-link-penser-landing">
-            <Brain size={13} strokeWidth={1.5} />
+            <MessageCircle size={13} strokeWidth={1.5} />
           </Link>
           <KeyEntry className="flex items-center" hideLabel />
         </div>
@@ -38,7 +38,7 @@ export function GlobalNav() {
             <Cloud size={13} strokeWidth={1.5} />
           </Link>
           <Link to="/chat" className={`transition-colors flex items-center p-1.5 ${location.pathname === '/chat' ? 'text-beige' : 'text-beige-faint hover:text-beige'}`} title="Penser" id="nav-link-penser">
-            <Brain size={13} strokeWidth={1.5} />
+            <MessageCircle size={13} strokeWidth={1.5} />
           </Link>
           <Link to="/carnet" className={`transition-colors flex items-center p-1.5 ${location.pathname === '/carnet' ? 'text-beige' : 'text-beige-faint hover:text-beige'}`} title="Carnet" id="nav-link-carnet">
             <BookOpen size={13} strokeWidth={1.5} />

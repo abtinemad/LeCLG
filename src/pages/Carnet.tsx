@@ -6,7 +6,6 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   ArrowLeft,
   History,
-  Brain,
   Heart,
   Waves,
   Orbit,
@@ -50,7 +49,7 @@ import CollegueMark from "../components/CollegueMark";
 import { PaymentWrapper } from "../components/PaymentModal";
 import { LueurVisual } from "../components/LueurVisual";
 import { RetourModal } from "../components/RetourModal";
-import { EMOTIONS, type ReflectionCard } from "../data/emotions";
+import { EMOTIONS, SPHERES as SPHERE_PALETTE, type ReflectionCard } from "../data/emotions";
 import { PRISME_DESCRIPTIONS } from "../data/prismes";
 
 // Réexport conservé pour compatibilité d'éventuels imports externes.
@@ -93,7 +92,7 @@ const AnalysisError = ({ onRetry }: { onRetry: () => void }) => (
     </p>
     <button
       onClick={onRetry}
-      className="py-2 px-6 rounded-full border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] font-mono text-[9px] uppercase tracking-widest text-white/50 hover:text-white/70 transition-colors"
+      className="py-2 px-6 rounded-full border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] font-mono text-[9px] uppercase tracking-widest text-beige/50 hover:text-beige/70 transition-colors"
     >
       Réessayer
     </button>
@@ -1446,8 +1445,8 @@ export default function Carnet() {
     const t = teinte.toLowerCase();
 
     // Default theme (Amber/Orange)
-    let colorName = "orange-500";
-    let hex = "#EA580C";
+    let colorName = "clay";
+    let hex = "#C8794F"; // défaut neutre (clay reconcilié)
     let isDefault = true;
 
     // Plutchik's Wheel Logic
@@ -1461,8 +1460,8 @@ export default function Carnet() {
       t.includes("tension") ||
       t.includes("agress")
     ) {
-      colorName = "red-500";
-      hex = "#EF4444";
+      colorName = "red";
+      hex = EMOTIONS.colere.color;
       isDefault = false;
     } else if (
       t.includes("joie") ||
@@ -1471,8 +1470,8 @@ export default function Carnet() {
       t.includes("plaisir") ||
       t.includes("chaleur")
     ) {
-      colorName = "yellow-400";
-      hex = "#FACC15";
+      colorName = "evolution";
+      hex = EMOTIONS.joie.color;
       isDefault = false;
     } else if (
       t.includes("confiance") ||
@@ -1482,7 +1481,7 @@ export default function Carnet() {
       t.includes("sécurité")
     ) {
       colorName = "lime-400";
-      hex = "#A3E635";
+      hex = EMOTIONS.confiance.color;
       isDefault = false;
     } else if (
       t.includes("peur") ||
@@ -1492,7 +1491,7 @@ export default function Carnet() {
       t.includes("inquiétude")
     ) {
       colorName = "emerald-600";
-      hex = "#059669";
+      hex = EMOTIONS.peur.color;
       isDefault = false;
     } else if (
       t.includes("surprise") ||
@@ -1501,7 +1500,7 @@ export default function Carnet() {
       t.includes("choc")
     ) {
       colorName = "sky-400";
-      hex = "#38BDF8";
+      hex = EMOTIONS.surprise.color;
       isDefault = false;
     } else if (
       t.includes("tristesse") ||
@@ -1511,7 +1510,7 @@ export default function Carnet() {
       t.includes("souffrance")
     ) {
       colorName = "blue-500";
-      hex = "#3B82F6";
+      hex = EMOTIONS.tristesse.color;
       isDefault = false;
     } else if (
       t.includes("dégoût") ||
@@ -1521,7 +1520,7 @@ export default function Carnet() {
       t.includes("hostilité")
     ) {
       colorName = "purple-500";
-      hex = "#A855F7";
+      hex = EMOTIONS.degout.color;
       isDefault = false;
     } else if (
       t.includes("anticipation") ||
@@ -1530,8 +1529,75 @@ export default function Carnet() {
       t.includes("projet") ||
       t.includes("espoir")
     ) {
-      colorName = "orange-500";
-      hex = "#F97316";
+      colorName = "clay";
+      hex = EMOTIONS.anticipation.color;
+      isDefault = false;
+    } else if (
+      t.includes("envie") ||
+      t.includes("convoitise")
+    ) {
+      colorName = "envie";
+      hex = EMOTIONS.envie.color;
+      isDefault = false;
+    } else if (
+      t.includes("soulagement") ||
+      t.includes("soulagé") ||
+      t.includes("apaisement") ||
+      t.includes("délivrance")
+    ) {
+      colorName = "soulagement";
+      hex = EMOTIONS.soulagement.color;
+      isDefault = false;
+    } else if (
+      t.includes("gratitude") ||
+      t.includes("reconnaissan") ||
+      t.includes("merci")
+    ) {
+      colorName = "gratitude";
+      hex = EMOTIONS.gratitude.color;
+      isDefault = false;
+    } else if (
+      t.includes("jalousie") ||
+      t.includes("jaloux") ||
+      t.includes("jalouse")
+    ) {
+      colorName = "jalousie";
+      hex = EMOTIONS.jalousie.color;
+      isDefault = false;
+    } else if (
+      t.includes("amour") ||
+      t.includes("tendresse") ||
+      t.includes("affection") ||
+      t.includes("aimer")
+    ) {
+      colorName = "amour";
+      hex = EMOTIONS.amour.color;
+      isDefault = false;
+    } else if (
+      t.includes("culpabilit") ||
+      t.includes("coupable") ||
+      t.includes("remords")
+    ) {
+      colorName = "culpabilite";
+      hex = EMOTIONS.culpabilite.color;
+      isDefault = false;
+    } else if (
+      t.includes("honte") ||
+      t.includes("honteu") ||
+      t.includes("humiliation") ||
+      t.includes("gêne")
+    ) {
+      colorName = "honte";
+      hex = EMOTIONS.honte.color;
+      isDefault = false;
+    } else if (
+      t.includes("mélancol") ||
+      t.includes("melancol") ||
+      t.includes("nostalgie") ||
+      t.includes("spleen")
+    ) {
+      colorName = "melancolie";
+      hex = EMOTIONS.melancolie.color;
       isDefault = false;
     }
 
@@ -1549,9 +1615,9 @@ export default function Carnet() {
   }) => (
     <div className="flex flex-col items-center justify-center py-24 px-6 text-center animate-fade-up">
       <div className="w-16 h-16 rounded-full border border-white/5 bg-white/[0.02] flex items-center justify-center mb-6">
-        <Icon className="w-6 h-6 text-white/10" />
+        <Icon className="w-6 h-6 text-beige/10" />
       </div>
-      <h3 className="font-mono text-[11px] uppercase tracking-[0.4em] text-white/40 mb-4">
+      <h3 className="font-mono text-[11px] uppercase tracking-[0.4em] text-beige/40 mb-4">
         {title}
       </h3>
       <p className="font-serif italic text-beige-faint leading-relaxed max-w-sm mb-8">
@@ -1569,7 +1635,7 @@ export default function Carnet() {
 
   const LockedBlock = ({ title, requirements }: { title: string; requirements: string }) => (
     <div className="flex flex-col items-center justify-center p-6 text-center border border-white/5 bg-white/[0.01] rounded-lg border-dashed">
-      <div className="font-mono text-[9px] uppercase tracking-widest text-white/30 mb-2">
+      <div className="font-mono text-[9px] uppercase tracking-widest text-beige/30 mb-2">
         {title}
       </div>
       <div className="text-[8px] font-mono tracking-widest uppercase opacity-40">
@@ -1613,7 +1679,7 @@ export default function Carnet() {
               className={`transition-colors flex items-center p-1.5 ${location.pathname === "/chat" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
               title="Penser"
             >
-              <Brain size={13} strokeWidth={1.5} />
+              <MessageCircle size={13} strokeWidth={1.5} />
             </Link>
             <Link
               to="/carnet"
@@ -1719,28 +1785,28 @@ export default function Carnet() {
 
               <button
                 onClick={() => setView("lien")}
-                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-colors relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "lien" ? "text-[#EA580C]" : "text-beige-faint hover:text-beige"}`}
+                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-colors relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "lien" ? "text-lien" : "text-beige-faint hover:text-beige"}`}
               >
                 <Heart className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span>Lien</span>
                 {view === "lien" && (
                   <motion.div
                     layoutId="nav-pill"
-                    className="absolute -bottom-1 left-2 sm:left-3 right-2 sm:right-3 h-px bg-[#EA580C]/40"
+                    className="absolute -bottom-1 left-2 sm:left-3 right-2 sm:right-3 h-px bg-lien/40"
                   />
                 )}
               </button>
 
               <button
                 onClick={() => setView("affect")}
-                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-colors relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "affect" ? "text-[#7BA7D7]" : "text-beige-faint hover:text-beige"}`}
+                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-colors relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "affect" ? "text-affect" : "text-beige-faint hover:text-beige"}`}
               >
                 <Waves className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span>Affect</span>
                 {view === "affect" && (
                   <motion.div
                     layoutId="nav-pill"
-                    className="absolute -bottom-1 left-2 sm:left-3 right-2 sm:right-3 h-px bg-[#7BA7D7]/40"
+                    className="absolute -bottom-1 left-2 sm:left-3 right-2 sm:right-3 h-px bg-affect/40"
                   />
                 )}
               </button>
@@ -1763,14 +1829,14 @@ export default function Carnet() {
 
               <button
                 onClick={() => setView("matrice")}
-                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-all relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "matrice" ? "text-[#8B5CF6]" : "text-beige-faint hover:text-beige"}`}
+                className={`flex items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-[14px] tracking-widest uppercase transition-all relative group px-1.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap shrink-0 ${view === "matrice" ? "text-matrice" : "text-beige-faint hover:text-beige"}`}
               >
                 <Fingerprint className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span>Matrice</span>
                 {view === "matrice" && (
                   <motion.div
                     layoutId="nav-pill"
-                    className="absolute -bottom-1 left-2 sm:left-3 right-2 sm:right-3 h-px bg-[#8B5CF6]/40"
+                    className="absolute -bottom-1 left-2 sm:left-3 right-2 sm:right-3 h-px bg-matrice/40"
                   />
                 )}
               </button>
@@ -1786,7 +1852,7 @@ export default function Carnet() {
               <PrismeIcon
                 rainbow={prismesCount > 0}
                 strokeWidth={1.5}
-                className={`w-5 h-5 transition-colors ${prismesCount > 0 ? "" : "text-white/10"}`}
+                className={`w-5 h-5 transition-colors ${prismesCount > 0 ? "" : "text-beige/10"}`}
               />
             </button>
 
@@ -1797,7 +1863,7 @@ export default function Carnet() {
             >
               <Sparkles
                 strokeWidth={1.5}
-                className={`w-5 h-5 transition-colors ${lueurs.length > 0 ? "text-white/40 group-hover:text-white/80" : "text-white/10"}`}
+                className={`w-5 h-5 transition-colors ${lueurs.length > 0 ? "text-beige/40 group-hover:text-beige/80" : "text-beige/10"}`}
               />
             </button>
 
@@ -1806,7 +1872,7 @@ export default function Carnet() {
               className="group flex flex-col items-center gap-2 transition-all"
               title="Faire un retour"
             >
-              <MessageCircle strokeWidth={1.5} className="w-5 h-5 text-white/10 group-hover:text-white/60 transition-all" />
+              <MessageCircle strokeWidth={1.5} className="w-5 h-5 text-beige/10 group-hover:text-beige/60 transition-all" />
             </button>
           </div>
         </div>
@@ -1872,7 +1938,7 @@ export default function Carnet() {
                     to="/chat"
                     className="font-mono text-[9px] tracking-widest uppercase transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-beige-faint hover:text-beige ring-1 ring-beige-faint/20 bg-white/[0.02]"
                   >
-                    <Brain size={10} strokeWidth={1.5} />
+                    <MessageCircle size={10} strokeWidth={1.5} />
                     <span>penser</span>
                   </Link>
                   <p className="italic text-beige-faint opacity-40 text-[14px]">
@@ -1957,7 +2023,7 @@ export default function Carnet() {
                             title="Copier le chemin"
                           >
                             {copiedSection === `card-${i}` ? (
-                              <Check className="w-2.5 h-2.5 text-green-400" />
+                              <Check className="w-2.5 h-2.5 text-green" />
                             ) : (
                               <Copy className="w-2.5 h-2.5 opacity-20 group-hover:opacity-100" />
                             )}
@@ -2090,7 +2156,7 @@ export default function Carnet() {
                              const ref = enrichFragments.reformulations[card.id];
                              if (!ref) return null;
                              const icon = ref === 'convergent' ? '→' : ref === 'divergent' ? '↗' : '+';
-                             return <div className="absolute right-3 top-3 text-white/20 text-[10px] font-mono pointer-events-none">{icon}</div>;
+                             return <div className="absolute right-3 top-3 text-beige/20 text-[10px] font-mono pointer-events-none">{icon}</div>;
                           })()}
                         </div>
                       </div>
@@ -2150,7 +2216,7 @@ export default function Carnet() {
                            <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10}>
                               <LineChart data={sessionsData.filter(s => s.step_reached !== undefined).map((s, idx) => ({ name: idx, step: s.step_reached }))} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                  <YAxis domain={[1, 5]} hide={true} />
-                                 <Line type="stepAfter" dataKey="step" stroke="#6ba368" strokeWidth={1} dot={false} isAnimationActive={false} />
+                                 <Line type="stepAfter" dataKey="step" stroke="var(--color-green)" strokeWidth={1} dot={false} isAnimationActive={false} />
                               </LineChart>
                            </ResponsiveContainer>
                         </div>
@@ -2181,13 +2247,13 @@ export default function Carnet() {
                    const prismeAverages = Object.entries(prismeStats)
                      .map(([prisme, stats]) => ({ prisme, avg: stats.totalStep / stats.count }));
                      
-                   if (prismeAverages.length < 2) return <div className="border-b border-white/5 pb-8 mb-8 text-center text-[11px] text-white/20 italic font-mono uppercase">Pas assez de diversité affective</div>;
+                   if (prismeAverages.length < 2) return <div className="border-b border-white/5 pb-8 mb-8 text-center text-[11px] text-beige/20 italic font-mono uppercase">Pas assez de diversité affective</div>;
                    prismeAverages.sort((a, b) => b.avg - a.avg);
                    
                    const highest = prismeAverages[0];
                    const lowest = prismeAverages[prismeAverages.length - 1];
                    
-                   if (highest.avg - lowest.avg < 0.5) return <div className="border-b border-white/5 pb-8 mb-8 text-center text-[11px] text-white/20 italic font-mono uppercase">Aucune corrélation nette détectée (écarts &lt; 0.5)</div>;
+                   if (highest.avg - lowest.avg < 0.5) return <div className="border-b border-white/5 pb-8 mb-8 text-center text-[11px] text-beige/20 italic font-mono uppercase">Aucune corrélation nette détectée (écarts &lt; 0.5)</div>;
                    
                    const article = (p: string) => {
                      const lower = p.toLowerCase();
@@ -2238,17 +2304,17 @@ export default function Carnet() {
                             sphereSeq[normSp] = 0;
                          }
                       }
-                      return foundSphere ? <div className="font-mono text-[7px] italic text-white/20">Quelque chose résiste au déplacement dans cette sphère.</div> : null;
+                      return foundSphere ? <div className="font-mono text-[7px] italic text-beige/20">Quelque chose résiste au déplacement dans cette sphère.</div> : null;
                    })();
 
                    const songesObs = (() => {
                       const missing = cards.filter(c => !c.user_note || c.user_note.trim() === '').length;
-                      return (missing / cards.length > 0.6) ? <div className="font-mono text-[7px] italic text-white/20">La plupart de vos fragments n'ont pas de Songe déposé. L'espace est là.</div> : null;
+                      return (missing / cards.length > 0.6) ? <div className="font-mono text-[7px] italic text-beige/20">La plupart de vos fragments n'ont pas de Songe déposé. L'espace est là.</div> : null;
                    })();
 
                    const prismesObs = (() => {
                       const missing = cards.filter(c => !c.prisme).length;
-                      return (missing / cards.length > 0.4) ? <div className="font-mono text-[7px] italic text-white/20">Certaines sessions n'ont pas laissé de signal émotionnel détectable. Ce qui est diffus ou défendu laisse moins de trace.</div> : null;
+                      return (missing / cards.length > 0.4) ? <div className="font-mono text-[7px] italic text-beige/20">Certaines sessions n'ont pas laissé de signal émotionnel détectable. Ce qui est diffus ou défendu laisse moins de trace.</div> : null;
                    })();
 
                    if (!depObs && !songesObs && !prismesObs) return null;
@@ -2329,13 +2395,13 @@ export default function Carnet() {
                                });
                              });
                              const sorted = Object.entries(wordCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
-                             if (sorted.length === 0) return <div className="text-[11px] text-white/20 italic font-mono uppercase">Pas encore assez de résonance</div>;
+                             if (sorted.length === 0) return <div className="text-[11px] text-beige/20 italic font-mono uppercase">Pas encore assez de résonance</div>;
                              const maxC = sorted[0][1];
                              return sorted.map(([w, c], idx) => {
                                  const size = Math.max(0.85, 0.85 + (c / maxC) * 1.5);
                                  const opacity = Math.max(0.3, (c / maxC));
                                  return (
-                                   <span key={idx} style={{ fontSize: `${size}rem`, opacity }} className="font-serif italic text-beige transition-all duration-500 hover:opacity-100 hover:text-white cursor-default">
+                                   <span key={idx} style={{ fontSize: `${size}rem`, opacity }} className="font-serif italic text-beige transition-all duration-500 hover:opacity-100 hover:text-beige cursor-default">
                                      {w}
                                    </span>
                                  )
@@ -2376,7 +2442,7 @@ export default function Carnet() {
                              openWords.forEach(o => { if(w.includes(o)) o2++; });
                           });
                           
-                          if (t1+o1+t2+o2 === 0) return <div className="text-[11px] text-white/20 italic font-mono uppercase text-center mt-4">Peu de mots de charge détectés</div>;
+                          if (t1+o1+t2+o2 === 0) return <div className="text-[11px] text-beige/20 italic font-mono uppercase text-center mt-4">Peu de mots de charge détectés</div>;
 
                           const tensionRatio1 = t1+o1 > 0 ? t1/(t1+o1) : 0.5;
                       const tensionRatio2 = t2+o2 > 0 ? t2/(t2+o2) : 0.5;
@@ -2393,8 +2459,8 @@ export default function Carnet() {
                            </div>
                            <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden flex relative">
                               <div className="absolute top-0 bottom-0 w-[1px] bg-white/20 z-10" style={{left: `${tensionRatio1*100}%`}} title="Tension initiale" />
-                              <motion.div initial={{width:0}} animate={{width:`${tensionRatio2*100}%`}} className="h-full bg-orange-500/80" transition={{duration:1}} />
-                              <motion.div initial={{width:0}} animate={{width:`${(1-tensionRatio2)*100}%`}} className="h-full bg-blue-400/80" transition={{duration:1}} />
+                              <motion.div initial={{width:0}} animate={{width:`${tensionRatio2*100}%`}} className="h-full bg-clay/80" transition={{duration:1}} />
+                              <motion.div initial={{width:0}} animate={{width:`${(1-tensionRatio2)*100}%`}} className="h-full bg-slate/80" transition={{duration:1}} />
                            </div>
                            <div className="font-serif italic text-[14px] text-beige-faint leading-relaxed">
                              Observation : {observation}
@@ -2512,7 +2578,7 @@ export default function Carnet() {
               <>
                 {/* Lien Graphique */}
                 <div className="mb-8 h-[220px] w-full max-w-sm mx-auto relative group flex flex-col items-center justify-center">
-                  <div className="absolute inset-0 bg-[#EA580C]/5 blur-2xl rounded-full -z-10 group-hover:bg-[#EA580C]/10 transition-colors" />
+                  <div className="absolute inset-0 bg-lien/5 blur-2xl rounded-full -z-10 group-hover:bg-lien/10 transition-colors" />
                   <ResponsiveContainer
                     width="100%"
                     height="100%"
@@ -2555,8 +2621,8 @@ export default function Carnet() {
                       <Radar
                         name="Lien"
                         dataKey="A"
-                        stroke="#EA580C"
-                        fill="#EA580C"
+                        stroke="var(--color-lien)"
+                        fill="var(--color-lien)"
                         fillOpacity={0.2}
                       />
                     </RadarChart>
@@ -2573,11 +2639,11 @@ export default function Carnet() {
                        return (
                          <div key={s} className="bg-[#1a1814]/30 border-dashed border border-white/10 p-6 rounded-lg flex flex-col h-full transition-all duration-500">
                            <div className="flex justify-between items-center mb-6">
-                             <h3 className="font-mono text-[11px] tracking-widest uppercase opacity-40 text-white/40">
+                             <h3 className="font-mono text-[11px] tracking-widest uppercase opacity-40 text-beige/40">
                                {s}
                              </h3>
                            </div>
-                           <div className="font-mono text-[7px] text-white/30">Cette sphère n'a pas encore été visitée.</div>
+                           <div className="font-mono text-[7px] text-beige/30">Cette sphère n'a pas encore été visitée.</div>
                          </div>
                        );
                     }
@@ -2689,7 +2755,7 @@ export default function Carnet() {
                 })()}
                 {unlockedBlocks.lien_structure ? (
                   <div className="py-12 border-t border-white/5 text-center mt-12">
-                    <div className="font-mono text-[8px] uppercase tracking-[0.5em] text-white/20 mb-4">
+                    <div className="font-mono text-[8px] uppercase tracking-[0.5em] text-beige/20 mb-4">
                       Structure Invisible
                     </div>
                     <p className="text-xl md:text-2xl font-serif italic text-beige leading-relaxed max-w-2xl mx-auto">
@@ -2713,7 +2779,7 @@ export default function Carnet() {
                            {unlockedBlocks.lien_texture && (
 
                          <>
-                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2 mb-8">
+                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-lien inline-flex items-center gap-2 mb-8">
                              <Network className="w-3 h-3" />
                              Texture & Dissociation
                            </div>
@@ -2744,9 +2810,9 @@ export default function Carnet() {
                                   maxPrismeSphere !== maxSongeSphere && 
                                   sphereSongesCount[maxPrismeSphere] < 20) {
                                   return (
-                                     <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-sm">
+                                     <div className="p-4 bg-clay/5 border border-clay/10 rounded-sm">
                                         <div className="font-serif italic text-[14px] text-beige-faint">
-                                          Observation : Déplacement de l'attention. Sédimentation affective focalisée sur la sphère <span className="text-white/80">{maxPrismeSphere}</span>, mais élaboration de fond orientée vers la sphère <span className="text-white/80">{maxSongeSphere}</span>.
+                                          Observation : Déplacement de l'attention. Sédimentation affective focalisée sur la sphère <span className="text-beige/80">{maxPrismeSphere}</span>, mais élaboration de fond orientée vers la sphère <span className="text-beige/80">{maxSongeSphere}</span>.
                                         </div>
                                      </div>
                                   );
@@ -2757,7 +2823,7 @@ export default function Carnet() {
                        )}
                        {!unlockedBlocks.lien_texture && isNextLocked('lien_texture', 'lien') && (
                          <div className="mb-8">
-                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2 mb-8">
+                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-lien inline-flex items-center gap-2 mb-8">
                              <Network className="w-3 h-3" />
                              Texture & Dissociation
                            </div>
@@ -2797,7 +2863,7 @@ export default function Carnet() {
                                
                                return (
                                  <div key={key} className="space-y-1">
-                                   <div className="font-mono text-[8px] uppercase text-[#EA580C]/50 tracking-widest">{key}</div>
+                                   <div className="font-mono text-[8px] uppercase text-lien/50 tracking-widest">{key}</div>
                                    <div className="font-serif italic text-beige-faint text-[12px] opacity-80 leading-snug">
                                      {obsT && <div>• {obsT}</div>}
                                      {obsM && <div>• {obsM}</div>}
@@ -2825,7 +2891,7 @@ export default function Carnet() {
                        {unlockedBlocks.lien_constellation && (
 
                          <>
-                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2 mb-8">
+                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-lien inline-flex items-center gap-2 mb-8">
                              <Orbit className="w-3 h-3" />
                              Constellation des Prismes
                            </div>
@@ -2833,12 +2899,14 @@ export default function Carnet() {
                               const validCards = cards.filter(c => c.prisme && c.sphere);
                               if (validCards.length < 5) return <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas assez de données sédimentées</div>;
 
-                              const SPHERES = [
-                              { id: 'familiale', label: 'Familiale', color: '#F59E0B', angle: 225 },
-                              { id: 'sociale', label: 'Sociale', color: '#8B5CF6', angle: 315 },
-                              { id: 'amoureuse', label: 'Amoureuse', color: '#F472B6', angle: 45 },
-                              { id: 'professionnelle', label: 'Professionnelle', color: '#94A3B8', angle: 135 }
-                            ];
+                              // Couleurs + libellés depuis la source unique (emotions.ts).
+                              // Seuls les angles (géométrie de la constellation) restent locaux.
+                              const SPHERES = ([
+                              { id: 'familiale', angle: 225 },
+                              { id: 'sociale', angle: 315 },
+                              { id: 'amoureuse', angle: 45 },
+                              { id: 'professionnelle', angle: 135 },
+                            ] as const).map((s) => ({ ...s, color: SPHERE_PALETTE[s.id].color, label: SPHERE_PALETTE[s.id].label }));
 
                             const EMOTION_LAYOUT: Record<string, {rOffset: number, aOffset: number}> = {
                               joie: { rOffset: -20, aOffset: -30 }, tristesse: { rOffset: 10, aOffset: -25 }, colere: { rOffset: -5, aOffset: -15 },
@@ -2849,11 +2917,8 @@ export default function Carnet() {
                               culpabilite: { rOffset: 20, aOffset: -50 }
                             };
 
-                            const EMOTION_COLORS: Record<string, string> = {
-                              joie:'#FACC15', tristesse:'#60A5FA', colere:'#F87171', peur:'#A78BFA', degout:'#A3E635', surprise:'#FB923C',
-                              confiance:'#34D399', anticipation:'#FDBA74', honte:'#C084FC', melancolie:'#93C5FD', envie:'#86EFAC',
-                              soulagement:'#6EE7B7', gratitude:'#FDE047', jalousie:'#BEF264', amour:'#F9A8D4', culpabilite:'#D8B4FE'
-                            };
+                            // EMOTION_COLORS supprimée : les couleurs viennent désormais
+                            // de la source unique (EMOTIONS[clé].color).
 
                             const grouped = validCards.reduce((acc, card) => {
                                const normSp = normalizeSphere(card.sphere);
@@ -2878,7 +2943,7 @@ export default function Carnet() {
                                const px = cx + r * Math.cos(a);
                                const py = cy + r * Math.sin(a);
                                const size = Math.max(3, Math.min(10, g.count * 1.5));
-                               const eCol = EMOTION_COLORS[g.prisme?.toLowerCase()] || '#ffffff';
+                               const eCol = EMOTIONS[g.prisme?.toLowerCase() as keyof typeof EMOTIONS]?.color || '#ffffff';
                                
                                points.push({ x: px, y: py, size, color: eCol, label: g.prisme, count: g.count });
                                lines.push({ x1: cx, y1: cy, x2: px, y2: py, color: sp.color });
@@ -2924,7 +2989,7 @@ export default function Carnet() {
                        )}
                        {!unlockedBlocks.lien_constellation && isNextLocked('lien_constellation', 'lien') && (
                          <div className="mt-4">
-                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] inline-flex items-center gap-2 mb-8">
+                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-lien inline-flex items-center gap-2 mb-8">
                              <Orbit className="w-3 h-3" />
                              Constellation des Prismes
                            </div>
@@ -2938,7 +3003,7 @@ export default function Carnet() {
                   {unlockedBlocks.lien_fragilite ? (
                     enrichLien && Object.keys(enrichLien).some(k => enrichLien[k] && enrichLien[k] !== "Aucun signal clair" && k !== "rythme") && (
                       <div className="pt-8 border-t border-white/5">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] mb-6 inline-flex items-center gap-2">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-lien mb-6 inline-flex items-center gap-2">
                           <Waves className="w-3 h-3" />
                           Points de fragilité & Ressources (Topographie)
                         </div>
@@ -2949,7 +3014,7 @@ export default function Carnet() {
                              if (!val || val === "Aucun signal clair") return null;
                              return (
                                <div key={i} className="space-y-2">
-                                 <div className="text-[9px] font-mono uppercase opacity-70" style={{ color: "#EA580C" }}>
+                                 <div className="text-[9px] font-mono uppercase opacity-70" style={{ color: "var(--color-lien)" }}>
                                    {s}
                                  </div>
                                  <div className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
@@ -2970,7 +3035,7 @@ export default function Carnet() {
                   {/* Climat de sphère — relogé depuis son ancienne fenêtre :
                       le climat collectif appartient à la lecture du Lien. */}
                   <div className="pt-8 border-t border-white/5">
-                    <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#EA580C] mb-6 inline-flex items-center gap-2">
+                    <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-lien mb-6 inline-flex items-center gap-2">
                       <Network className="w-3 h-3" />
                       Climat de sphère
                     </div>
@@ -2980,7 +3045,7 @@ export default function Carnet() {
                           {["Familiale", "Sociale", "Amoureuse", "Professionnelle"].map(
                             (sphere) => (
                               <div key={sphere} className="space-y-2">
-                                <div className="text-[9px] font-mono uppercase opacity-70 text-[#EA580C]">
+                                <div className="text-[9px] font-mono uppercase opacity-70 text-lien">
                                   {sphere}
                                 </div>
                                 <p className="text-[13px] font-serif italic text-beige-faint leading-relaxed">
@@ -2999,7 +3064,7 @@ export default function Carnet() {
                     ) : analysisErrors["network"] ? (
                       <AnalysisError onRetry={() => retryAnalysis("network")} />
                     ) : (
-                      <div className="py-10 text-center font-mono text-[11px] uppercase text-white/20 tracking-widest italic">
+                      <div className="py-10 text-center font-mono text-[11px] uppercase text-beige/20 tracking-widest italic">
                         Analyse du climat collectif en cours…
                       </div>
                     )}
@@ -3007,7 +3072,7 @@ export default function Carnet() {
                 </div>
               </>
             ) : (
-              <div className="text-center py-20 font-mono text-[11px] uppercase text-white/20 tracking-widest italic">
+              <div className="text-center py-20 font-mono text-[11px] uppercase text-beige/20 tracking-widest italic">
                 Mise en lien du vécu en cours…
               </div>
             )}
@@ -3042,10 +3107,10 @@ export default function Carnet() {
                               className={`px-3 py-1.5 rounded-sm border font-serif text-[15px] italic
                                ${
                                  key === "active"
-                                   ? "border-yellow-400/20 bg-yellow-400/5 text-yellow-400"
+                                   ? "border-evolution/20 bg-evolution/5 text-evolution"
                                    : key === "inhibe"
-                                     ? "border-blue-400/20 bg-blue-400/5 text-blue-400"
-                                     : "border-purple-400/20 bg-purple-400/5 text-purple-400"
+                                     ? "border-slate/20 bg-slate/5 text-slate"
+                                     : "border-green/20 bg-green/5 text-green"
                                }`}
                             >
                               {a}
@@ -3064,7 +3129,7 @@ export default function Carnet() {
                 )}
 
                 <div className="py-12 border-t border-white/5 mt-12">
-                  <div className="font-mono text-[8px] uppercase tracking-widest text-white/20 mb-4 italic">
+                  <div className="font-mono text-[8px] uppercase tracking-widest text-beige/20 mb-4 italic">
                     Texture affective de la semaine
                   </div>
                   <p className="text-lg font-serif italic text-beige-faint leading-relaxed">
@@ -3074,11 +3139,11 @@ export default function Carnet() {
                   {unlockedBlocks.affect_lecture ? (
                     affectData.lecture_croisee_affect_prismes && affectData.lecture_croisee_affect_prismes.length > 0 && (
                        <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
-                          <div className="font-mono text-[8px] uppercase tracking-widest text-[#7BA7D7]/50 mb-4 inline-flex items-center gap-2">
+                          <div className="font-mono text-[8px] uppercase tracking-widest text-affect/50 mb-4 inline-flex items-center gap-2">
                              Lecture croisée Affects / Prismes
                           </div>
                           {affectData.lecture_croisee_affect_prismes.map((obs: string, idx: number) => (
-                             <div key={idx} className="font-serif italic text-[14px] text-beige-faint opacity-80 leading-relaxed border-l border-[#7BA7D7]/20 pl-4">
+                             <div key={idx} className="font-serif italic text-[14px] text-beige-faint opacity-80 leading-relaxed border-l border-affect/20 pl-4">
                                 Observation : {obs}
                              </div>
                           ))}
@@ -3095,7 +3160,7 @@ export default function Carnet() {
                   <div className="flex flex-col md:flex-row gap-12">
                      {/* HEATMAP TEMPORELLE & RYTHME */}
                      <div className="flex-1 space-y-6">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] inline-flex items-center gap-2">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-affect inline-flex items-center gap-2">
                            <Zap className="w-3 h-3" />
                            Rythme de sédimentation
                         </div>
@@ -3104,13 +3169,13 @@ export default function Carnet() {
                           <div className="flex">
                             <div className="flex flex-col gap-2 mr-4 mt-6">
                               {["Matin", "Midi", "Aprem", "Soir", "Nuit"].map(t => (
-                                 <div key={t} className="h-4 flex items-center font-mono text-[7px] uppercase tracking-widest text-[#7BA7D7]/50">{t}</div>
+                                 <div key={t} className="h-4 flex items-center font-mono text-[7px] uppercase tracking-widest text-affect/50">{t}</div>
                               ))}
                             </div>
                             <div className="flex flex-1 gap-1">
                               {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d, dIdx) => (
                                 <div key={d} className="flex-1 flex flex-col gap-1">
-                                   <div className="font-mono text-[7px] text-center uppercase tracking-widest text-[#7BA7D7]/60 mb-2">{d}</div>
+                                   <div className="font-mono text-[7px] text-center uppercase tracking-widest text-affect/60 mb-2">{d}</div>
                                    {["Matin", "Midi", "Aprem", "Soir", "Nuit"].map((t, tIdx) => {
                                       const count = cards.filter(c => {
                                          if(!c.date) return false;
@@ -3130,7 +3195,7 @@ export default function Carnet() {
                                       return (
                                         <div 
                                           key={tIdx} 
-                                          className="h-4 rounded-sm w-full transition-all hover:ring-1 ring-[#7BA7D7]/50"
+                                          className="h-4 rounded-sm w-full transition-all hover:ring-1 ring-affect/50"
                                           style={{ backgroundColor: `rgba(123, 167, 215, ${alpha})` }}
                                           title={`${count} fragment(s)`}
                                         />
@@ -3153,7 +3218,7 @@ export default function Carnet() {
                      {(unlockedBlocks.affect_luminescence || isNextLocked('affect_luminescence', 'affect')) && (
                      <div className="flex-1 space-y-6 flex flex-col md:border-l border-white/5 md:pl-12">
                         {unlockedBlocks.affect_luminescence && (
-                          <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#7BA7D7] inline-flex items-center gap-2 mb-4">
+                          <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-affect inline-flex items-center gap-2 mb-4">
                              <Waves className="w-3 h-3" />
                              Luminescence Émotionnelle (Évolution)
                           </div>
@@ -3188,16 +3253,16 @@ export default function Carnet() {
                                    }
                                 });
                                 const chartData = Object.values(weeks);
-                                if (chartData.length === 0) return <div className="text-[11px] text-white/20 italic font-mono uppercase">Pas encore de données</div>;
+                                if (chartData.length === 0) return <div className="text-[11px] text-beige/20 italic font-mono uppercase">Pas encore de données</div>;
                                 
                                 return (
                                    <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10}>
                                      <LineChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 20 }}>
                                        <XAxis dataKey="name" stroke="#ffffff20" fontSize={10} tickLine={false} axisLine={false} />
                                        <Tooltip contentStyle={{backgroundColor:'#151515', borderColor:'#ffffff10', fontSize:'11px'}} itemStyle={{fontFamily:'monospace', fontSize:'10px'}} />
-                                       <Line type="monotone" name="Moteurs" dataKey="moteurs" stroke="#FACC15" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
-                                       <Line type="monotone" name="Inhibiteurs" dataKey="inhibiteurs" stroke="#60A5FA" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
-                                       <Line type="monotone" name="Émergents" dataKey="emergents" stroke="#FB923C" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
+                                       <Line type="monotone" name="Moteurs" dataKey="moteurs" stroke="var(--color-ember)" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
+                                       <Line type="monotone" name="Inhibiteurs" dataKey="inhibiteurs" stroke="var(--color-slate)" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
+                                       <Line type="monotone" name="Émergents" dataKey="emergents" stroke="var(--color-green)" strokeWidth={2} dot={{r:2, fill:'#151515'}} />
                                      </LineChart>
                                    </ResponsiveContainer>
                                 )
@@ -3236,7 +3301,7 @@ export default function Carnet() {
             ) : analysisErrors["affect"] ? (
               <AnalysisError onRetry={() => retryAnalysis("affect")} />
             ) : (
-              <div className="text-center py-20 font-mono text-[11px] uppercase text-white/20 tracking-widest italic">
+              <div className="text-center py-20 font-mono text-[11px] uppercase text-beige/20 tracking-widest italic">
                 Analyse des affects en cours…
               </div>
             )}
@@ -3253,7 +3318,7 @@ export default function Carnet() {
               <div className="space-y-12">
                 <div className="space-y-4 text-center">
                   {unlockedBlocks.elan_mouvement && (
-                    <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/20 mb-4">
+                    <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-beige/20 mb-4">
                       Mouvement
                     </div>
                   )}
@@ -3270,7 +3335,7 @@ export default function Carnet() {
 
                 <div className="space-y-4 text-center">
                   {unlockedBlocks.elan_direction && (
-                    <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/20 mb-4">
+                    <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-beige/20 mb-4">
                       Direction
                     </div>
                   )}
@@ -3290,7 +3355,7 @@ export default function Carnet() {
                     </div>
                   )}
                   {unlockedBlocks.elan_question ? (
-                    <p className="text-xl font-serif italic text-white leading-relaxed">
+                    <p className="text-xl font-serif italic text-beige leading-relaxed">
                       "{elanDataAnalysis.question}"
                     </p>
                   ) : isNextLocked('elan_question', 'elan') && (
@@ -3330,7 +3395,7 @@ export default function Carnet() {
 
                                   if (matches >= 2) {
                                       return (
-                                         <div className="font-serif italic text-[#EA580C] opacity-80 text-[13px]">
+                                         <div className="font-serif italic text-lien opacity-80 text-[13px]">
                                            Observation : La personne savait avant de savoir. Les mouvements de direction étaient déjà murmurés dans les songes.
                                          </div>
                                       );
@@ -3367,7 +3432,7 @@ export default function Carnet() {
                                   
                                   if (sansSuiteCount >= 3) {
                                      return (
-                                        <div className="font-serif italic text-white/50 text-[13px] mt-4 pt-4 border-t border-white/5 leading-relaxed">
+                                        <div className="font-serif italic text-beige/50 text-[13px] mt-4 pt-4 border-t border-white/5 leading-relaxed">
                                           Observation : Certaines directions formulées ici ne semblent pas avoir trouvé de suite. Ce qui peut être pensé et ce qui peut être agi ne coïncident pas toujours.
                                         </div>
                                      );
@@ -3424,8 +3489,8 @@ export default function Carnet() {
                                     </div>
                                     {obs && (
                                       <div className="p-4 bg-white/[0.02] border border-white/5 rounded-sm">
-                                        <div className="text-[10px] font-mono uppercase text-white/40 mb-1">Polarité dominante</div>
-                                        <div className="font-serif italic text-white/80">{obs}</div>
+                                        <div className="text-[10px] font-mono uppercase text-beige/40 mb-1">Polarité dominante</div>
+                                        <div className="font-serif italic text-beige/80">{obs}</div>
                                       </div>
                                     )}
                                  </div>
@@ -3438,7 +3503,7 @@ export default function Carnet() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-20 font-mono text-[11px] uppercase text-white/20 tracking-widest italic">
+              <div className="text-center py-20 font-mono text-[11px] uppercase text-beige/20 tracking-widest italic">
                 Trajectoire en cours d'évaluation…
               </div>
             )}
@@ -3499,8 +3564,8 @@ export default function Carnet() {
                           <Radar
                             name="Angoisses"
                             dataKey="A"
-                            stroke="#f87171"
-                            fill="#f87171"
+                            stroke="var(--color-red)"
+                            fill="var(--color-red)"
                             fillOpacity={0.15}
                           />
                         </RadarChart>
@@ -3515,7 +3580,7 @@ export default function Carnet() {
                               <span className="font-serif text-[15px] text-beige italic">
                                 {a.label}
                               </span>
-                              <span className="font-mono text-[8px] text-white/20">
+                              <span className="font-mono text-[8px] text-beige/20">
                                 {a.intensite}%
                               </span>
                             </div>
@@ -3523,7 +3588,7 @@ export default function Carnet() {
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${a.intensite}%` }}
-                                className="h-full bg-red-400/30"
+                                className="h-full bg-red/30"
                               />
                             </div>
                             <div className="mt-2 flex flex-wrap gap-2 mb-2">
@@ -3574,11 +3639,11 @@ export default function Carnet() {
                   <div className="flex justify-center items-center gap-8 mb-8">
                     <button
                       onClick={() => setIsEclatModalOpen(true)}
-                      className="flex items-center gap-2 py-2 px-6 bg-yellow-400/5 hover:bg-yellow-400/10 border border-yellow-400/20 text-yellow-500/80 hover:text-yellow-400 font-mono text-[9px] tracking-[0.3em] uppercase rounded-full transition-all"
+                      className="flex items-center gap-2 py-2 px-6 bg-evolution/5 hover:bg-evolution/10 border border-evolution/20 text-evolution/80 hover:text-evolution font-mono text-[9px] tracking-[0.3em] uppercase rounded-full transition-all"
                     >
-                      <CollegueMark size={26} className="animate-pulse text-red-500" />
+                      <CollegueMark size={26} className="animate-pulse text-red" />
                       <div className="flex flex-col items-center gap-0.5">
-                        <span className="font-mono text-[9px] tracking-[0.3em] uppercase text-yellow-400">
+                        <span className="font-mono text-[9px] tracking-[0.3em] uppercase text-evolution">
                           Invoquer un Éclat
                         </span>
                         <span className="font-serif text-[7px] lowercase italic opacity-40 text-beige-faint">
@@ -3595,7 +3660,7 @@ export default function Carnet() {
                       <span>PDF</span>
                     </button>
                   </div>
-                  <div className="font-mono text-[8px] uppercase tracking-[0.3em] text-[#8B5CF6]/80 mb-6 italic">
+                  <div className="font-mono text-[8px] uppercase tracking-[0.3em] text-matrice/80 mb-6 italic">
                     Schéma Central
                   </div>
                   <p className="text-xl md:text-2xl font-serif italic text-beige leading-relaxed max-w-2xl mx-auto">
@@ -3624,7 +3689,7 @@ export default function Carnet() {
                         </div>
                         <div className="space-y-3">
                           <div>
-                            <div className="font-mono text-[7px] uppercase text-white/20 mb-1">
+                            <div className="font-mono text-[7px] uppercase text-beige/20 mb-1">
                               Déclencheur
                             </div>
                             <div className="text-[13px] text-beige-faint leading-relaxed">
@@ -3632,7 +3697,7 @@ export default function Carnet() {
                             </div>
                           </div>
                           <div>
-                            <div className="font-mono text-[7px] uppercase text-white/20 mb-1">
+                            <div className="font-mono text-[7px] uppercase text-beige/20 mb-1">
                               Direction
                             </div>
                             <div className="text-[13px] text-beige-faint leading-relaxed italic">
@@ -3655,16 +3720,16 @@ export default function Carnet() {
                       {lueurs.map((lueur, i) => (
                         <div key={i} className="flex flex-col gap-6">
                           <LueurVisual context={lueur.context} />
-                          <div className="bg-yellow-400/5 border border-yellow-400/20 p-6 rounded-lg text-center relative overflow-hidden group">
-                            <div className="absolute inset-0 bg-yellow-400/10 blur-3xl -z-10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <Sparkles className="w-5 h-5 text-yellow-400 mx-auto mb-4 opacity-50" />
-                            <div className="font-serif text-lg text-yellow-400 italic mb-2">
+                          <div className="bg-evolution/5 border border-evolution/20 p-6 rounded-lg text-center relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-evolution/10 blur-3xl -z-10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <Sparkles className="w-5 h-5 text-evolution mx-auto mb-4 opacity-50" />
+                            <div className="font-serif text-lg text-evolution italic mb-2">
                               {lueur.title}
                             </div>
                             <p className="text-xs text-beige-faint leading-relaxed">
                               {lueur.text}
                             </p>
-                            <div className="mt-4 font-mono text-[7px] uppercase tracking-widest text-white/10">
+                            <div className="mt-4 font-mono text-[7px] uppercase tracking-widest text-beige/10">
                               {new Date(lueur.date).toLocaleDateString(
                                 "fr-FR",
                                 { month: "long", year: "numeric" },
@@ -3679,7 +3744,7 @@ export default function Carnet() {
 
                 {/* Visualiser Matrice Button */}
                 <div className="pt-20 text-center">
-                  <p className="font-mono text-[7px] text-white/20 uppercase tracking-widest italic mb-4">
+                  <p className="font-mono text-[7px] text-beige/20 uppercase tracking-widest italic mb-4">
                     Structure cristallisée · Prête pour l'Eclat
                   </p>
                 </div>
@@ -3688,7 +3753,7 @@ export default function Carnet() {
                   <div className="grid md:grid-cols-2 gap-12">
                     {/* EVOLUTION & VALIDATION SONGES */}
                     <div className="space-y-6">
-                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#8B5CF6] inline-flex items-center gap-2">
+                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-matrice inline-flex items-center gap-2">
                           <Fingerprint className="w-3 h-3" />
                           Évolution du fond
                        </div>
@@ -3702,7 +3767,7 @@ export default function Carnet() {
                             
                             {unlockedBlocks.matrice_validation_songes ? (
                               enrichMatrice.validation_songes && (
-                                <div className="text-[11px] font-serif italic text-white/50 border-l border-[#8B5CF6]/30 pl-3">
+                                <div className="text-[11px] font-serif italic text-beige/50 border-l border-matrice/30 pl-3">
                                   {enrichMatrice.validation_songes}
                                 </div>
                               )
@@ -3719,8 +3784,8 @@ export default function Carnet() {
                     
                     {/* STRUCTURE DU MOUVEMENT COGNITIF */}
                     <div className="space-y-6 md:border-l border-white/5 md:pl-12">
-                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#8B5CF6] inline-flex items-center gap-2">
-                          <Brain className="w-3 h-3" />
+                       <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-matrice inline-flex items-center gap-2">
+                          <MessageCircle className="w-3 h-3" />
                           Mouvement Cognitif
                        </div>
                        {(() => {
@@ -3771,7 +3836,7 @@ export default function Carnet() {
                                 </div>
                                 {enrichMatrice && enrichMatrice.mouvement_cognitif && (
                                    <div className="p-4 bg-white/[0.02] border border-white/5 rounded-sm">
-                                      <div className="text-[10px] font-mono uppercase text-white/40 mb-1">Dynamique formelle</div>
+                                      <div className="text-[10px] font-mono uppercase text-beige/40 mb-1">Dynamique formelle</div>
                                       <div className="font-serif italic text-beige-faint/80 text-[12px]">{enrichMatrice.mouvement_cognitif}</div>
                                    </div>
                                 )}
@@ -3784,7 +3849,7 @@ export default function Carnet() {
               </>
             ) : (
               <div className="text-center py-20">
-                <p className="font-mono text-[11px] uppercase text-white/20 tracking-widest">
+                <p className="font-mono text-[11px] uppercase text-beige/20 tracking-widest">
                   Calcul de la structure en cours…
                 </p>
               </div>
@@ -3815,7 +3880,7 @@ export default function Carnet() {
             >
               <div
                 className="absolute top-0 inset-x-0 h-1 opacity-60"
-                style={{ background: "linear-gradient(90deg, #E8554E, #F2994A, #F2D94E, #6BBF59, #4A90D9, #9B59B6)" }}
+                style={{ background: "linear-gradient(90deg, var(--color-heart), var(--color-clay), var(--color-ember), var(--color-green), var(--color-slate), var(--color-plum))" }}
               />
               <button
                 onClick={() => {
@@ -3831,16 +3896,16 @@ export default function Carnet() {
                 <div className="font-mono text-[9px] uppercase tracking-[0.4em] text-beige-faint mb-2">
                   Prismes Collectés
                 </div>
-                <div className="text-3xl font-serif text-white">
+                <div className="text-3xl font-serif text-beige">
                   {prismesCount}
-                  <span className="text-white/20">/10</span>
+                  <span className="text-beige/20">/{Object.keys(EMOTIONS).length}</span>
                 </div>
                 <p className="text-[11px] text-beige-faint/70 italic leading-relaxed mt-2 max-w-sm mx-auto md:mx-0">
                   Une lentille qui décompose ce que tu traverses pour le rendre lisible.
                 </p>
               </div>
 
-              <div className="grid grid-cols-5 gap-3 mb-8">
+              <div className="grid grid-cols-4 gap-3 mb-8">
                 {Object.entries(EMOTIONS).map(([key, em]) => {
                   const foundCount = cards.filter((c) => prismeKey(c.prisme) === key).length;
                   const isFound = foundCount > 0;
@@ -3860,7 +3925,7 @@ export default function Carnet() {
                         title={isFound ? em.label : "Prisme non découvert"}
                       >
                         {isFound && foundCount >= 2 && (
-                          <div className="absolute -top-1 -right-1 bg-white/10 text-white/70 text-[6px] font-mono w-3 h-3 rounded-full flex items-center justify-center border border-white/20">
+                          <div className="absolute -top-1 -right-1 bg-white/10 text-beige/70 text-[6px] font-mono w-3 h-3 rounded-full flex items-center justify-center border border-white/20">
                             {foundCount}
                           </div>
                         )}
@@ -3868,11 +3933,11 @@ export default function Carnet() {
                           rainbow={false}
                           color={isFound ? em.color : undefined}
                           strokeWidth={1.5}
-                          className={`w-8 h-8 ${isFound ? "" : "text-white/10"}`}
+                          className={`w-8 h-8 ${isFound ? "" : "text-beige/10"}`}
                         />
                       </button>
                       {isFound && (
-                        <span className="font-mono text-[6px] uppercase tracking-tighter text-white/20 text-center truncate w-full">
+                        <span className="font-mono text-[6px] uppercase tracking-tighter text-beige/20 text-center truncate w-full">
                           {em.label.split(" ")[0]}
                         </span>
                       )}
@@ -3883,7 +3948,7 @@ export default function Carnet() {
 
               {cards.length >= 15 && Object.keys(EMOTIONS).some(key => cards.filter((c) => prismeKey(c.prisme) === key).length === 0) && (
                 <div className="text-center mb-8">
-                   <p className="font-mono text-[7px] italic text-white/20">
+                   <p className="font-mono text-[7px] italic text-beige/20">
                      Certains signaux n'ont pas encore émergé. Ils peuvent être absents — ou chercher leur forme.
                    </p>
                 </div>
@@ -3927,7 +3992,7 @@ export default function Carnet() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-2xl p-10 shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
             >
-              <div className="absolute top-0 inset-x-0 h-1 bg-[#f59e0b]/40" />
+              <div className="absolute top-0 inset-x-0 h-1 bg-evolution/40" />
               <button
                 onClick={() => setIsLueursModalOpen(false)}
                 className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors"
@@ -3939,9 +4004,9 @@ export default function Carnet() {
                 <div className="flex items-center gap-3 mb-2">
                   <Sparkles
                     strokeWidth={1.5}
-                    className="w-5 h-5 text-[#f59e0b]/40 shrink-0"
+                    className="w-5 h-5 text-evolution/40 shrink-0"
                   />
-                  <div className="font-mono text-[9px] uppercase tracking-[0.4em] text-[#f59e0b]/40">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.4em] text-evolution/40">
                     Lueurs &amp; Éclats
                   </div>
                 </div>
@@ -3959,24 +4024,24 @@ export default function Carnet() {
                         onClick={() => setReadingLueur(lueur)}
                         className="w-full text-left p-5 bg-white/5 hover:bg-white/[0.07] border border-white/10 rounded-lg transition-colors group"
                       >
-                        <div className="font-mono text-[8px] uppercase tracking-widest text-white/40 mb-3 flex items-center justify-between gap-2">
+                        <div className="font-mono text-[8px] uppercase tracking-widest text-beige/40 mb-3 flex items-center justify-between gap-2">
                           <span className="flex items-center gap-2">
-                            <Sparkles className="w-3 h-3 text-white/20" />
+                            <Sparkles className="w-3 h-3 text-beige/20" />
                             <span>{i === 0 ? "Dernière lueur" : "Lueur"}</span>
                           </span>
                           {lueur.date && (
-                            <span className="text-white/25 tracking-wider">
+                            <span className="text-beige/25 tracking-wider">
                               {new Date(lueur.date).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })}
                             </span>
                           )}
                         </div>
-                        <div className="font-serif text-base text-white/90 italic mb-1.5">
+                        <div className="font-serif text-base text-beige/90 italic mb-1.5">
                           {lueur.title}
                         </div>
-                        <p className="text-[13px] font-serif text-white/70 leading-relaxed line-clamp-3">
+                        <p className="text-[13px] font-serif text-beige/70 leading-relaxed line-clamp-3">
                           {lueur.text}
                         </p>
-                        <div className="mt-3 font-mono text-[7px] uppercase tracking-[0.25em] text-white/30 group-hover:text-white/50 transition-colors">
+                        <div className="mt-3 font-mono text-[7px] uppercase tracking-[0.25em] text-beige/30 group-hover:text-beige/50 transition-colors">
                           Lire en entier →
                         </div>
                       </button>
@@ -4001,21 +4066,21 @@ export default function Carnet() {
                         onClick={() => setReadingEclat(e)}
                         className="w-full text-left p-5 bg-white/5 hover:bg-white/[0.07] border border-white/10 rounded-lg transition-colors group"
                       >
-                        <div className="font-mono text-[8px] uppercase tracking-widest text-white/40 mb-3 flex items-center justify-between gap-2">
+                        <div className="font-mono text-[8px] uppercase tracking-widest text-beige/40 mb-3 flex items-center justify-between gap-2">
                           <span className="flex items-center gap-2">
-                            <CollegueMark className="w-6 h-6 text-red-500/70" />
+                            <CollegueMark className="w-6 h-6 text-red/70" />
                             <span>{i === 0 ? "Dernier Éclat" : "Éclat"}</span>
                           </span>
                           {e.answered_at && (
-                            <span className="text-white/25 tracking-wider">
+                            <span className="text-beige/25 tracking-wider">
                               {new Date(e.answered_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
                             </span>
                           )}
                         </div>
-                        <p className="text-[13px] font-serif italic text-white/80 leading-relaxed line-clamp-3">
+                        <p className="text-[13px] font-serif italic text-beige/80 leading-relaxed line-clamp-3">
                           "{e.response_text}"
                         </p>
-                        <div className="mt-3 font-mono text-[7px] uppercase tracking-[0.25em] text-white/30 group-hover:text-white/50 transition-colors">
+                        <div className="mt-3 font-mono text-[7px] uppercase tracking-[0.25em] text-beige/30 group-hover:text-beige/50 transition-colors">
                           Lire en entier →
                         </div>
                       </button>
@@ -4025,11 +4090,11 @@ export default function Carnet() {
                   <div className="text-center">
                     <button
                       onClick={() => setIsEclatModalOpen(true)}
-                      className="w-full py-3 bg-white/[0.02] hover:bg-white/5 border border-white/5 text-white/40 hover:text-white/60 font-mono text-[8px] tracking-[0.3em] uppercase rounded-full transition-all disabled:opacity-20"
+                      className="w-full py-3 bg-white/[0.02] hover:bg-white/5 border border-white/5 text-beige/40 hover:text-beige/60 font-mono text-[8px] tracking-[0.3em] uppercase rounded-full transition-all disabled:opacity-20"
                     >
                       Invoquer un Éclat
                     </button>
-                    <div className="mt-3 font-mono text-[6px] text-white/20 uppercase tracking-[0.2em] italic text-center">
+                    <div className="mt-3 font-mono text-[6px] text-beige/20 uppercase tracking-[0.2em] italic text-center">
                       Métabolisation d'une demande par l'expérience humaine
                     </div>
                   </div>
@@ -4052,9 +4117,9 @@ export default function Carnet() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-lg bg-[#0a0a0a] border border-yellow-400/20 rounded-2xl p-10 shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-[#0a0a0a] border border-evolution/20 rounded-2xl p-10 shadow-2xl overflow-hidden"
             >
-              <div className="absolute top-0 inset-x-0 h-1 bg-red-500/50" />
+              <div className="absolute top-0 inset-x-0 h-1 bg-red/50" />
               <button
                 onClick={() => setIsEclatModalOpen(false)}
                 className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors"
@@ -4063,8 +4128,8 @@ export default function Carnet() {
               </button>
 
               <div className="text-center mb-8">
-                <CollegueMark className="w-14 h-14 text-red-500 mx-auto mb-4" />
-                <h3 className="text-xl font-serif text-white mb-2 italic">
+                <CollegueMark className="w-14 h-14 text-red mx-auto mb-4" />
+                <h3 className="text-xl font-serif text-beige mb-2 italic">
                   L'Éclat
                 </h3>
                 <p className="text-xs text-beige-faint/60 leading-relaxed max-w-sm mx-auto italic mt-4">
@@ -4077,9 +4142,9 @@ export default function Carnet() {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-green-400/5 border border-green-400/20 p-8 rounded-lg text-center"
+                  className="bg-green/5 border border-green/20 p-8 rounded-lg text-center"
                 >
-                  <Check className="w-10 h-10 text-green-400 mx-auto mb-4" />
+                  <Check className="w-10 h-10 text-green mx-auto mb-4" />
                   <p className="text-sm text-beige font-serif italic mb-4">
                     Votre demande a été transmise pour métabolisation humaine.
                   </p>
@@ -4090,7 +4155,7 @@ export default function Carnet() {
                   </p>
                   <button
                     onClick={() => setIsEclatModalOpen(false)}
-                    className="mt-8 px-6 py-2 border border-white/10 hover:border-white/20 text-white/40 hover:text-white/60 font-mono text-[8px] uppercase tracking-widest rounded-full transition-all"
+                    className="mt-8 px-6 py-2 border border-white/10 hover:border-white/20 text-beige/40 hover:text-beige/60 font-mono text-[8px] uppercase tracking-widest rounded-full transition-all"
                   >
                     Fermer
                   </button>
@@ -4099,7 +4164,7 @@ export default function Carnet() {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-red-400/5 border border-red-400/20 p-8 rounded-lg text-center"
+                  className="bg-red/5 border border-red/20 p-8 rounded-lg text-center"
                 >
                   <p className="text-sm text-beige font-serif italic mb-4">
                     Votre demande n'a pas pu être transmise.
@@ -4111,7 +4176,7 @@ export default function Carnet() {
                   </p>
                   <button
                     onClick={() => setEclatStatus("idle")}
-                    className="mt-8 px-6 py-2 border border-white/10 hover:border-white/20 text-white/40 hover:text-white/60 font-mono text-[8px] uppercase tracking-widest rounded-full transition-all"
+                    className="mt-8 px-6 py-2 border border-white/10 hover:border-white/20 text-beige/40 hover:text-beige/60 font-mono text-[8px] uppercase tracking-widest rounded-full transition-all"
                   >
                     Réessayer
                   </button>
@@ -4119,21 +4184,21 @@ export default function Carnet() {
               ) : (
                 <div className="space-y-6">
                   <div className="space-y-3">
-                    <label className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/30 ml-1">
+                    <label className="font-mono text-[9px] uppercase tracking-[0.2em] text-beige/30 ml-1">
                       Votre question ou situation actuelle
                     </label>
                     <textarea
                       value={eclatRequest}
                       onChange={(e) => setEclatRequest(e.target.value)}
                       placeholder="Formulez votre demande ici…"
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-sm text-beige italic focus:border-yellow-400/40 outline-none transition-colors h-40 resize-none custom-scrollbar"
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-sm text-beige italic focus:border-evolution/40 outline-none transition-colors h-40 resize-none custom-scrollbar"
                     />
                   </div>
 
                   <button
                     onClick={handleEclatSubmit}
                     disabled={!eclatRequest.trim() || eclatStatus === "sending"}
-                    className="w-full py-4 bg-yellow-400 text-black font-mono text-[11px] tracking-[0.4em] uppercase rounded-xl hover:bg-yellow-300 transition-all font-bold disabled:opacity-20"
+                    className="w-full py-4 bg-evolution text-black font-mono text-[11px] tracking-[0.4em] uppercase rounded-xl hover:bg-evolution transition-all font-bold disabled:opacity-20"
                   >
                     {eclatStatus === "sending"
                       ? "Transmission…"
@@ -4145,10 +4210,10 @@ export default function Carnet() {
                     <PaymentWrapper
                       paypalUrl="https://www.paypal.com/donate/?business=REDACTED&item_name=Eclat+du+Coll%C3%A8gue&currency_code=EUR"
                       title="Soutien"
-                      color="text-yellow-400"
+                      color="text-evolution"
                       className="group inline-flex"
                     >
-                      <div className="flex items-center gap-1.5 text-white/25 group-hover:text-yellow-400/70 transition-colors">
+                      <div className="flex items-center gap-1.5 text-beige/25 group-hover:text-evolution/70 transition-colors">
                         <Heart className="w-3 h-3" />
                         <span className="font-mono text-[8px] uppercase tracking-[0.25em]">
                           Soutenir
@@ -4177,9 +4242,9 @@ export default function Carnet() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-[#0a0a0a] border border-yellow-400/20 rounded-2xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-[#0a0a0a] border border-evolution/20 rounded-2xl shadow-2xl overflow-hidden"
             >
-              <div className="absolute top-0 inset-x-0 h-1 bg-red-500/50" />
+              <div className="absolute top-0 inset-x-0 h-1 bg-red/50" />
               <button
                 onClick={() => setReadingEclat(null)}
                 className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors z-10"
@@ -4188,12 +4253,12 @@ export default function Carnet() {
               </button>
               <div className="px-10 pt-10 pb-5 flex-shrink-0">
                 <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.3em] text-yellow-400/50">
-                    <CollegueMark className="w-7 h-7 text-red-500/70" />
+                  <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.3em] text-evolution/50">
+                    <CollegueMark className="w-7 h-7 text-red/70" />
                     <span>L'Éclat</span>
                   </div>
                   {readingEclat.answered_at && (
-                    <span className="font-mono text-[9px] tracking-wider text-white/30">
+                    <span className="font-mono text-[9px] tracking-wider text-beige/30">
                       {new Date(readingEclat.answered_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
                     </span>
                   )}
@@ -4202,15 +4267,15 @@ export default function Carnet() {
               <div className="px-10 pb-10 overflow-y-auto custom-scrollbar">
                 {readingEclat.request_text && (
                   <div className="mb-6 pb-6 border-b border-white/5">
-                    <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-white/25 mb-2">
+                    <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-beige/25 mb-2">
                       Votre demande
                     </div>
-                    <p className="text-[12px] font-serif italic text-white/45 leading-relaxed whitespace-pre-wrap">
+                    <p className="text-[12px] font-serif italic text-beige/45 leading-relaxed whitespace-pre-wrap">
                       "{readingEclat.request_text}"
                     </p>
                   </div>
                 )}
-                <p className="text-[15px] font-serif italic text-white/85 leading-loose whitespace-pre-wrap">
+                <p className="text-[15px] font-serif italic text-beige/85 leading-loose whitespace-pre-wrap">
                   {readingEclat.response_text}
                 </p>
 
@@ -4227,7 +4292,7 @@ export default function Carnet() {
                             key={i}
                             className="p-4 rounded-lg bg-white/[0.03] border border-white/5"
                           >
-                            <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-white/25 mb-2">
+                            <div className="font-mono text-[7px] uppercase tracking-[0.25em] text-beige/25 mb-2">
                               Votre réponse
                               {r.at
                                 ? " · " +
@@ -4237,7 +4302,7 @@ export default function Carnet() {
                                   })
                                 : ""}
                             </div>
-                            <p className="text-[13px] font-serif text-white/70 leading-relaxed whitespace-pre-wrap">
+                            <p className="text-[13px] font-serif text-beige/70 leading-relaxed whitespace-pre-wrap">
                               {r.text}
                             </p>
                           </div>
@@ -4245,7 +4310,7 @@ export default function Carnet() {
                       </div>
                     )}
                     {readingEclat.replies_closed ? (
-                      <div className="text-center font-mono text-[7px] uppercase tracking-[0.3em] text-white/20 italic py-2">
+                      <div className="text-center font-mono text-[7px] uppercase tracking-[0.3em] text-beige/20 italic py-2">
                         Échange clôturé
                       </div>
                     ) : (
@@ -4255,12 +4320,12 @@ export default function Carnet() {
                           onChange={(e) => setReplyDraft(e.target.value)}
                           placeholder="Répondre à cet Éclat…"
                           rows={4}
-                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[13px] text-beige italic focus:border-yellow-400/30 outline-none transition-colors resize-none custom-scrollbar"
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[13px] text-beige italic focus:border-evolution/30 outline-none transition-colors resize-none custom-scrollbar"
                         />
                         <div className="flex items-center justify-between gap-4">
-                          <span className="font-mono text-[8px] text-white/25 italic leading-relaxed">
+                          <span className="font-mono text-[8px] text-beige/25 italic leading-relaxed">
                             {replyError ? (
-                              <span className="text-red-400">
+                              <span className="text-soutien">
                                 Échec de l'envoi — réessayer.
                               </span>
                             ) : (
@@ -4270,7 +4335,7 @@ export default function Carnet() {
                           <button
                             onClick={sendReply}
                             disabled={!replyDraft.trim() || replySending}
-                            className="flex-shrink-0 px-5 py-2 bg-yellow-400/90 text-black font-mono text-[8px] uppercase tracking-[0.2em] rounded-full hover:bg-yellow-300 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                            className="flex-shrink-0 px-5 py-2 bg-evolution/90 text-black font-mono text-[8px] uppercase tracking-[0.2em] rounded-full hover:bg-evolution transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
                           >
                             {replySending ? "Envoi…" : "Envoyer"}
                           </button>
@@ -4300,7 +4365,7 @@ export default function Carnet() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="relative w-full max-w-lg max-h-[85vh] flex flex-col bg-[#0a0a0a] border border-white/15 rounded-2xl shadow-2xl overflow-hidden"
             >
-              <div className="absolute top-0 inset-x-0 h-1 bg-[#f59e0b]/40" />
+              <div className="absolute top-0 inset-x-0 h-1 bg-evolution/40" />
               <button
                 onClick={() => setReadingLueur(null)}
                 className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full transition-colors z-10"
@@ -4309,12 +4374,12 @@ export default function Carnet() {
               </button>
               <div className="px-10 pt-10 pb-5 flex-shrink-0">
                 <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.3em] text-white/40">
-                    <Sparkles className="w-3.5 h-3.5 text-white/30" />
+                  <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.3em] text-beige/40">
+                    <Sparkles className="w-3.5 h-3.5 text-beige/30" />
                     <span>Lueur</span>
                   </div>
                   {readingLueur.date && (
-                    <span className="font-mono text-[9px] tracking-wider text-white/30">
+                    <span className="font-mono text-[9px] tracking-wider text-beige/30">
                       {new Date(readingLueur.date).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
                     </span>
                   )}
@@ -4324,7 +4389,7 @@ export default function Carnet() {
                 <div className="mb-6">
                   <LueurVisual context={readingLueur.context} />
                 </div>
-                <div className="font-serif text-xl text-white italic mb-3 text-center">
+                <div className="font-serif text-xl text-beige italic mb-3 text-center">
                   {readingLueur.title}
                 </div>
                 <p className="text-[15px] font-serif text-beige-faint leading-loose whitespace-pre-wrap text-center">
