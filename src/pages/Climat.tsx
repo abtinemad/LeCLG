@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { EMOTIONS, SPHERES } from '../data/emotions';
 import { 
@@ -13,6 +14,7 @@ import {
   CloudFog,
   CalendarRange,
   LayoutGrid,
+  Link2,
   Lock
 } from 'lucide-react';
 import { ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis } from 'recharts';
@@ -111,7 +113,8 @@ const normSphereKey = (sphere?: string): string => {
   return "";
 };
 
-export default function Climat() {
+export default function Climat({ epicentreCode }: { epicentreCode?: string } = {}) {
+  const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'maintenant' | 'variations'>('maintenant');
@@ -147,7 +150,7 @@ export default function Climat() {
   // la première révélation derrière l'écran « Climat en formation »).
   useEffect(() => {
     const climateReady =
-      !loading && data && !data.error && data.emotions && data.totalSessions >= 3;
+      !loading && data && !data.error && data.emotions && (epicentreCode ? true : data.totalSessions >= 3);
     if (!climateReady) return;
     try {
       const merged = new Set<string>(seenPrismes);
@@ -159,14 +162,25 @@ export default function Climat() {
   }, [loading, data, seenPrismes, unlockedPrismes]);
 
   useEffect(() => {
-    fetch('/api/climate')
-      .then(res => res.json())
-      .then(d => {
-        setData(d);
-        setLoading(false);
+    setLoading(true);
+    if (epicentreCode) {
+      const personal_id = localStorage.getItem('collegue_personal_id') || '';
+      const code = localStorage.getItem('collegue_access_code') || '';
+      fetch('/api/worker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'epicentre_climate', data: { personal_id, code, epicentre_code: epicentreCode } }),
       })
-      .catch(() => setLoading(false));
-  }, []);
+        .then(res => res.json())
+        .then(d => { setData(d); setLoading(false); })
+        .catch(() => setLoading(false));
+    } else {
+      fetch('/api/climate')
+        .then(res => res.json())
+        .then(d => { setData(d); setLoading(false); })
+        .catch(() => setLoading(false));
+    }
+  }, [epicentreCode]);
 
   // Icône météo par émotion (soleil / nuage / vent / parapluie) : sert d'icône
   // de titre au bloc Résonance commune, teintée par l'émotion dominante.
@@ -180,7 +194,7 @@ export default function Climat() {
 
   if (loading) {
     return (
-      <div className="relative min-h-screen flex items-center justify-center">
+      <div className={epicentreCode ? "py-12 flex items-center justify-center" : "relative min-h-screen flex items-center justify-center"}>
         <div className="font-mono text-[11px] uppercase tracking-widest text-beige-faint animate-pulse">
           Lecture du climat...
         </div>
@@ -188,7 +202,7 @@ export default function Climat() {
     );
   }
 
-  if (!data || data.error || !data.emotions || data.totalSessions < 3) {
+  if (!data || data.error || !data.emotions || (!epicentreCode && data.totalSessions < 3)) {
     return (
       <div className="relative min-h-screen">
         {/* Grain Overlay */}
@@ -329,13 +343,21 @@ export default function Climat() {
       : `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
   };
 
-  return (
-    <div className="relative min-h-screen">
-      {/* Grain Overlay */}
-      <div className="fixed inset-0 pointer-events-none z-[9999] opacity-60 mix-blend-soft-light" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")` }}></div>
-      <ClarteSection section="climat" />
+  // En mode embarqué (épicentre), Epicentre.tsx fournit déjà le <main> de la
+  // page : on évite un <main> imbriqué en rendant un simple <div> ici.
+  const Container = epicentreCode ? 'div' : 'main';
 
-      <main className="max-w-[720px] mx-auto px-6 md:px-8 pt-16 pb-32">
+  return (
+    <div className={epicentreCode ? "" : "relative min-h-screen"}>
+      {!epicentreCode && (
+        <>
+          {/* Grain Overlay */}
+          <div className="fixed inset-0 pointer-events-none z-[9999] opacity-60 mix-blend-soft-light" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")` }}></div>
+          <ClarteSection section="climat" />
+        </>
+      )}
+
+      <Container className={epicentreCode ? "" : "max-w-[720px] mx-auto px-6 md:px-8 pt-16 pb-32"}>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -343,6 +365,7 @@ export default function Climat() {
         >
 
           {/* Page Title & description */}
+          {!epicentreCode && (
           <div className="mb-16">
             <h1 className="font-serif italic text-[36px] md:text-[44px] font-medium text-beige leading-tight mb-4">
               Climat
@@ -351,6 +374,7 @@ export default function Climat() {
               Une représentation anonymisée des courants qui circulent au travers de la communauté. Des teintes singulières, une résonance commune.
             </p>
           </div>
+          )}
 
           {/* Onglets : Maintenant (snapshot) / Variations (Saisons + Microclimat) */}
           <div className="flex items-center gap-6 mb-12">
@@ -362,6 +386,11 @@ export default function Climat() {
               Variations
               {view === 'variations' && <motion.div layoutId="climat-tab-pill" className="absolute -bottom-0.5 left-0 right-0 h-px bg-beige/50" />}
             </button>
+            {!epicentreCode && (
+              <button onClick={() => navigate('/epicentre')} title="Épicentre" aria-label="Épicentre" className="relative flex items-center pb-1 text-beige-faint hover:text-beige transition-colors">
+                <Link2 className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            )}
           </div>
 
           {view === 'maintenant' && (
@@ -619,8 +648,9 @@ export default function Climat() {
             </div>
           </section>
           )}
+
         </motion.div>
-      </main>
+      </Container>
     </div>
   );
 }

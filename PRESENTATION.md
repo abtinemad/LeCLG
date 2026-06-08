@@ -24,16 +24,31 @@ Un dialogue structuré en 5 étapes non-intrusives :
 - **Diffraction** : Exploration des regards extérieurs.
 - **Équilibre** : Identification d'une direction ou d'un apaisement.
 
-### Le Serpentin (Guide Visuel)
-Le guide n'est pas une icône statique, c'est un flux vivant qui réagit en temps réel à l'intensité de l'échange. Il change d'amplitude, de couleur et de rythme selon l'alliance thérapeutique et la charge émotionnelle détectée par l'IA.
+### La voix du collègue
+Le collègue a une **voix** qu'on peut solliciter à tout moment : non pas pour donner des réponses, mais pour apporter des **éclairages** qui aident à rendre sa propre pensée plus claire.
 
-### Le Carnet & Les Prismes
-Chaque session se clôture par une **Carte de Réflexion** (Fragment, Déplacement, Direction, Sphère). 
-- **Les Prismes** : 10 signaux affectifs (Joie, Tristesse, Colère, etc.) qui servent de boussole pour cartographier le paysage intérieur.
-- **Textures Relationnelles** : Génération d'images abstraites uniques illustrant l'ambiance de chaque session.
+Ces éclairages prennent la forme d'une **boîte de clarté** : un glossaire **contextuel** des « mots maison » de l'application. Le principe est la **divulgation progressive** — un terme n'apparaît que sur la page où il devient utile, jamais comme un mur de vocabulaire d'emblée. Chaque page a son intro (« ce qu'on fait ici », clair d'abord) et ne fait surgir que les concepts pertinents.
 
-### La Matrice & La Mémoire de Résonance
-L'application apprend à "connaître" les patterns du sujet au fil des sessions sans jamais lever l'anonymat (voir section technique).
+Chaque concept se lit à **deux niveaux** : une **formule courte** (le sens en une ligne) puis une **définition** plus complète. La boîte couvre tout le vocabulaire du produit — *Le Collègue, la conversation, le Fragment, le Déplacement, la Direction, les Prismes, les Sphères, le Carnet et ses couches (Lien, Affect, Élan, Matrice), les Songes, les Lueurs, l'Éclat, la Texture relationnelle* — chacun défini une seule fois, de façon canonique.
+
+### Le Carnet
+Le Carnet est le **miroir individuel** : ce que la personne dépose, garde et relit. Chaque session s'y clôt par une **Carte de Réflexion** qui condense le trajet — le **Fragment** déposé, la **Sphère de vie** concernée et l'**émotion dominante** (son Prisme). Chaque carte s'accompagne d'une **Texture Relationnelle** : une image abstraite unique qui rend l'ambiance de la session.
+
+Le Carnet ne s'empile pas comme une liste : il s'explore par **plusieurs lentilles**, chacune un angle de lecture différent sur le même matériau (ces analyses sont générées par l'IA — voir la partie technique). Le Climat communautaire reprend d'ailleurs leurs couleurs.
+
+- **Fragments** *(vert)* — les cartes elles-mêmes, déposées session après session : la matière brute du Carnet.
+- **Lien** *(terracotta)* — une lecture des **relations** : ce qui se joue avec les autres au fil des dépôts.
+- **Affect** *(ardoise)* — une lecture du **paysage émotionnel** : les teintes qui reviennent, celles qui s'estompent.
+- **Élan** *(blanc)* — une lecture de la **trajectoire** : ce qui se met en mouvement, vers quoi cela tend.
+- **Matrice** *(mauve)* — la **mémoire de résonance** : les patterns qui se répètent d'une session à l'autre. L'application apprend à « connaître » la personne au fil du temps **sans jamais lever l'anonymat** (voir la partie technique).
+- **Lueurs** *(lumière)* — les **éclaircies** : les moments où quelque chose s'allège ou s'éclaire.
+
+### Les Prismes
+Un **Prisme** décompose ce qu'on vit en **nuances** lisibles — comme un prisme sépare la lumière en couleurs. On en déverrouille un en menant une conversation **jusqu'au bout de ses cinq étapes** : le signe qu'une émotion a été traversée avec lucidité. Il permet alors de **décrypter** cette émotion, en soi comme chez l'autre.
+
+Le vocabulaire affectif couvre **16 émotions** (palette type Plutchik) réparties sur **4 sphères de vie** : familiale, sociale, amoureuse, professionnelle. Les Prismes sont aussi la clé de lecture du Climat : tant qu'on n'a pas traversé une émotion, son nom y reste chiffré.
+
+**L'harmonie** : savoir lire les émotions, les accueillir et les rendre sans les déformer — en soi comme chez l'autre — pour que l'émotion **relie** au lieu de diviser.
 
 ### Le Climat — La résonance collective
 Le **Climat** est le pendant communautaire du Carnet : un miroir **anonyme et agrégé** de la météo affective de tous les membres. Là où le Carnet rend le sujet à lui-même, le Climat lui dit qu'il n'est pas seul. Aucun contenu de conversation n'y entre — uniquement la **métadonnée** extraite des cartes de réflexion (l'émotion dominante, la sphère, l'horodatage), agrégée sans jamais pouvoir être reliée à une personne.
@@ -56,15 +71,27 @@ Le Climat se lit en **deux onglets**, qui reprennent le miroir de l'individu (le
 
 **Ce que le Climat ne fait pas (par choix).** Aucune cartographie d'un individu — l'anonymat l'interdit — ni score, ni mesure clinique. La population est auto-sélectionnée, et la grille de 16 émotions reste une lentille, pas le territoire. La mesure du *déplacement* affectif d'une conversation (état d'entrée → état de sortie, c.-à-d. l'efficacité du robot) est un chantier distinct, volontairement tenu à l'écart du Climat.
 
+### L'Épicentre — le climat d'un cercle privé
+Là où le Climat est la résonance de **toute** la communauté, l'**Épicentre** en restreint la lecture à un **cercle choisi** : une famille, des proches, une équipe. Mêmes onglets, même posture (*décrypter, pas surveiller*), mais le miroir ne reflète plus que les membres de ce cercle — tout en restant **anonyme** : personne n'y voit ce que chacun dépose, seulement la météo d'ensemble.
+
+**Rejoindre, sans code à taper.** Un cercle se partage par **QR** (ou son lien). Le créateur le **nomme** au moment de générer le QR et en devient d'office le premier membre. Pour rejoindre, on scanne — le jeton voyage dans le **fragment d'URL**, jamais envoyé au serveur. On peut appartenir à **plusieurs cercles** et basculer de l'un à l'autre ; « se délier » d'un cercle est immédiat et le nom du cercle survit au départ de son créateur.
+
+**Une clé d'abord — et un canal d'arrivée.** On ne rejoint pas sans avoir sa propre clé : condition d'entrée vérifiée côté client **et** côté serveur. Un scan effectué sans clé n'est pas perdu — il devient un **canal d'acquisition** : la personne est conduite vers la création de sa clé, puis la jonction se fait **automatiquement** une fois la clé en main. Le QR d'un proche peut ainsi faire entrer un nouveau venu dans l'application.
+
+**Le pipeline (étanche).** Une table d'appartenance dédiée (`epicentre_members`) relie des clés à un code de cercle ; elle n'est **pas** exposée au chemin de lecture générique. Seuls des handlers serveur gardés par la vérification clé + code peuvent créer, rejoindre, quitter, lister ou lire le climat d'un cercle — impossible donc d'énumérer les membres ou de lire un climat sans en faire partie. Le climat d'un cercle réutilise **exactement** la même agrégation anonyme que le Climat global (mêmes onglets, même rendu), appliquée au seul sous-ensemble de ses membres.
+
+**Ce que l'Épicentre ne fait pas (par choix).** Toujours pas de cartographie d'un individu ni de score : même à petit effectif, on garde la granularité sans jamais relier une teinte à une personne. Le nom du cercle est la seule métadonnée ajoutée ; rien du contenu des conversations n'y entre.
+
 ---
 
 ## 3. Présentation Technique
 
 ### Architecture Stack
-- **Frontend** : React 19, Vite, Tailwind CSS, Motion (React) pour les animations.
-- **Backend** : Node.js (Express) agissant comme proxy sécurisé.
-- **IA** : architecture hybride — Claude (Anthropic) pour le dialogue du collègue et l'évaluation des étapes ; Gemini 3.5 Flash (Google) pour les analyses du Carnet/Matrice, les cartes de réflexion et la génération de contenu poétique.
-- **Persistance** : LocalStorage pour l'état immédiat de session, Supabase pour le Carnet (cartes extraites, analyses, prismes). Le code à 6 chiffres étant obligatoire dès l'onboarding, le Carnet est rattaché à une clé dès la première session et la continuité multi-appareils est native. Les conversations elles-mêmes ne sont jamais persistées (garantie au niveau base : la colonne `messages` de `sessions` est contrainte à rester vide) — seule la structure extraite est stockée.
+- **Frontend** : React 19, Vite 6, TypeScript, Tailwind v4, Motion (React) pour les animations, Recharts pour les visualisations du Climat. Livré en **PWA installable** (mode standalone, service worker).
+- **Backend** : un **proxy Express** (`server.ts`) et un **Cloudflare Worker** (`worker.js`) qui porte le dialogue du collègue et l'évaluation des étapes ; le tout hébergé sur **Google Cloud Run**.
+- **IA** : architecture hybride — **Claude (Anthropic)** pour le dialogue du collègue et l'évaluation des cinq étapes ; un modèle **Gemini (Google)** pour les analyses du Carnet/Matrice, les cartes de réflexion et la génération de contenu poétique.
+- **Persistance** : LocalStorage pour l'état immédiat de session ; **Supabase** pour le Carnet (cartes extraites, analyses, prismes), avec chiffrement **AES-256-GCM** au repos. Le code à 6 chiffres étant obligatoire dès l'onboarding, le Carnet est rattaché à une clé dès la première session et la continuité multi-appareils est native (transfert par **QR code**). Les conversations elles-mêmes ne sont jamais persistées (garantie au niveau base : la colonne `messages` de `sessions` est contrainte à rester vide) — seule la structure extraite est stockée.
+- **Qualité** : tests automatisés (Vitest) sur les fonctions de sécurité, intégration continue via GitHub Actions.
 
 ### Schéma de Données : La Matrice
 La Matrice est le cœur métacognitif de l'app. Elle synthétise le trajet long :
@@ -76,7 +103,7 @@ La Matrice est le cœur métacognitif de l'app. Elle synthétise le trajet long 
 
 ### Suivi Inter-Session (Mémoire de Résonance)
 Le système est conçu pour une continuité sans intrusion :
-- **Clé de Reconnaissance** : Une clé unique et mémorisable (ex: `vrai-chemin-234`) servant d'identifiant sans lien avec une identité réelle, complétée par un **code à 6 chiffres** choisi par l'utilisateur et obligatoire dès l'arrivée (aucune conversation ne démarre sans lui).
+- **Clé de Reconnaissance** : une clé unique et mémorisable — une **phrase de passe de cinq mots** (diceware français, ~57 bits d'entropie ; ex. `vrai-chemin-clair-doux-sable`) — servant d'identifiant sans lien avec une identité réelle, complétée par un **code à 6 chiffres** choisi par l'utilisateur et obligatoire dès l'arrivée (aucune conversation ne démarre sans lui).
 - **Réinjection de Contexte** : Lors d'une nouvelle session, l'IA "réactive" les fragments des sessions passées pour proposer des mises en lien, créant un sentiment de trajet suivi et de profondeur clinique.
 
 ### Anonymat & Confidentialité : Un Engagement Total
@@ -84,7 +111,7 @@ L'anonymat n'est pas une option, c'est le socle du projet :
 - **Sans Compte** : Aucune adresse email, aucun nom, aucune donnée personnelle (PII) n'est demandée.
 - **Sans Tracé Publicitaire** : Aucun tracker tiers.
 - **Soumission Éphémère** : Les conversations elles-mêmes ne sont pas persistées sur nos serveurs. Seule la structure extraite (la carte de réflexion) est stockée pour nourrir le Carnet de l'utilisateur.
-- **Clé d'accès** : La clé identifie le Carnet, complétée par un code à 6 chiffres choisi par l'utilisateur. Les deux sont nécessaires pour accéder aux données, et le code est vérifié côté serveur (avec verrou anti-force-brute). Les données sensibles sont en outre chiffrées au repos : une fuite de la base de données ne révélerait que du contenu illisible. (À noter : l'exploitant du service peut techniquement déchiffrer les données côté serveur — le chiffrement protège contre un accès à la base, pas contre l'opérateur lui-même.)
+- **Clé d'accès** : La clé identifie le Carnet, complétée par un code à 6 chiffres choisi par l'utilisateur. Les deux sont nécessaires pour accéder aux données, et le code est vérifié côté serveur (comparaison à **temps constant**, verrou **anti-force-brute**, et **liste blanche** stricte des paramètres de lecture). Les données sensibles sont en outre chiffrées au repos : une fuite de la base de données ne révélerait que du contenu illisible. (À noter : l'exploitant du service peut techniquement déchiffrer les données côté serveur — le chiffrement protège contre un accès à la base, pas contre l'opérateur lui-même.)
 
 ---
 

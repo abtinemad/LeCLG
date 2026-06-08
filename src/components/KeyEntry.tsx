@@ -83,6 +83,10 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
   const logout = () => {
     localStorage.removeItem('collegue_personal_id');
     localStorage.removeItem('collegue_access_code');
+    // Clés épicentre locales : on les purge aussi pour ne pas qu'une sélection
+    // ou une jonction en attente fuite sur le compte suivant de cet appareil.
+    localStorage.removeItem('collegue_epicentre');
+    localStorage.removeItem('collegue_epicentre_pending');
     setHasKey(false);
     setKey('');
     setCode('');
@@ -134,10 +138,10 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
             >
               <BookOpen size={13} strokeWidth={1.5} />
             </Link>
-            <span className="text-beige/10 text-[9px] font-mono select-none">|</span>
+            <span className="text-white/10 text-[9px] font-mono select-none">|</span>
             <button
               onClick={logout}
-              className="p-1 flex items-center text-red hover:text-heart transition-colors"
+              className="p-1 flex items-center text-red-400 hover:text-red-300 transition-colors"
               id="key-entry-logout-btn"
               title="Déconnexion"
             >
@@ -186,7 +190,7 @@ export const KeyEntry = ({ className = "", hideLabel = false }: KeyEntryProps) =
                 <ArrowRight size={14} />
               </button>
             </div>
-            {error && <p className="text-[10px] text-red/80 px-1">{error}</p>}
+            {error && <p className="text-[10px] text-red-400/80 px-1">{error}</p>}
           </div>
         )
       ) : (

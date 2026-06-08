@@ -18,6 +18,7 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
+import { aggregateClimate } from "./src/lib/climate";
 
 dotenv.config();
 
@@ -837,6 +838,77 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     return res.json({ ok: true });
   }
 
+  // --- Épicentres : communautés privées par code partagé (QR/lien) ----------
+  // Toutes les opérations exigent la vérification clé + code (verifyAccess),
+  // comme les écritures. La table `epicentre_members` n'est PAS dans
+  // TABLE_COLUMNS : inaccessible via sb_*, uniquement par ces handlers. On ne
+  // peut donc ni énumérer les membres ni lire un climat d'épicentre sans en être.
+  if (
+    type === "epicentre_create" ||
+    type === "epicentre_join" ||
+    type === "epicentre_leave" ||
+    type === "epicentre_mine" ||
+    type === "epicentre_climate"
+  ) {
+    const pid = data && data.personal_id;
+    const v = await verifyAccess(pid, data && data.code, serviceKey);
+    if (!v.ok) return res.status(v.status).json({ error: v.error });
+    const epi = ((data && data.epicentre_code) || "").trim();
+
+    if (type === "epicentre_create") {
+      const code = genEpicentreCode();
+      const label = ((((data && data.label) || "") + "").trim().slice(0, 60)) || null;
+      await sbRequest("POST", "epicentre_members", { epicentre_code: code, personal_id: pid, label }, serviceKey);
+      return res.json({ code, members: 1, label });
+    }
+
+    if (type === "epicentre_join") {
+      if (!epi) return res.status(400).json({ error: "epicentre_code requis" });
+      const existing = await sbRequest("GET", `epicentre_members?epicentre_code=eq.${encodeURIComponent(epi)}&select=personal_id,label`, null, serviceKey);
+      if (!Array.isArray(existing) || existing.length === 0) {
+        return res.status(404).json({ error: "unknown_epicentre" });
+      }
+      const already = existing.some((m: any) => m.personal_id === pid);
+      const label = (existing.find((m: any) => m.label) || {}).label || null;
+      if (!already) {
+        await sbRequest("POST", "epicentre_members", { epicentre_code: epi, personal_id: pid, label }, serviceKey, true);
+      }
+      return res.json({ ok: true, code: epi, label, members: already ? existing.length : existing.length + 1 });
+    }
+
+    if (type === "epicentre_leave") {
+      if (!epi) return res.status(400).json({ error: "epicentre_code requis" });
+      await sbRequest("DELETE", `epicentre_members?epicentre_code=eq.${encodeURIComponent(epi)}&personal_id=eq.${encodeURIComponent(pid)}`, null, serviceKey);
+      return res.json({ ok: true });
+    }
+
+    if (type === "epicentre_mine") {
+      const mine = await sbRequest("GET", `epicentre_members?personal_id=eq.${encodeURIComponent(pid)}&select=epicentre_code,label`, null, serviceKey);
+      const rows = Array.isArray(mine) ? mine : [];
+      const out: any[] = [];
+      for (const r of rows) {
+        const code = r.epicentre_code;
+        const ms = await sbRequest("GET", `epicentre_members?epicentre_code=eq.${encodeURIComponent(code)}&select=personal_id`, null, serviceKey);
+        out.push({ code, label: r.label || null, members: Array.isArray(ms) ? ms.length : 0 });
+      }
+      return res.json({ epicentres: out });
+    }
+
+    if (type === "epicentre_climate") {
+      if (!epi) return res.status(400).json({ error: "epicentre_code requis" });
+      const mineRow = await sbRequest("GET", `epicentre_members?epicentre_code=eq.${encodeURIComponent(epi)}&personal_id=eq.${encodeURIComponent(pid)}&select=personal_id`, null, serviceKey);
+      if (!Array.isArray(mineRow) || mineRow.length === 0) {
+        return res.status(403).json({ error: "not_member" });
+      }
+      const members = await sbRequest("GET", `epicentre_members?epicentre_code=eq.${encodeURIComponent(epi)}&select=personal_id`, null, serviceKey);
+      const ids = (Array.isArray(members) ? members : []).map((m: any) => m.personal_id).filter(Boolean);
+      if (ids.length === 0) return res.json(aggregateClimate([], (s: any) => decField(s.reflection_card) || (s.data && typeof s.data === 'object' ? s.data.reflection_card : null)));
+      const inList = ids.map((x: string) => encodeURIComponent(x)).join(",");
+      const rows = await sbRequest("GET", `sessions?personal_id=in.(${inList})&select=*`, null, serviceKey);
+      return res.json(aggregateClimate(Array.isArray(rows) ? rows : [], (s: any) => decField(s.reflection_card) || (s.data && typeof s.data === 'object' ? s.data.reflection_card : null)));
+    }
+  }
+
   // AI Workers
   const EXTERNAL_WORKER_URL = process.env.CF_WORKER_URL as string;
   const INTERNAL_SECRET = process.env.INTERNAL_SECRET as string;
@@ -1164,6 +1236,11 @@ Analyse ce matériau holistique et produis la structure métacognitive demandée
   res.json(parsed);
 }));
 
+// Code d'épicentre : token URL-safe non typé (partagé par QR/lien).
+function genEpicentreCode(): string {
+  return crypto.randomBytes(9).toString("base64url");
+}
+
 // Route for global climate visualization (Anonymized)
 app.get("/api/climate", asyncHandler(async (req: Request, res: Response) => {
   const serviceKey = process.env.SUPABASE_SERVICE_KEY || "";
@@ -1177,64 +1254,7 @@ app.get("/api/climate", asyncHandler(async (req: Request, res: Response) => {
     return res.json({ emotions: {}, spheres: {}, emotionsBySphere: {}, timeline: [], totalSessions: 0, error: e.message });
   }
 
-  const stats: any = {
-    emotions: {},          // { emotion: count }            (marginal — inchangé)
-    spheres: {},           // { sphere: count }             (marginal — inchangé)
-    emotionsBySphere: {},  // { sphere: { emotion: count } } (levier 3 — Microclimats)
-    timeline: [],          // [{ period, total, emotions, dominant }] (levier 1 — Saisons)
-    totalSessions: result ? result.length : 0
-  };
-
-  // Buckets temporels par semaine (clé = lundi UTC, YYYY-MM-DD).
-  const weekly: any = {};
-
-  if (result && Array.isArray(result)) {
-    result.forEach((s: any) => {
-      const decrypted = decField(s.reflection_card);
-      const reflectionCard = decrypted || (s.data && typeof s.data === 'object' ? s.data.reflection_card : null);
-      if (!reflectionCard) return;
-
-      const emotion = (reflectionCard.prisme || reflectionCard.rune || reflectionCard.emotion || "").toLowerCase();
-      const sphere = reflectionCard.sphere;
-
-      // Marginaux (inchangés)
-      if (emotion) stats.emotions[emotion] = (stats.emotions[emotion] || 0) + 1;
-      if (sphere) stats.spheres[sphere] = (stats.spheres[sphere] || 0) + 1;
-
-      // Croisement émotion × sphère (levier 3)
-      if (emotion && sphere) {
-        if (!stats.emotionsBySphere[sphere]) stats.emotionsBySphere[sphere] = {};
-        stats.emotionsBySphere[sphere][emotion] = (stats.emotionsBySphere[sphere][emotion] || 0) + 1;
-      }
-
-      // Temporel (levier 1) — on tolère plusieurs noms de colonne date.
-      const rawDate = s.started_at || s.created_at || s.inserted_at || s.createdAt || s.created || reflectionCard.date || null;
-      if (emotion && rawDate) {
-        const d = new Date(rawDate);
-        if (!isNaN(d.getTime())) {
-          const dow = (d.getUTCDay() + 6) % 7; // 0 = lundi
-          const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dow));
-          const key = monday.toISOString().slice(0, 10);
-          if (!weekly[key]) weekly[key] = { total: 0, emotions: {} };
-          weekly[key].total += 1;
-          weekly[key].emotions[emotion] = (weekly[key].emotions[emotion] || 0) + 1;
-        }
-      }
-    });
-  }
-
-  // Timeline triée chronologiquement, avec l'émotion dominante de chaque semaine.
-  stats.timeline = Object.keys(weekly).sort().map((period) => {
-    const b = weekly[period];
-    let dominant: string | null = null;
-    let max = -1;
-    for (const emo of Object.keys(b.emotions)) {
-      if (b.emotions[emo] > max) { max = b.emotions[emo]; dominant = emo; }
-    }
-    return { period, total: b.total, emotions: b.emotions, dominant };
-  });
-
-  res.json(stats);
+  res.json(aggregateClimate(Array.isArray(result) ? result : [], (s: any) => decField(s.reflection_card) || (s.data && typeof s.data === 'object' ? s.data.reflection_card : null)));
 }));
 
 // Route de texture : image déterministe accordée au fragment

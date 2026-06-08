@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import Landing from './pages/Landing';
 import Chat from './pages/Chat';
@@ -6,6 +7,7 @@ import Admin from './pages/Admin';
 import Carnet from './pages/Carnet';
 import Restore from './pages/Restore';
 import Climat from './pages/Climat';
+import Epicentre from './pages/Epicentre';
 import QuestCeQueCest from './pages/QuestCeQueCest';
 import { GlobalNav } from './components/GlobalNav';
 
@@ -18,6 +20,25 @@ const PAGE_TRANSITION = { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const };
 
 function AnimatedRoutes() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Acquisition par épicentre : si quelqu'un scanne un QR sans avoir de clé, le
+  // token est mémorisé (collegue_epicentre_pending). Une fois la clé créée, à la
+  // première navigation, on l'emmène sur /epicentre où la jonction se fait toute
+  // seule. Ne se déclenche que pour ceux qui ont scanné (pending présent).
+  useEffect(() => {
+    try {
+      const pending = localStorage.getItem('collegue_epicentre_pending');
+      const hasKey = !!(
+        localStorage.getItem('collegue_personal_id') && localStorage.getItem('collegue_access_code')
+      );
+      if (pending && hasKey && !location.pathname.startsWith('/epicentre')) {
+        navigate('/epicentre', { replace: true });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [location.pathname, navigate]);
 
   return (
     // Le motion.div keyé sur le pathname EST l'enfant direct d'AnimatePresence :
@@ -47,6 +68,8 @@ function AnimatedRoutes() {
           <Route path="/carnet" element={<Carnet />} />
           <Route path="/restore" element={<Restore />} />
           <Route path="/climat" element={<Climat />} />
+          <Route path="/epicentre" element={<Epicentre />} />
+          <Route path="/epicentre/rejoindre" element={<Epicentre />} />
           <Route path="/quest-ce-que-cest" element={<QuestCeQueCest />} />
           {/* Filet attrape-tout : toute route inconnue renvoie à l'accueil
               plutôt que de laisser une page nue (juste le header). */}
