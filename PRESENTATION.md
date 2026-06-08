@@ -50,8 +50,8 @@ Le vocabulaire affectif couvre **16 émotions** (palette type Plutchik) réparti
 
 **L'harmonie** : savoir lire les émotions, les accueillir et les rendre sans les déformer — en soi comme chez l'autre — pour que l'émotion **relie** au lieu de diviser.
 
-### Le Climat — La résonance collective
-Le **Climat** est le pendant communautaire du Carnet : un miroir **anonyme et agrégé** de la météo affective de tous les membres. Là où le Carnet rend le sujet à lui-même, le Climat lui dit qu'il n'est pas seul. Aucun contenu de conversation n'y entre — uniquement la **métadonnée** extraite des cartes de réflexion (l'émotion dominante, la sphère, l'horodatage), agrégée sans jamais pouvoir être reliée à une personne.
+### Le Climat de la communauté — La résonance collective
+Le **Climat de la communauté** est le pendant collectif du Carnet : un miroir **anonyme et agrégé** de la météo affective de tous les membres. Là où le Carnet rend le sujet à lui-même, le Climat lui dit qu'il n'est pas seul. Aucun contenu de conversation n'y entre — uniquement la **métadonnée** extraite des cartes de réflexion (l'émotion dominante, la sphère, l'horodatage), agrégée sans jamais pouvoir être reliée à une personne.
 
 **Le principe : décrypter, pas surveiller.** Les couleurs sont toujours visibles, mais les **noms** des émotions restent chiffrés (grésillés) tant que l'utilisateur n'a pas débloqué le **Prisme** correspondant — à l'exception de l'émotion dominante du collectif, toujours lisible comme point d'ancrage. C'est la posture phénoménologique rendue littérale : on ne *lit* que ce qu'on a soi-même traversé en conscience. Le Climat déplace la lumière, il ne nomme pas à la place du sujet. Le Climat ne se cristallise qu'à partir de **3 sessions distinctes** ; en deçà, il affiche « Climat en formation ».
 

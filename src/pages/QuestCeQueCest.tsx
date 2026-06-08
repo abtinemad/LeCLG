@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { motion, useInView } from 'motion/react';
 import { useGoBack } from '../lib/useGoBack';
-import { ArrowLeft, History, Heart, Waves, Orbit, Fingerprint, Sparkles } from 'lucide-react';
+import { ArrowLeft, History, Heart, Waves, Orbit, Fingerprint, Sparkles, MessagesSquare, BookOpen, Cloud } from 'lucide-react';
 import { PaymentWrapper } from '../components/PaymentModal';
 
 const Step = ({ number, title, desc, note, index }: { number: string; title: string; desc: string; note: string; index: number }) => {
@@ -60,6 +60,10 @@ export default function QuestCeQueCest() {
         {/* Steps */}
         <section>
           <div className="font-mono text-[8px] tracking-[0.18em] uppercase text-green mb-8">Comment ça fonctionne</div>
+          <div className="flex items-center gap-3 mb-8">
+            <MessagesSquare className="w-8 h-8 text-beige" strokeWidth={1.5} />
+            <h2 className="font-serif italic text-[clamp(32px,5vw,42px)] font-medium text-beige leading-tight">La conversation</h2>
+          </div>
           <div className="mb-12">
             <p className="text-[17px] leading-[1.85] text-beige-dim mb-4">Le collègue vous aide à décomposer ce que vous portez — pas pour trouver la bonne réponse, mais pour mettre des mots sur ce que vous traversez et cheminer vers un équilibre différent.</p>
             <p className="text-[17px] leading-[1.85] text-beige-dim">Il n'y a pas de chemin idéal — l'ordre s'ajuste à ce que vous portez et à ce que vous êtes.</p>
@@ -109,7 +113,10 @@ export default function QuestCeQueCest() {
         {/* Le Carnet */}
         <section>
           <div className="font-mono text-[8px] tracking-[0.18em] uppercase text-green mb-8">Comment ça prend forme</div>
-          <h2 className="font-serif italic text-[clamp(32px,5vw,42px)] font-medium text-beige leading-tight mb-8">Le Carnet</h2>
+          <div className="flex items-center gap-3 mb-8">
+            <BookOpen className="w-8 h-8 text-beige" strokeWidth={1.5} />
+            <h2 className="font-serif italic text-[clamp(32px,5vw,42px)] font-medium text-beige leading-tight">Le Carnet</h2>
+          </div>
           
           <div className="space-y-6 max-w-[640px] mb-12">
             <p className="text-[18px] leading-[1.8] text-beige-dim antialiased">
@@ -170,6 +177,26 @@ export default function QuestCeQueCest() {
 
         <hr className="border-none border-t border-border my-14" />
 
+        {/* Le Climat — la communauté */}
+        <section>
+          <div className="font-mono text-[8px] tracking-[0.18em] uppercase text-green mb-8">Vous n'êtes pas seul</div>
+          <div className="flex items-center gap-3 mb-8">
+            <Cloud className="w-8 h-8 text-beige" strokeWidth={1.5} />
+            <h2 className="font-serif italic text-[clamp(32px,5vw,42px)] font-medium text-beige leading-tight">Le Climat de la communauté</h2>
+          </div>
+
+          <div className="space-y-6 max-w-[640px]">
+            <p className="text-[18px] leading-[1.8] text-beige-dim antialiased">
+              Là où le Carnet vous rend à vous-même, le Climat en est le pendant collectif : un miroir <strong className="font-medium text-beige">anonyme et agrégé</strong> de la météo affective de tous ceux qui cheminent ici. Aucun mot de vos conversations n'y entre — seulement la résonance d'ensemble. Le signe, simple, que vous n'êtes pas seul à traverser ce que vous traversez.
+            </p>
+            <p className="text-[18px] leading-[1.8] text-beige-dim antialiased">
+              L'<strong className="font-medium text-beige">Épicentre</strong> en est la version intime : le même miroir, restreint à un cercle que vous choisissez — une famille, des proches — rejoint par un simple QR, et tout aussi anonyme.
+            </p>
+          </div>
+        </section>
+
+        <hr className="border-none border-t border-border my-14" />
+
         {/* Ce qui le rend différent */}
         <section>
           <div className="font-mono text-[8px] tracking-[0.18em] uppercase text-green mb-8">Ce qui le rend différent</div>
@@ -225,7 +252,7 @@ export default function QuestCeQueCest() {
                     <span>Mode Reconnaissance — L'Aboutissement</span>
                   </div>
                   <p className="text-[14px] text-beige leading-relaxed italic border-l border-green/30 pl-4 py-1">
-                    « L'abonnement Évolution finance le développement et les coûts d'API. Après un an de pratique et les 16 Prismes découverts, l'abonnement se transforme en <strong>mode Reconnaissance</strong>. L'accès devient gratuit et permanent. Pas une récompense — une reconnaissance du passage d'un mouvement à une posture d'équilibre. »
+                    « L'abonnement Évolution finance le développement et les coûts d'API. Après un an de pratique et les 16 Prismes découverts, l'abonnement se transforme en <strong>mode Reconnaissance</strong>. L'accès devient gratuit et permanent. »
                   </p>
                 </div>
               </div>

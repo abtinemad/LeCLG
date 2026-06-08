@@ -3296,7 +3296,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
             <Link
               to="/climat"
               className={`transition-colors flex items-center p-1.5 ${location.pathname === "/climat" ? "text-beige" : "text-beige-faint hover:text-beige"}`}
-              title="Climat collectif"
+              title="Climat de la communauté"
             >
               <Cloud size={13} strokeWidth={1.5} />
             </Link>

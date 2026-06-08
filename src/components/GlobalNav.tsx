@@ -33,7 +33,7 @@ export function GlobalNav() {
       
       {isLanding ? (
         <div className="flex items-center gap-3" id="global-nav-landing-links">
-          <Link to="/climat" className="transition-colors flex items-center p-1.5 text-beige-faint hover:text-beige" title="Climat collectif" id="nav-link-climat-landing">
+          <Link to="/climat" className="transition-colors flex items-center p-1.5 text-beige-faint hover:text-beige" title="Climat de la communauté" id="nav-link-climat-landing">
             <Cloud size={13} strokeWidth={1.5} />
           </Link>
           {hasKey ? (
@@ -51,13 +51,13 @@ export function GlobalNav() {
         </div>
       ) : isClimat ? (
         <div className="flex items-center gap-3" id="global-nav-links">
-          <Link to="/climat" className="transition-colors flex items-center p-1.5 text-beige" title="Climat collectif" id="nav-link-climat">
+          <Link to="/climat" className="transition-colors flex items-center p-1.5 text-beige" title="Climat de la communauté" id="nav-link-climat">
             <Cloud size={13} strokeWidth={1.5} />
           </Link>
         </div>
       ) : (
         <div className="flex items-center gap-3" id="global-nav-links">
-          <Link to="/climat" className={`transition-colors flex items-center p-1.5 ${location.pathname === '/climat' ? 'text-beige' : 'text-beige-faint hover:text-beige'}`} title="Climat collectif" id="nav-link-climat">
+          <Link to="/climat" className={`transition-colors flex items-center p-1.5 ${location.pathname === '/climat' ? 'text-beige' : 'text-beige-faint hover:text-beige'}`} title="Climat de la communauté" id="nav-link-climat">
             <Cloud size={13} strokeWidth={1.5} />
           </Link>
           <Link to="/chat" className={`transition-colors flex items-center p-1.5 ${location.pathname === '/chat' ? 'text-beige' : 'text-beige-faint hover:text-beige'}`} title="Penser" id="nav-link-penser">
