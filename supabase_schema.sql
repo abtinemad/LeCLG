@@ -25,7 +25,9 @@ CREATE TABLE IF NOT EXISTS public.cartes (
     personal_id TEXT NOT NULL,
     fragment TEXT,
     deplacement TEXT,
+    deplacement_type TEXT,      -- catégorie du geste intérieur (décentrement, nomination, mise à distance, approfondissement, appropriation, relâchement, reliement) ; agrège pour le signal (geste récurrent + lecture par l'absence)
     direction TEXT,
+    direction_type TEXT,        -- catégorie de la direction (décision, mise en pause, acceptation, clarification, ouverture relationnelle, vigilance, question ouverte) ; agrège pour le signal de récurrence
     texture_relationnelle TEXT,
     sphere TEXT,
     emotion TEXT,
@@ -64,6 +66,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     started_at TIMESTAMPTZ DEFAULT now(),
     ended_at TIMESTAMPTZ,
     step_reached INTEGER,
+    validated_steps JSONB,      -- index d'étapes validées [0..4] ; sert à repérer l'endroit de blocage récurrent (forward-only)
     messages JSONB CHECK (messages IS NULL OR messages = '[]'::jsonb), -- garantie DB : jamais de contenu de conversation, seulement vide
     reflection_card JSONB,
     status TEXT,                -- "abandoned" si l'onglet se ferme en pleine conversation

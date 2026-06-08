@@ -250,6 +250,20 @@ const FOCUS_MS = 2200;
 // au cheminement de la personne (jamais une récitation, jamais une présomption
 // de son état du jour).
 const WOVEN_THRESHOLD = 1;
+// Gestes intérieurs (deplacement_type) — vocabulaire fixe, ordonné par
+// « pivotalité » : pour la lecture par l'absence, le geste manquant le plus
+// parlant vient en premier. `hint` = formulation en mots simples de ce que
+// serait l'invitation à ce geste (le bot ne reçoit jamais le mot « geste »
+// brut, seulement cette tournure).
+const DEPLACEMENT_GESTURES: { key: string; hint: string }[] = [
+  { key: "décentrement", hint: "ce que la situation donnerait, vue depuis quelqu'un d'autre" },
+  { key: "appropriation", hint: "ce qui, là-dedans, dépend encore d'elle" },
+  { key: "approfondissement", hint: "descendre un cran plus bas dans ce qu'elle ressent" },
+  { key: "nomination", hint: "mettre un mot sur ce qui reste flou" },
+  { key: "mise à distance", hint: "prendre un pas de recul sur ce qui l'envahit" },
+  { key: "reliement", hint: "relier ça à autre chose qu'elle connaît déjà" },
+  { key: "relâchement", hint: "ce qu'elle pourrait lâcher, juste un peu" },
+];
 
 // Distille un « fil de mémoire » court à partir des dernières cartes : la sphère
 // récurrente et un ou deux fragments récents. Renvoie null s'il n'y a pas de
@@ -360,13 +374,19 @@ interface EvalResult {
   // Drapeau silencieux : la personne s'installe dans le blâme global d'un
   // tiers. Optionnel — absent tant que l'eval du worker ne le renvoie pas.
   projection?: boolean;
+  // Drapeau silencieux : la PERSONNE reconnaît elle-même un motif récurrent
+  // chez elle. Optionnel — absent tant que l'eval du worker ne le renvoie pas.
+  // Gate (avec l'alliance) le tissage longitudinal.
+  reconnaissance_pattern?: boolean;
 }
 
 interface ReflectionCard {
   id?: string;
   fragment: string;
   deplacement: string;
+  deplacement_type?: string;
   direction: string;
+  direction_type?: string;
   texture_relationnelle?: string;
   sphere?: string;
   emotion?: string;
@@ -612,6 +632,13 @@ export default function Chat() {
   // reflète l'état courant ; sert à souffler au bot de déprojeter (jamais
   // montré à la personne). Repasse à false dès qu'elle n'y est plus.
   const [projectionDetected, setProjectionDetected] = useState(false);
+  // Reconnaissance d'un motif récurrent PAR LA PERSONNE (elle nomme « c'est
+  // toujours pareil », « encore »). Non sticky. Gate, avec l'alliance, le
+  // tissage longitudinal — jamais montré à la personne.
+  const [patternRecognized, setPatternRecognized] = useState(false);
+  // Alliance (accordage perçu, 0-3) issue de l'éval. Sert de plancher doux au
+  // tissage : on n'arme pas le lien longitudinal en désaccordage franc (0).
+  const [alliance, setAlliance] = useState(0);
   // Expression du regard du collègue — RÉACTION dérivée des signaux de l'éval
   // (aucun token supplémentaire). Revient à "neutre" après un court moment.
   const [eyeExpression, setEyeExpression] = useState<EyeExpression>("neutre");
@@ -623,6 +650,14 @@ export default function Chat() {
   );
   const [lastActivity, setLastActivity] = useState<number>(Date.now());
   const [pastReflections, setPastReflections] = useState<ReflectionCard[]>([]);
+  // Étapes validées des sessions passées ([[0,1,2], ...]) — sert à repérer
+  // l'endroit de blocage récurrent. Forward-only (NULL sur les anciennes
+  // sessions, simplement ignorées).
+  const [pastStepSets, setPastStepSets] = useState<number[][]>([]);
+  // Mots/thèmes récurrents tirés de ses fragments (CONTENU, pas catégoriel),
+  // distillés par Gemini (enrich_fragments). Résolus à l'ouverture : cache
+  // Carnet d'abord (le plus riche), sinon cache chat, sinon recompute borné.
+  const [recurringWords, setRecurringWords] = useState<string[]>([]);
 
   // Reprise session
   const [resumeCardToOffer, setResumeCardToOffer] =
@@ -679,6 +714,10 @@ export default function Chat() {
   const [recentrageStep, setRecentrageStep] = useState(0);
   // Rupture de cadre (charge max) montrée une fois par session.
   const ruptureShown = useRef(false);
+  // Tissages longitudinaux : une seule touche par session (anti-ressassement).
+  const motifSurfaced = useRef(false);
+  const stallSurfaced = useRef(false);
+  const absenceSurfaced = useRef(false);
   // Mode du recentrage : "crise" (charge max, filet de contenance) ou
   // "sceau" (clôture, dernière prise de hauteur sur l'arc avant la carte).
   const [recentrageMode, setRecentrageMode] = useState<"crise" | "sceau">(
@@ -757,6 +796,8 @@ export default function Chat() {
       crisisDetected,
       routageSante,
       projectionDetected,
+      patternRecognized,
+      alliance,
       diffractionSansPartage,
       motsCles,
       reflectionCard,
@@ -774,6 +815,8 @@ export default function Chat() {
     crisisDetected,
     routageSante,
     projectionDetected,
+    patternRecognized,
+    alliance,
     diffractionSansPartage,
     motsCles,
     reflectionCard,
@@ -792,6 +835,8 @@ export default function Chat() {
     setCrisisDetected(state.crisisDetected ?? false);
     setRoutageSante(state.routageSante ?? state.orientationClinique ?? false);
     setProjectionDetected(state.projectionDetected ?? false);
+    setPatternRecognized(state.patternRecognized ?? false);
+    setAlliance(state.alliance ?? 0);
     setDiffractionSansPartage(state.diffractionSansPartage ?? false);
     setMotsCles(state.motsCles || []);
     setReflectionCard(state.reflectionCard || null);
@@ -1873,6 +1918,9 @@ export default function Chat() {
     setRecentrageMode("crise");
     sealPlayed.current = false;
     ruptureShown.current = false;
+    motifSurfaced.current = false;
+    stallSurfaced.current = false;
+    absenceSurfaced.current = false;
 
     let pastCards: any[] = [];
     if (finalId) {
@@ -1893,11 +1941,83 @@ export default function Chat() {
         // Fetch past reflections to seed context (Piste 4)
         const past = await sbGet(
           "sessions",
-          `personal_id=eq.${finalId}&limit=5&order=started_at.desc`,
+          `personal_id=eq.${finalId}&limit=12&order=started_at.desc`,
         );
         if (past && Array.isArray(past)) {
           pastCards = past.map((s: any) => s.reflection_card).filter(Boolean);
           setPastReflections(pastCards);
+          // Étapes validées par session (forward-only) : on ne garde que les
+          // tableaux réels, les anciennes sessions (NULL) sont ignorées.
+          setPastStepSets(
+            past
+              .map((s: any) => s.validated_steps)
+              .filter((v: any) => Array.isArray(v)),
+          );
+          // --- Mots récurrents (contenu) pour le tissage du motif ---
+          // 1) cache Carnet (le plus riche, calculé avec les songes) ;
+          // 2) sinon cache chat ; 3) sinon recompute borné — ≥ 3 cartes au
+          //    total ET ≥ 3 nouvelles cartes depuis le dernier calcul — en
+          //    gemini-flash, NON-BLOQUANT (ne retarde jamais l'opener).
+          try {
+            const carnetCache = JSON.parse(
+              localStorage.getItem("collegue_enrich_fragments") || "null",
+            );
+            const carnetWords =
+              carnetCache && Array.isArray(carnetCache.mots_recurrents)
+                ? carnetCache.mots_recurrents
+                : null;
+            if (carnetWords && carnetWords.length > 0) {
+              setRecurringWords(carnetWords);
+            } else {
+              const chatCache = JSON.parse(
+                localStorage.getItem("collegue_enrich_fragments_chat") ||
+                  "null",
+              );
+              if (chatCache && Array.isArray(chatCache.words)) {
+                setRecurringWords(chatCache.words);
+              }
+              // Recompute borné au seuil fixé : seulement après ≥ 3 nouvelles
+              // cartes depuis le dernier calcul. Les thèmes récurrents bougent
+              // lentement — inutile de rappeler Gemini à chaque session. Cache
+              // absent = premier calcul.
+              const lastCount =
+                chatCache && typeof chatCache.count === "number"
+                  ? chatCache.count
+                  : 0;
+              const stale = !chatCache || pastCards.length - lastCount >= 3;
+              if (pastCards.length >= 3 && stale) {
+                fetch(`${API_BASE}/worker`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    type: "enrich_fragments",
+                    data: { cards: pastCards },
+                  }),
+                })
+                  .then((r) => r.json())
+                  .then((j) => {
+                    if (
+                      j &&
+                      Array.isArray(j.mots_recurrents) &&
+                      j.mots_recurrents.length
+                    ) {
+                      setRecurringWords(j.mots_recurrents);
+                      localStorage.setItem(
+                        "collegue_enrich_fragments_chat",
+                        JSON.stringify({
+                          words: j.mots_recurrents,
+                          count: pastCards.length,
+                          ts: Date.now(),
+                        }),
+                      );
+                    }
+                  })
+                  .catch(() => {});
+              }
+            }
+          } catch {
+            /* cache illisible : on s'en passe */
+          }
         }
       } catch (e) {
         console.error("Session cloud failed", e);
@@ -2046,6 +2166,7 @@ export default function Chat() {
       const userMessages = list.filter((m) => m.role === "user").length;
       const payload: Record<string, unknown> = {
         step_reached: validatedSteps.size,
+        validated_steps: Array.from(validatedSteps),
         user_message_count: userMessages,
       };
       if (userMessages > ENGAGEMENT_MIN_USER_MESSAGES) {
@@ -2080,11 +2201,175 @@ export default function Chat() {
         contextNote += `Note interne (ne pas citer explicitement) : la personne a utilisé ces mots : ${motsCles.map((m) => `"${m}"`).join(", ")}. Réutilise l'un d'eux sobrement si l'occasion s'y prête. `;
       }
 
-      if (!noInjection && pastReflections.length > 0) {
-        const pastSummary = pastReflections
-          .map((r) => `[${r.sphere}] "${r.fragment}"`)
-          .join(" ; ");
-        contextNote += `Mémoire de résonance (Piste 4) : Dans ses sessions précédentes, les thèmes suivants ont émergé : ${pastSummary}. Si tu perçois un écho avec la situation actuelle, propose une mise en lien très subtile pour approfondir le trajet, sans forcer.`;
+      // Au plus UN tissage longitudinal par tour (motif > stall > absence) :
+      // trois signaux d'un coup surchargeraient la réponse et trahiraient le
+      // « une touche ». Chacun reste par ailleurs « une fois par session ».
+      let longitudinalFired = false;
+
+      // Tissage longitudinal — GATED. Ne s'arme que si la personne a elle-même
+      // reconnu un motif (reconnaissance_pattern), qu'on n'est pas en
+      // désaccordage franc (alliance >= 1), et une seule fois par session. Le
+      // timing délicat — accueillir d'abord, une touche, lâcher si elle ne
+      // saisit pas — est porté par la règle « Le motif qui revient ». On ne
+      // déverse pas les fragments : un SIGNAL d'arrière-plan bâti sur les
+      // dimensions catégorielles récurrentes (sphère, émotion, prisme, climat
+      // relationnel, direction_type, deplacement_type — calcul local, aucun
+      // appel), dont on ne garde que les deux plus fréquentes, PLUS une couche
+      // de CONTENU : ses mots/thèmes qui reviennent (recurringWords, distillés
+      // par enrich_fragments, résolus à l'ouverture). direction/deplacement en
+      // texte libre restent de côté (ils n'agrègent pas).
+      if (
+        !noInjection &&
+        !longitudinalFired &&
+        !motifSurfaced.current &&
+        patternRecognized &&
+        alliance >= 1 &&
+        pastReflections.length > 0
+      ) {
+        const topOf = (vals: (string | undefined)[]) => {
+          const m: Record<string, number> = {};
+          vals.forEach((v) => {
+            const k = (v || "").trim().toLowerCase().slice(0, 40);
+            if (k) m[k] = (m[k] || 0) + 1;
+          });
+          const top = Object.entries(m).sort((a, b) => b[1] - a[1])[0];
+          return top ? { val: top[0], n: top[1] } : null;
+        };
+        const dims = [
+          { t: topOf(pastReflections.map((r) => r.sphere)), lab: (v: string) => `la sphère « ${v} »` },
+          { t: topOf(pastReflections.map((r) => r.emotion)), lab: (v: string) => `une teinte « ${v} »` },
+          { t: topOf(pastReflections.map((r) => r.prisme)), lab: (v: string) => `le prisme « ${v} »` },
+          { t: topOf(pastReflections.map((r) => r.texture_relationnelle)), lab: (v: string) => `un climat relationnel « ${v} »` },
+          { t: topOf(pastReflections.map((r) => r.direction_type)), lab: (v: string) => `une direction qui va souvent vers « ${v} »` },
+          { t: topOf(pastReflections.map((r) => r.deplacement_type)), lab: (v: string) => `un geste intérieur qui revient, « ${v} »` },
+        ];
+        const themeBits = dims
+          .filter((d) => d.t)
+          .sort((a, b) => b.t!.n - a.t!.n)
+          .slice(0, 2)
+          .map((d) => d.lab(d.t!.val));
+        // Couche CONTENU : ses mots/thèmes qui reviennent (distillés), max 2.
+        const wordBit = recurringWords
+          .slice(0, 2)
+          .map((w) => `« ${w} »`)
+          .join(", ");
+        if (themeBits.length > 0 || wordBit) {
+          const cat =
+            themeBits.length > 0
+              ? `ses passages ont souvent gravité autour de ${themeBits.join(" et ")}`
+              : "";
+          const mots = wordBit
+            ? cat
+              ? `, et font revenir ces mots à elle : ${wordBit}`
+              : `ses passages font souvent revenir ces mots à elle : ${wordBit}`
+            : "";
+          contextNote += `Signal d'arrière-plan (ne pas citer, ne pas révéler, ne dresser aucun bilan) : la personne est en contact avec une récurrence, et ${cat}${mots}. Si ça recoupe ce qu'elle amène là, sers-t'en comme appui ; sinon, travaille simplement la récurrence telle qu'elle la vit. Dans le cadre de la règle « Le motif qui revient » et seulement si elle a déjà été accueillie : traite cette récurrence comme réelle plutôt que comme un instant isolé — une touche sobre, puis tu reviens à elle. Ne la fais pas ressasser. `;
+          motifSurfaced.current = true;
+          longitudinalFired = true;
+        }
+      }
+
+      // Tissage longitudinal — l'endroit où ça s'arrête souvent. Gaté sur
+      // l'accordage (alliance >= 1), une fois par session, et seulement quand
+      // la session courante REVIENT au même seuil : elle a atteint la profondeur
+      // habituelle mais bute à nouveau sur l'étape de blocage récurrente. On
+      // calcule cette étape en interne (mode du premier trou parmi les sessions
+      // passées qui ont validated_steps) ; on ne livre au bot qu'une description
+      // EN MOTS SIMPLES, jamais l'index ni le nom d'étape.
+      if (
+        !noInjection &&
+        !longitudinalFired &&
+        !stallSurfaced.current &&
+        alliance >= 1 &&
+        pastStepSets.length >= 2
+      ) {
+        const firstGaps: number[] = [];
+        pastStepSets.forEach((set) => {
+          const s = new Set(set);
+          for (let i = 0; i < 5; i++) {
+            if (!s.has(i)) {
+              firstGaps.push(i);
+              break;
+            }
+          }
+        });
+        let chronicStall: number | null = null;
+        if (firstGaps.length >= 2) {
+          const c: Record<number, number> = {};
+          firstGaps.forEach((g) => (c[g] = (c[g] || 0) + 1));
+          const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+          if (top && top[1] >= 2) chronicStall = Number(top[0]);
+        }
+        // La session courante revient-elle à ce seuil ? (profondeur atteinte
+        // mais l'étape de blocage pas encore franchie.)
+        if (
+          chronicStall !== null &&
+          validatedSteps.size >= chronicStall &&
+          !validatedSteps.has(chronicStall)
+        ) {
+          const STALL_HINT: Record<number, string> = {
+            0: "elle s'arrête souvent avant même d'avoir posé clairement ce qui se passe",
+            1: "elle s'arrête souvent avant de toucher ce que ça lui fait vraiment, à l'intérieur",
+            2: "elle repart souvent sans avoir dégagé ce qu'elle cherche vraiment dans tout ça",
+            3: "elle reste souvent seule avec la situation, sans aller voir ce qu'un autre regard en dirait",
+            4: "le travail se fait souvent, mais ça repart sans qu'une direction se soit posée",
+          };
+          contextNote += `Signal d'arrière-plan (ne pas citer, ne pas révéler, ne nommer aucune « étape ») : au fil de ses passages, ${STALL_HINT[chronicStall]} — et on dirait qu'on y revient là. Dans le cadre de la règle « L'endroit où ça s'arrête souvent » et seulement si elle a déjà été accueillie : tu peux le lui rendre visible en mots simples, comme une invitation à s'interroger, jamais comme un reproche ni un échec. Une fois, puis tu la laisses en faire ce qu'elle veut. `;
+          stallSurfaced.current = true;
+          longitudinalFired = true;
+        }
+      }
+
+      // Tissage longitudinal — le geste qu'elle ne fait presque jamais (lecture
+      // par l'absence). Le plus délicat : on ne l'arme qu'avec assez de matière
+      // (forward-only, chauffe lentement), quand elle bouge DÉJÀ sur plusieurs
+      // gestes mais qu'un précis reste à zéro — et une seule fois À VIE par geste
+      // (flag localStorage), pour ne jamais nagger d'une session à l'autre.
+      // Posture : invitation, jamais un manque ni un verdict (mêmes garde-fous
+      // que « Le motif qui revient »). Le bot ne reçoit que la tournure simple
+      // (hint), jamais le mot « geste » brut.
+      if (
+        !noInjection &&
+        !longitudinalFired &&
+        !absenceSurfaced.current &&
+        alliance >= 1 &&
+        pastReflections.length > 0
+      ) {
+        const present: Record<string, number> = {};
+        pastReflections.forEach((r) => {
+          const k = (r.deplacement_type || "").trim().toLowerCase();
+          if (k) present[k] = (present[k] || 0) + 1;
+        });
+        const populated = Object.values(present).reduce((a, b) => a + b, 0);
+        const distinct = Object.keys(present).length;
+        // Assez de cartes renseignées ET elle bouge déjà de plusieurs façons :
+        // sinon « absent » ne veut rien dire. Seuil bas (3) assumé — la lecture
+        // est plus précoce, mais le cadrage « invitation » (jamais un verdict)
+        // et le dédoublonnage une-fois-par-geste la gardent sûre même tôt.
+        if (populated >= 3 && distinct >= 3) {
+          let invited: string[] = [];
+          try {
+            invited = JSON.parse(
+              localStorage.getItem("collegue_absence_invited") || "[]",
+            );
+          } catch {}
+          // Premier geste pivot absent et pas encore proposé (vocab ordonné par
+          // pivotalité).
+          const missing = DEPLACEMENT_GESTURES.find(
+            (g) => !present[g.key] && !invited.includes(g.key),
+          );
+          if (missing) {
+            contextNote += `Signal d'arrière-plan (ne pas citer, ne pas révéler, ne dresser aucun bilan, ne jamais nommer un « manque ») : la personne bouge souvent dans ses passages (plusieurs mouvements reviennent), mais il y en a un qu'elle tente rarement. Si elle a déjà été accueillie, et dans la même posture que « Le motif qui revient » (une invitation, jamais un verdict ni un reproche), tu peux ouvrir une fois la curiosité de ce côté : l'amener doucement vers ${missing.hint}. Une touche, puis tu laisses. Ne la fais pas ressasser. `;
+            absenceSurfaced.current = true;
+            longitudinalFired = true;
+            try {
+              localStorage.setItem(
+                "collegue_absence_invited",
+                JSON.stringify([...invited, missing.key]),
+              );
+            } catch {}
+          }
+        }
       }
 
       if (!noInjection && projectionDetected) {
@@ -2161,7 +2446,7 @@ export default function Chat() {
       }
       return fullText;
     },
-    [validatedSteps, motsCles, activeResumeContext, pastReflections, projectionDetected],
+    [validatedSteps, motsCles, activeResumeContext, pastReflections, pastStepSets, projectionDetected, patternRecognized, alliance, recurringWords],
   );
 
   // ── Recentrage ───────────────────────────────────────
@@ -2302,6 +2587,14 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
         // à false dès qu'elle n'y est plus.
         setProjectionDetected(result.projection === true);
 
+        // Reconnaissance d'un motif PAR LA PERSONNE — non sticky. Avec
+        // l'alliance, gate le tissage longitudinal au tour suivant (cf.
+        // injection dans streamChat). Jamais montré à la personne.
+        setPatternRecognized(result.reconnaissance_pattern === true);
+
+        // Alliance perçue (0-3) remontée en état : plancher doux du tissage.
+        setAlliance(Math.max(0, Math.min(3, result.alliance || 0)));
+
         // Charge émotionnelle maximale : pas de mode contemplatif (le
         // recentrage est réservé à la clôture). On invite à une vraie rupture
         // de cadre, une seule fois par session.
@@ -2345,7 +2638,7 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
             Math.min(3, result.collegue_posture || 0),
           );
           const tension = Math.max(0, Math.min(3, result.tension || 0));
-          const alliance = Math.max(0, Math.min(3, result.alliance || 0));
+          const allianceNow = Math.max(0, Math.min(3, result.alliance || 0));
 
           // ── Regard du collègue : réaction dérivée des signaux ───────────
           // Pas un miroir de l'émotion de la personne — une réaction de qqn
@@ -2355,11 +2648,11 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
             nextEye = "alerte"; // une bascule, qqch surgit : « je l'ai entendu »
           } else if (aiPosture >= 2) {
             nextEye = "interrogateur"; // le collègue pousse : « regarde en toi »
-          } else if (userCharge >= 2 && alliance >= 2) {
+          } else if (userCharge >= 2 && allianceNow >= 2) {
             nextEye = "triste"; // peine reçue, le collègue est en lien avec elle
           } else if (userCharge >= 2) {
             nextEye = "grave"; // point sensible : « je suis pleinement là »
-          } else if (alliance >= 2 && userCharge <= 1) {
+          } else if (allianceNow >= 2 && userCharge <= 1) {
             nextEye = "adouci"; // ça se dénoue, ça respire
           }
           setEyeExpression(nextEye);
@@ -2396,7 +2689,7 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
             flowRef.current.isChaos = false;
             flowRef.current.bounceTarget = tension >= 2 ? 0.6 : 0.0;
           }
-          flowRef.current.phaseOffset2Target = Math.PI * (1 - alliance / 3);
+          flowRef.current.phaseOffset2Target = Math.PI * (1 - allianceNow / 3);
 
           // Save persistent state
           if (personalId) {
@@ -3037,9 +3330,11 @@ Cinq éléments courts et denses :
 4. Une texture_relationnelle : Qualité de la rencontre (climat, rythme, engagement). 3-4 mots évocateurs.
 5. Une sphere : La dimension de vie majoritairement porteuse de la réflexion. Choisis UNIQUEMENT parmi : "Familiale", "Sociale", "Amoureuse", "Professionnelle".
 ${prismeInstruction}
+8. Un direction_type : la nature de la direction (élément 3), en un seul mot-clé. Choisis UNIQUEMENT parmi : "décision" (un choix d'agir s'est posé), "mise en pause" (attendre, ne pas trancher maintenant, de façon choisie), "acceptation" (accueillir quelque chose tel quel), "clarification" (y voir plus clair, une compréhension), "ouverture relationnelle" (aller vers l'autre, partager, demander), "vigilance" (un point d'attention à garder), "question ouverte" (une question à porter, sans réponse encore).
+9. Un deplacement_type : la nature du GESTE intérieur survenu PENDANT l'échange (distinct de la direction — c'est ce qui a bougé en elle, pas ce qu'elle emporte). Choisis UNIQUEMENT parmi : "décentrement" (sortir de son seul point de vue), "nomination" (mettre un mot sur ce qui était flou), "mise à distance" (prendre du recul sur ce qui envahissait), "approfondissement" (descendre sous la surface d'un ressenti), "appropriation" (reconnaître sa propre part, sa marge d'action), "relâchement" (lâcher une tension, une exigence), "reliement" (relier ce qui semblait séparé). Si aucun ne s'applique clairement, laisse "" (vide).
 
 Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
-{"fragment": "...", "deplacement": "...", "direction": "...", "texture_relationnelle": "...", "sphere": "...", "emotion": "...", "prisme": "..."}`;
+{"fragment": "...", "deplacement": "...", "deplacement_type": "...", "direction": "...", "direction_type": "...", "texture_relationnelle": "...", "sphere": "...", "emotion": "...", "prisme": "..."}`;
 
     try {
       const res = await fetch(`${API_BASE}/reflection`, {

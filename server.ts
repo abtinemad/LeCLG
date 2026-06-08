@@ -134,8 +134,8 @@ function isAdminPassword(pw: unknown, expected: string): boolean {
 // Toute écriture est filtrée sur ces colonnes : un champ inconnu envoyé par
 // le front est ignoré au lieu de faire échouer la requête.
 const TABLE_COLUMNS: Record<string, string[]> = {
-  sessions:  ["id", "personal_id", "started_at", "ended_at", "step_reached", "messages", "reflection_card", "status", "user_message_count"],
-  cartes:    ["id", "personal_id", "fragment", "deplacement", "direction", "texture_relationnelle", "sphere", "emotion", "prisme", "date", "image_url", "user_note", "created_at"],
+  sessions:  ["id", "personal_id", "started_at", "ended_at", "step_reached", "validated_steps", "messages", "reflection_card", "status", "user_message_count"],
+  cartes:    ["id", "personal_id", "fragment", "deplacement", "deplacement_type", "direction", "direction_type", "texture_relationnelle", "sphere", "emotion", "prisme", "date", "image_url", "user_note", "created_at"],
   carnet:    ["id", "personal_id", "plan", "lien_data", "affect_data", "elan_data", "matrice_data", "lueurs", "songes", "serpentin_state", "prismes_unlocked", "last_sync", "created_at"],
   eclats:    ["id", "personal_id", "type", "request_text", "matrice_snapshot", "elan_snapshot", "affect_snapshot", "lien_snapshot", "response_text", "answered_at", "replies", "replies_closed", "created_at"],
   feedbacks: ["id", "personal_id", "message", "response_text", "answered_at", "created_at"],
