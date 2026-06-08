@@ -11,6 +11,17 @@ function accessCode(): string {
   }
 }
 
+// Identifiant porteur de la personne (dérivé de la passphrase), joint aux
+// écritures pour qu'elles restent scopées à sa propre ligne. Le serveur refuse
+// désormais un update non-admin sans personal_id. Vide si non connecté.
+function accessPersonalId(): string {
+  try {
+    return localStorage.getItem("collegue_personal_id") || "";
+  } catch {
+    return "";
+  }
+}
+
 // Gestion commune des échecs d'auth (clé réclamée) pour lecture ET écriture.
 // 400 "invalid" = code absent/incorrect en local sur cet appareil → on invite
 // à entrer le code. 423 = verrou anti-brute-force. 401 = non autorisé.
@@ -65,10 +76,20 @@ export async function sbInsert(table: string, payload: any, password?: string) {
 }
 
 export async function sbUpdate(table: string, id: string, payload: any, password?: string) {
+  // Scoping : on injecte le personal_id porteur dans le payload pour tout
+  // update utilisateur — pas pour les actes admin (qui passent un password et
+  // agissent sur la ligne d'autrui). Le serveur lit personal_id dans le payload
+  // pour borner le PATCH ; sans lui, il refuse (401). On n'écrase jamais un
+  // personal_id déjà présent.
+  const pid = accessPersonalId();
+  const scopedPayload =
+    !password && pid && (payload == null || payload.personal_id == null)
+      ? { ...payload, personal_id: pid }
+      : payload;
   const res = await fetch(WORKER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type: "sb_update", data: { table, id, payload, password, code: accessCode() } })
+    body: JSON.stringify({ type: "sb_update", data: { table, id, payload: scopedPayload, password, code: accessCode() } })
   });
   if (!res.ok) {
     await handleAuthError(res, "la mise à jour");

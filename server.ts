@@ -347,12 +347,18 @@ async function sbRequest(method: string, tablePath: string, body: any, serviceKe
     } catch (e) {
       errData = { message: errText };
     }
+    // Ne jamais logger le personal_id en clair (c'est le secret porteur du
+    // chemin data) : on le caviarde dans tout ce qui part en logs ou en erreur.
+    const safePath = tablePath.replace(
+      /personal_id=eq\.[^&\s)]*/g,
+      "personal_id=eq.[redacted]",
+    );
     if (res.status === 401) {
-      console.error(`Supabase Unauthorized (${method} ${tablePath}). Check SUPABASE_SERVICE_KEY.`);
+      console.error(`Supabase Unauthorized (${method} ${safePath}). Check SUPABASE_SERVICE_KEY.`);
     } else {
-      console.error(`Supabase Error (${method} ${tablePath}):`, errData);
+      console.error(`Supabase Error (${method} ${safePath}):`, errData);
     }
-    throw new Error(`Supabase ${method} ${tablePath} failed (${res.status}): ${JSON.stringify(errData)}`);
+    throw new Error(`Supabase ${method} ${safePath} failed (${res.status}): ${JSON.stringify(errData)}`);
   }
 
   if (method === "POST" || method === "PATCH" || method === "GET") {
@@ -712,8 +718,15 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     ) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    // La mise à jour est bornée à l'id, et aussi au personal_id appelant
-    // quand il est connu : on ne peut pas écraser la ligne d'un autre utilisateur.
+    // Toute autre mise à jour doit être scopée à un personal_id. Sans lui, le
+    // filtre retomberait sur id seul → quiconque connaît un id pourrait écraser
+    // la ligne d'un autre. Miroir du garde-fou de lecture (sb_read).
+    if (!personalId && !isAdminPassword(data.password, adminPassword)) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    // La mise à jour est bornée à l'id, et au personal_id appelant (le repli
+    // id seul n'est désormais possible que pour l'admin) : on ne peut pas
+    // écraser la ligne d'un autre utilisateur.
     const payload = encryptRow(data.table, cleanPayload(data.table, data.payload));
     const filter = personalId
       ? `${data.table}?id=eq.${encodeURIComponent(data.id)}&personal_id=eq.${encodeURIComponent(personalId)}`

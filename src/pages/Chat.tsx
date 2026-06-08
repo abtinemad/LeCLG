@@ -1938,7 +1938,9 @@ export default function Chat() {
         const insertedId = (result as any)?.row?.id;
         if (insertedId) currentSessionId.current = insertedId;
 
-        // Fetch past reflections to seed context (Piste 4)
+        // Récupère les cartes + validated_steps passés : alimente le tissage
+        // longitudinal gaté (opener tissé, motif, stall, absence) et la couche
+        // mots_recurrents. Forward-only ; rien n'est récité à la personne.
         const past = await sbGet(
           "sessions",
           `personal_id=eq.${finalId}&limit=12&order=started_at.desc`,
@@ -2511,26 +2513,16 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
 
       evalInProgress.current = true;
       try {
-        // Insights multi-sessions — si une clé existe, récupérer les sessions passées
-        let multiSessionNote = "";
-        if (personalId) {
-          if (pastReflections.length > 0) {
-            const pastSummary = pastReflections
-              .map((r) => r.fragment)
-              .join(", ");
-            multiSessionNote = `\n\nNote contextuelle (Mémoire de résonance - Piste 4) : cette personne a déjà eu des sessions précédentes où les images fortes étaient : ${pastSummary}. Si la situation actuelle fait écho à ces patterns récurrents, propose un déplacement de perspective qui tient compte de cette continuité.`;
-          } else {
-            multiSessionNote =
-              "\n\nNote contextuelle : cette personne commence son parcours. Sois attentif aux premiers fragments qui émergent.";
-          }
-        }
+        // L'eval est une pure classification : on ne lui injecte AUCUN rappel
+        // des sessions passées. Réciter les fragments passés ici biaiserait
+        // reconnaissance_pattern (qui doit venir d'ELLE, pas d'une amorce). La
+        // continuité est gérée à part, par le tissage longitudinal gaté côté
+        // chat (motif / stall / absence).
         const evalMessages = [
           ...currentMessages,
           {
             role: "user" as Role,
-            content:
-              multiSessionNote ||
-              "Analyse la conversation selon tes instructions système.",
+            content: "Analyse la conversation selon tes instructions système.",
           },
         ];
 
