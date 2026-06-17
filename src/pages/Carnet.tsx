@@ -312,11 +312,11 @@ export default function Carnet() {
   // existe, sinon génération à la demande via le worker (le supercerveau).
   const openVoice = async (card: ReflectionCard, key: string) => {
     const stored = (card.miroir || "").trim() || miroirCache.current[key];
-    if (stored) { setCollegueVoice(stored); markVoiceRead(key); return; }
+    if (stored && !stored.startsWith("[")) { setCollegueVoice(stored); markVoiceRead(key); return; }
     setCollegueVoice(CLARTE_LOADING); // CollegueMark qui tourne pendant la génération
     try {
       const text = await fetchMiroir(card);
-      if (!text) { setCollegueVoice(null); return; } // le cerveau n'a rien rendu : on n'invente rien
+      if (!text || text.trim().startsWith("[")) { setCollegueVoice(null); return; }
       miroirCache.current[key] = text;
       persistMiroir(card, text); // écrit le miroir SUR la carte (local + Supabase) -> cross-appareil, jamais régénéré
       setCollegueVoice(text);
