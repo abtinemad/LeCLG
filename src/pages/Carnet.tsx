@@ -3124,6 +3124,8 @@ export default function Carnet() {
                   </div>
                 </div>
               </>
+            ) : analysisErrors["lien"] ? (
+              <AnalysisError onRetry={() => retryAnalysis("lien")} />
             ) : (
               <div className="text-center py-20 font-mono text-[11px] uppercase text-beige/20 tracking-widest italic">
                 Mise en lien du vécu en cours…
@@ -3555,6 +3557,8 @@ export default function Carnet() {
                    </div>
                 </div>
               </div>
+            ) : analysisErrors["elan"] ? (
+              <AnalysisError onRetry={() => retryAnalysis("elan")} />
             ) : (
               <div className="text-center py-20 font-mono text-[11px] uppercase text-beige/20 tracking-widest italic">
                 Trajectoire en cours d'évaluation…
@@ -3900,6 +3904,8 @@ export default function Carnet() {
                   </div>
                 </div>
               </>
+            ) : analysisErrors["matrice"] ? (
+              <AnalysisError onRetry={() => retryAnalysis("matrice")} />
             ) : (
               <div className="text-center py-20">
                 <p className="font-mono text-[11px] uppercase text-beige/20 tracking-widest">

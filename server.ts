@@ -146,6 +146,12 @@ const TABLE_COLUMNS: Record<string, string[]> = {
 // vide) ne compte pas. C'est un garde-fou de coût, vérifié côté serveur.
 const MAX_CONVERSATIONS_PER_DAY = 3;
 
+// Plafonds de taille des entrées libres de l'utilisateur (Retour/Éclat) : bornés
+// côté serveur, le maxLength front étant contournable. La limite globale
+// express.json (~100 ko) ne descend pas au champ ; ces garde-fous sont par champ.
+const MAX_TEXT_LEN = 4000; // caractères par champ texte libre (request_text, message, réponse)
+const MAX_REPLIES = 50;    // réponses cumulées par Éclat
+
 // Ne conserve du payload que les colonnes réellement présentes dans la table.
 function cleanPayload(table: string, payload: any): any {
   const cols = TABLE_COLUMNS[table];
@@ -663,6 +669,22 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
       delete data.payload.replies;
       delete data.payload.replies_closed;
     }
+    // Plafond par champ sur le free-text utilisateur (le maxLength front est
+    // contournable) : borne l'abus de stockage et les payloads démesurés.
+    if (
+      data.table === "eclats" &&
+      typeof data.payload.request_text === "string" &&
+      data.payload.request_text.length > MAX_TEXT_LEN
+    ) {
+      return res.status(400).json({ error: "request_text trop long" });
+    }
+    if (
+      data.table === "feedbacks" &&
+      typeof data.payload.message === "string" &&
+      data.payload.message.length > MAX_TEXT_LEN
+    ) {
+      return res.status(400).json({ error: "message trop long" });
+    }
   }
 
   if (type === "sb_insert") {
@@ -788,6 +810,9 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
     if (!eclatId || !pid || !text) {
       return res.status(400).json({ error: "eclat_id, personal_id et text requis" });
     }
+    if (text.length > MAX_TEXT_LEN) {
+      return res.status(400).json({ error: "text trop long" });
+    }
     const rows = await sbRequest(
       "GET",
       `eclats?id=eq.${encodeURIComponent(eclatId)}` +
@@ -806,6 +831,9 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
 
     const existing = decField(row.replies);
     const replies = Array.isArray(existing) ? existing : [];
+    if (replies.length >= MAX_REPLIES) {
+      return res.status(409).json({ error: "too_many_replies" });
+    }
     replies.push({ text, at: new Date().toISOString() });
     await sbRequest(
       "PATCH",
@@ -913,6 +941,17 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
       if (!Array.isArray(mineRow) || mineRow.length === 0) {
         return res.status(403).json({ error: "not_member" });
       }
+      // Règle de contribution (épicentres uniquement — le climat global reste
+      // visible de tous) : pour consulter le ressenti agrégé d'un groupe où
+      // les gens se connaissent, il faut avoir soi-même déposé au moins un
+      // fragment. On ne lit pas le climat de ses pairs en simple spectateur.
+      // Les fragments ne sont pas rattachés à un épicentre : on vérifie donc
+      // l'existence d'au moins une carte pour ce personal_id (contribution
+      // globale, suffisante pour écarter les purs spectateurs).
+      const ownCards = await sbRequest("GET", `cartes?personal_id=eq.${encodeURIComponent(pid)}&select=id&limit=1`, null, serviceKey);
+      if (!Array.isArray(ownCards) || ownCards.length === 0) {
+        return res.status(403).json({ error: "no_contribution" });
+      }
       const members = await sbRequest("GET", `epicentre_members?epicentre_code=eq.${encodeURIComponent(epi)}&select=personal_id`, null, serviceKey);
       const ids = (Array.isArray(members) ? members : []).map((m: any) => m.personal_id).filter(Boolean);
       if (ids.length === 0) return res.json(aggregateClimate([], (s: any) => decField(s.reflection_card) || (s.data && typeof s.data === 'object' ? s.data.reflection_card : null)));
@@ -943,6 +982,30 @@ app.post("/api/worker", asyncHandler(async (req: Request, res: Response) => {
       return res.end();
     }
     return res.status(413).json({ error: "too_many_messages" });
+  }
+
+  // Auth : chat et eval appellent le modèle (coût direct). Le tunnel impose déjà
+  // un code avant tout message (3b), donc tout appel légitime porte une clé + un
+  // code vérifiables. On exige verifyAccess ici — ferme l'abus de coût par un
+  // appelant non authentifié, sans toucher au parcours « Commencer » (lecture
+  // anonyme possible ; le premier message exige déjà le code).
+  if (type === "chat" || type === "eval") {
+    const v = await verifyAccess(
+      data && data.personal_id,
+      (data && data.code) || "",
+      serviceKey,
+    );
+    if (!v.ok) {
+      if (type === "chat") {
+        res.setHeader("Content-Type", "text/event-stream");
+        res.write(
+          `data: ${JSON.stringify({ delta: { text: "\n[Accès non vérifié — reconnecte-toi avec ta clé et ton code.]" } })}\n\n`,
+        );
+        res.write("data: [DONE]\n\n");
+        return res.end();
+      }
+      return res.status(401).json({ error: "Unauthorized" });
+    }
   }
 
   if (type === "chat") {

@@ -641,8 +641,8 @@ export const ClarteSection = ({ section, forceClose, voix, onVoixClose }: { sect
                   <div className="text-[15px] leading-relaxed font-serif italic text-pretty" style={{ color: sectionColor }}>
                     « Vous avez traversé suffisamment pour être, à votre tour, le collègue de quelqu'un. Le collègue vous appartient maintenant, sans abonnement, pour toujours. <strong style={{ color: sectionColor }}>Mode Reconnaissance activé.</strong> »
                   </div>
-                  <div className="font-mono text-[7px] tracking-[0.3em] uppercase mt-2" style={{ color: `${sectionColor}CC` }}>
-                    L'Union des Fées Comètes
+                  <div className="font-serif italic text-[13px] mt-3" style={{ color: `${sectionColor}CC` }}>
+                    — Abtine
                   </div>
                 </motion.div>
               ) : (

@@ -238,7 +238,6 @@ export default function Admin() {
           </button>
           <div className="w-[1px] h-8 bg-[#1e1d1a]" />
           <div>
-            <div className="text-[8px] tracking-[0.2em] uppercase text-beige-faint mb-1">Psychiatrie de secteur</div>
             <div className="font-serif text-lg text-beige">Le collègue — Admin</div>
           </div>
         </div>

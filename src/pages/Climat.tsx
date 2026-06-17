@@ -171,8 +171,19 @@ export default function Climat({ epicentreCode }: { epicentreCode?: string } = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'epicentre_climate', data: { personal_id, code, epicentre_code: epicentreCode } }),
       })
-        .then(res => res.json())
-        .then(d => { setData(d); setLoading(false); })
+        .then(res => res.json().catch(() => ({})))
+        .then(d => {
+          // Règle de contribution : un membre sans fragment reçoit no_contribution
+          // (403). Ce n'est pas une panne mais une invitation à déposer d'abord —
+          // on le marque explicitement pour que l'UI n'affiche jamais le message
+          // « global » (climat public) à sa place.
+          if (d?.error === 'no_contribution' || d?.code === 'no_contribution') {
+            setData({ noContribution: true });
+          } else {
+            setData(d);
+          }
+          setLoading(false);
+        })
         .catch(() => setLoading(false));
     } else {
       fetch('/api/climate')
@@ -202,7 +213,30 @@ export default function Climat({ epicentreCode }: { epicentreCode?: string } = {
     );
   }
 
-  if (!data || data.error || !data.emotions || (!epicentreCode && data.totalSessions < 3)) {
+  if (!data || data.error || data.noContribution || !data.emotions || (!epicentreCode && data.totalSessions < 3)) {
+    // Mode embarqué (épicentre) : on ne rejoue jamais l'écran pleine page du
+    // climat global. Un membre sans fragment (no_contribution) est invité à
+    // déposer ; toute autre absence de données est signalée sobrement.
+    if (epicentreCode) {
+      const isGate = !!(data && data.noContribution);
+      return (
+        <div className="py-12">
+          <div className="border border-beige/10 rounded-lg p-8 bg-[#0d110d]/30 backdrop-blur-sm max-w-lg">
+            <div className="flex items-center gap-2.5 mb-4 text-beige-faint">
+              <Lock className="w-4 h-4" strokeWidth={1.5} />
+              <span className="font-mono text-[11px] tracking-widest uppercase">
+                {isGate ? "Dépose d'abord un fragment" : 'Climat illisible'}
+              </span>
+            </div>
+            <p className="text-[14px] text-beige-faint leading-relaxed">
+              {isGate
+                ? "Le climat d'un cercle ne s'ouvre qu'à celles et ceux qui y déposent. Travaille une situation, laisse-en un fragment — le climat de ce cercle apparaîtra ensuite."
+                : "Le climat de ce cercle n'est pas lisible pour l'instant. Reviens dans un moment."}
+            </p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="relative min-h-screen">
         {/* Grain Overlay */}

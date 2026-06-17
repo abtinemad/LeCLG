@@ -4,6 +4,10 @@ import { useGoBack } from '../lib/useGoBack';
 import { ArrowLeft, History, Heart, Waves, Orbit, Fingerprint, Sparkles, MessagesSquare, BookOpen, Cloud } from 'lucide-react';
 import { PaymentWrapper } from '../components/PaymentModal';
 
+// Lien de don PayPal — source unique (était dupliquée à l'identique sur les deux
+// PaymentWrapper). paypal.me : aucune adresse mail exposée dans le bundle.
+const PAYPAL_DONATE_URL = 'https://paypal.me/AbtineM';
+
 const Step = ({ number, title, desc, note, index }: { number: string; title: string; desc: string; note: string; index: number }) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, amount: 0.15 });
@@ -226,7 +230,7 @@ export default function QuestCeQueCest() {
                 <div className="flex items-center gap-2 group">
                   <Sparkles size={24} className="text-evolution opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
                   <PaymentWrapper
-                    paypalUrl="https://www.paypal.com/donate/?business=REDACTED&no_recurring=0&currency_code=EUR"
+                    paypalUrl={PAYPAL_DONATE_URL}
                     title="Évolution"
                     amount="Soutien libre"
                     color="text-evolution"
@@ -262,7 +266,7 @@ export default function QuestCeQueCest() {
                 <div className="flex items-center gap-2 group">
                   <Heart size={18} className="text-soutien opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.2} />
                   <PaymentWrapper
-                    paypalUrl="https://www.paypal.com/donate/?business=REDACTED&no_recurring=0&currency_code=EUR"
+                    paypalUrl={PAYPAL_DONATE_URL}
                     title="Soutien"
                     color="text-soutien"
                   >

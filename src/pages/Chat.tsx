@@ -2404,6 +2404,10 @@ export default function Chat() {
           type: "chat",
           messages: toWorkerMessages(finalMessages),
           max_tokens: maxTokens,
+          data: {
+            personal_id: localStorage.getItem("collegue_personal_id") || "",
+            code: localStorage.getItem("collegue_access_code") || "",
+          },
         }),
       });
 
@@ -2542,6 +2546,10 @@ Le paradoxe naît de la métaphore, jamais d'ailleurs : c'est la même image qui
             type: "eval",
             messages: toWorkerMessages(evalMessages),
             max_tokens: 1000,
+            data: {
+              personal_id: localStorage.getItem("collegue_personal_id") || "",
+              code: localStorage.getItem("collegue_access_code") || "",
+            },
           }),
         });
         const data = await res.json();
