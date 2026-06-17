@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS public.cartes (
     date TIMESTAMPTZ,
     image_url TEXT,
     user_note TEXT,
+    miroir TEXT,                -- texte chiffré côté serveur, aligné avec les autres champs sensibles de cartes (cf. ENCRYPTED_FIELDS)
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -83,6 +84,28 @@ CREATE TABLE IF NOT EXISTS public.feedbacks (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- ── epicentre_members : appartenance aux Épicentres (communautés privées) ──
+-- Un Épicentre est une communauté privée rejointe par code partagé (QR/lien).
+-- Une ligne = une personne membre d'un épicentre. label : nom affiché de
+-- l'épicentre (porté à la création, recopié aux membres suivants).
+-- La contrainte UNIQUE (epicentre_code, personal_id) garantit l'unicité de
+-- l'adhésion et rend effectif l'upsert merge-duplicates du handler de jonction.
+-- Cette table N'EST PAS dans TABLE_COLUMNS : inaccessible par le chemin sb_*
+-- du front, uniquement par les handlers serveur dédiés (epicentre_create /
+-- join / leave / mine / climate), tous gardés par verifyAccess.
+CREATE TABLE IF NOT EXISTS public.epicentre_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    epicentre_code TEXT NOT NULL,
+    personal_id TEXT NOT NULL,
+    label TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (epicentre_code, personal_id)
+);
+
+-- Lookup des épicentres d'une personne (handler epicentre_mine).
+CREATE INDEX IF NOT EXISTS idx_epicentre_members_personal
+  ON public.epicentre_members (personal_id);
+
 -- ── access : contrôle d'accès par personal_id (code à 6 chiffres) ──
 -- code_hash : HMAC(personal_id + code, ACCESS_PEPPER) — jamais le code en clair.
 -- failed_attempts / locked_until : verrou anti-brute-force, géré côté serveur.
@@ -113,4 +136,5 @@ ALTER TABLE public.cartes    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.eclats    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sessions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.feedbacks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.epicentre_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.access    ENABLE ROW LEVEL SECURITY;

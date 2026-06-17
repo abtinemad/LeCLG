@@ -605,6 +605,11 @@ export default function Chat() {
   >("none");
   // Verrou anti-doublon de génération de la carte (voir startCardGeneration).
   const cardGenStarted = useRef(false);
+  // État honnête de la génération de la carte de fin : pilote l'écran de
+  // clôture (carte / en cours / échec) au lieu d'afficher un succès supposé.
+  const [cardStatus, setCardStatus] = useState<
+    "idle" | "generating" | "done" | "failed"
+  >("idle");
   // Vrai quand la personne a atteint son plafond de conversations du jour.
   const [dailyLimitReached, setDailyLimitReached] = useState(false);
   // Vrai tant que la vérification du plafond au chargement n'a pas répondu :
@@ -1015,6 +1020,10 @@ export default function Chat() {
         data: {
           table: "sessions",
           id: s.sessionId,
+          // code d'accès : le serveur exige un code valide pour toute écriture
+          // scopée à un personal_id (verifyAccess). Sans lui, le beacon est
+          // rejeté et la session n'est jamais marquée "abandoned".
+          code: localStorage.getItem("collegue_access_code") || "",
           // personal_id : borne la mise à jour côté serveur (sécurité).
           payload: {
             personal_id: s.personalId,
@@ -3277,6 +3286,7 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
 
   // ── Carte de réflexion via Worker ─────────────────────────
   const generateReflectionCard = async (convo?: Message[]) => {
+    setCardStatus("generating");
     const realMessages = (convo ?? messages).filter((m, i) => {
       if (m.content === "Bonjour, j'ai une situation à vous soumettre.")
         return false;
@@ -3286,7 +3296,12 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
     // Une vraie conversation, même courte, mérite son fragment.
     // Un seul message de la personne suffit ; en deçà, c'est une
     // conversation ouverte puis refermée sans rien déposer.
-    if (realMessages.filter((m) => m.role === "user").length < 1) return;
+    if (realMessages.filter((m) => m.role === "user").length < 1) {
+      // Rien à déposer (conversation vide) : ce n'est pas un échec — on évite
+      // le spinner éternel en marquant l'opération comme terminée.
+      setCardStatus("done");
+      return;
+    }
 
     const summary = realMessages
       .slice(-30)
@@ -3412,6 +3427,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
         };
 
         setReflectionCard(newCard);
+        setCardStatus("done");
 
         // Sauvegarde locale systématique
         localStorage.setItem(
@@ -3455,6 +3471,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
       }
     } catch (e) {
       console.error("carte failed", e);
+      setCardStatus("failed");
     }
   };
 
@@ -4249,11 +4266,24 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
                     </div>
                   );
                 })()
-              ) : (
+              ) : cardStatus === "failed" ? (
+                <div className="w-full max-w-[560px] border border-[#3a3420] bg-[#0e0d08] rounded-lg p-7 text-center space-y-4">
+                  <p className="font-serif text-[15px] text-beige-dim leading-relaxed">
+                    Le dépôt de la carte n'a pas abouti. Rien n'est perdu : vous
+                    pouvez réessayer.
+                  </p>
+                  <button
+                    onClick={() => generateReflectionCard()}
+                    className="font-mono text-[9px] tracking-widest uppercase text-bg bg-beige px-5 py-2.5 rounded hover:opacity-90 transition-opacity"
+                  >
+                    Réessayer
+                  </button>
+                </div>
+              ) : cardStatus === "generating" ? (
                 <div className="font-mono text-[9px] tracking-widest uppercase text-[#3a3420] animate-pulse">
                   Génération de la carte…
                 </div>
-              )}
+              ) : null}
 
               {keyJustRevealed && personalId && (
                 <div className="w-full max-w-[560px] border border-[#4a4028] bg-[#0e0d08] rounded-lg p-7 text-left space-y-4">
@@ -4313,11 +4343,16 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown :
 
               {/* Clôture — le fragment se dépose, pont vers le carnet */}
               <div className="flex flex-col items-center gap-4 w-full max-w-[560px]">
-                <div className="text-center">
-                  <div className="font-serif text-lg text-beige">
-                    Un fragment de cet échange s'est déposé dans votre carnet.
+                {/* N'affirmer le dépôt que si la carte existe vraiment (générée
+                    et sauvegardée en local). En cas d'échec, le bloc ci-dessus
+                    propose un retry ; on ne ment pas ici. */}
+                {reflectionCard && (
+                  <div className="text-center">
+                    <div className="font-serif text-lg text-beige">
+                      Un fragment de cet échange s'est déposé dans votre carnet.
+                    </div>
                   </div>
-                </div>
+                )}
                 {/* Action principale : rejoindre le carnet où le fragment se
                     dépose. Masquée seulement quand le bloc-clé affiche déjà son
                     propre « Aller au carnet » (donc une fois le code créé) —
