@@ -142,6 +142,10 @@ async function fetchMiroir(card: ReflectionCard): Promise<string> {
       type: "chat",
       messages: [{ role: "user", content: miroirPromptFor(card) }],
       max_tokens: 400,
+      data: {
+        personal_id: localStorage.getItem("collegue_personal_id") || "",
+        code: localStorage.getItem("collegue_access_code") || "",
+      },
     }),
   });
   if (!res.ok || !res.body) throw new Error(`worker ${res.status}`);
