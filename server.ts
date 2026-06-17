@@ -81,7 +81,7 @@ const costlyLimiter = rateLimit({
   message: { error: "Trop de requêtes d'analyse, patientez quelques minutes." }
 });
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const SUPABASE_URL = process.env.SUPABASE_URL as string;
 
 // --- Contrôle d'accès par code à 6 chiffres ---
