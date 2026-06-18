@@ -5,6 +5,7 @@ import { useGoBack } from "../lib/useGoBack";
 import { useCarnetIdentity } from "../lib/useCarnetIdentity";
 import { useAffectElanNotes } from "../lib/useAffectElanNotes";
 import { useCarnetAnalyses } from "../lib/useCarnetAnalyses";
+import { useEclat } from "../lib/useEclat";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ArrowLeft,
@@ -46,7 +47,7 @@ import {
   Tooltip
 } from "recharts";
 import { AnimatePresence } from "motion/react";
-import { sbGet, sbInsert, sbUpdate, sendEclatReply } from "../lib/worker";
+import { sbGet, sbInsert, sbUpdate } from "../lib/worker";
 import { ClarteSection, PrismeExplainer, CLARTE_LOADING } from "../components/SerpentinGuide";
 import PrismeIcon from "../components/PrismeIcon";
 import CollegueMark from "../components/CollegueMark";
@@ -241,19 +242,6 @@ export default function Carnet() {
   const [sessionsData, setSessionsData] = useState<any[]>(
     JSON.parse(localStorage.getItem("collegue_sessions") || "[]"),
   );
-  // Éclats répondus, du plus récent au plus ancien — ils s'empilent dans le
-  // Carnet. Cache localStorage en JSON ; parse défensif pour qu'une valeur
-  // héritée de l'ancienne clé string ne fasse pas planter l'initialisation.
-  const [eclatList, setEclatList] = useState<any[]>(() => {
-    try {
-      const raw = localStorage.getItem("collegue_eclats");
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
-
 
   const toggleSound = () => {
     const newVal = !isSoundEnabled;
@@ -271,17 +259,7 @@ export default function Carnet() {
   const [sphereSonges, setSphereSonges] = useState<Record<string, string>>(
     JSON.parse(localStorage.getItem("collegue_sphere_songes") || "{}"),
   );
-  const [isEclatModalOpen, setIsEclatModalOpen] = useState(false);
-  const [readingEclat, setReadingEclat] = useState<any | null>(null);
   const [readingLueur, setReadingLueur] = useState<any | null>(null);
-  // Zone d'écriture de la réponse de la personne dans la modale Éclat.
-  const [replyDraft, setReplyDraft] = useState("");
-  const [replySending, setReplySending] = useState(false);
-  const [replyError, setReplyError] = useState(false);
-  const [eclatRequest, setEclatRequest] = useState("");
-  const [eclatStatus, setEclatStatus] = useState<"idle" | "sending" | "sent" | "error">(
-    "idle",
-  );
   const [carnatCreatedAt, setCarnetCreatedAt] = useState<string | null>(null);
 
   // Retour : ouverture de la modale partagée (état interne géré par le
@@ -308,6 +286,32 @@ export default function Carnet() {
     sessionsData,
     view,
     setLueurs,
+  });
+
+  const {
+    eclatList,
+    setEclatList,
+    isEclatModalOpen,
+    setIsEclatModalOpen,
+    readingEclat,
+    setReadingEclat,
+    replyDraft,
+    setReplyDraft,
+    replySending,
+    replyError,
+    eclatRequest,
+    setEclatRequest,
+    eclatStatus,
+    setEclatStatus,
+    sendEclatRequest,
+    handleEclatSubmit,
+    sendReply,
+  } = useEclat({
+    personalId,
+    matriceDataAnalysis,
+    elanDataAnalysis,
+    affectData,
+    lienData,
   });
 
   // --- Synchronization logic ---
@@ -411,77 +415,6 @@ export default function Carnet() {
     }
   };
 
-  const sendEclatRequest = async () => {
-    if (!eclatRequest.trim()) return;
-    setEclatStatus("sending");
-
-    try {
-      const payload = {
-        type: "eclat",
-        request_text: eclatRequest,
-        matrice_snapshot: matriceDataAnalysis,
-        elan_snapshot: elanDataAnalysis,
-        affect_snapshot: affectData,
-        lien_snapshot: lienData,
-        created_at: new Date().toISOString(),
-        personal_id: personalId,
-      };
-
-      // We use sbInsert to save it to a table named 'eclats'
-      await sbInsert("eclats", payload);
-      setEclatStatus("sent");
-      setEclatRequest("");
-    } catch (e) {
-      console.error("Failed to send eclat:", e);
-      // En cas d'échec, on le dit à la personne : l'Éclat est un geste
-      // investi, lui afficher « envoyé » à tort lui ferait perdre sa demande
-      // sans le savoir. Statut d'erreur -> elle peut réessayer.
-      setEclatStatus("error");
-    }
-  };
-
-  const handleEclatSubmit = () => {
-    sendEclatRequest();
-  };
-
-  // Envoi d'une réponse de la personne à un Éclat. Passe par le handler
-  // serveur dédié, qui vérifie l'appartenance et l'état de clôture.
-  const sendReply = async () => {
-    if (!readingEclat || !replyDraft.trim() || replySending) return;
-    setReplySending(true);
-    setReplyError(false);
-    try {
-      const result = await sendEclatReply(
-        readingEclat.id,
-        personalId,
-        replyDraft.trim(),
-      );
-      const newReplies =
-        result && Array.isArray(result.replies) ? result.replies : [];
-      // Met à jour la modale, la pile, et le cache localStorage.
-      setReadingEclat({ ...readingEclat, replies: newReplies });
-      setEclatList((prev) => {
-        const next = prev.map((e) =>
-          e.id === readingEclat.id ? { ...e, replies: newReplies } : e,
-        );
-        localStorage.setItem("collegue_eclats", JSON.stringify(next));
-        return next;
-      });
-      setReplyDraft("");
-    } catch (e) {
-      setReplyError(true);
-    } finally {
-      setReplySending(false);
-    }
-  };
-
-  // Vider la zone d'écriture quand la modale Éclat se ferme.
-  useEffect(() => {
-    if (!readingEclat) {
-      setReplyDraft("");
-      setReplyError(false);
-    }
-  }, [readingEclat]);
 
   // Normalise un prisme (minuscule, sans accent) pour le comparer aux clés
   // de EMOTIONS — les cartes stockent "Joie", "Colère", la clé est "joie".
