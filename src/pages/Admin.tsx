@@ -54,6 +54,7 @@ export default function Admin() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [eclats, setEclats] = useState<Eclat[]>([]);
+  const [carnetById, setCarnetById] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedEclatId, setSelectedEclatId] = useState<string | null>(null);
@@ -89,6 +90,19 @@ export default function Admin() {
         console.warn("Table eclats likely missing or error fetching", e);
         setEclats([]);
       }
+      try {
+        const carnetRows = await sbGet("carnet", "order=created_at.desc&limit=500", password);
+        const map: Record<string, any> = {};
+        if (Array.isArray(carnetRows)) {
+          for (const row of carnetRows) {
+            if (row.personal_id) map[row.personal_id] = row;
+          }
+        }
+        setCarnetById(map);
+      } catch (e) {
+        console.warn("Table carnet: erreur de lecture", e);
+        setCarnetById({});
+      }
       setIsAuth(true);
     } catch (e) {
       setAuthError(true);
@@ -100,6 +114,7 @@ export default function Admin() {
   const selectedSession = sessions.find(s => s.id === selectedSessionId);
   const selectedEclat = eclats.find(e => e.id === selectedEclatId);
   const selectedFeedback = feedbacks.find(f => f.id === selectedFeedbackId);
+  const carnetRow = selectedSession?.personal_id ? carnetById[selectedSession.personal_id] : null;
 
   // Nombre de prismes distincts débloqués par une personne, sur 10 — calculé
   // sur l'ensemble de ses sessions. Un prisme est une émotion débloquée sur
@@ -719,6 +734,174 @@ export default function Admin() {
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {carnetRow && (
+              <div className="mb-8">
+                <div className="text-[8px] tracking-[0.16em] uppercase text-beige-faint mb-4">Carnet — analyses persistantes</div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Matrice */}
+                  {carnetRow.matrice_data && (
+                    <div className="space-y-6">
+                      <div className="text-[8px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">Matrice</div>
+                      {carnetRow.matrice_data.schema_central && (
+                        <div>
+                          <div className="text-[7px] uppercase tracking-widest text-[#EA580C]/60 mb-2">Schéma Central</div>
+                          <div className="text-sm italic text-beige-faint leading-relaxed">"{carnetRow.matrice_data.schema_central}"</div>
+                        </div>
+                      )}
+                      {carnetRow.matrice_data.angoisses && carnetRow.matrice_data.angoisses.length > 0 && (
+                        <div className="grid grid-cols-2 gap-4">
+                          {carnetRow.matrice_data.angoisses.map((a: any, i: number) => (
+                            <div key={i} className="bg-white/5 p-3 rounded">
+                              <div className="text-[7px] uppercase opacity-40 mb-1">{a.label}</div>
+                              <div className="text-[10px] text-beige-faint mb-1">{a.intensite}%</div>
+                              <div className="flex flex-wrap gap-1">
+                                {a.manifestations?.map((m: string, j: number) => (
+                                  <span key={j} className="font-mono text-[7px] text-beige-faint/40 px-1.5 py-0.5 bg-white/5 rounded-sm">{m}</span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {carnetRow.matrice_data.valeurs && carnetRow.matrice_data.valeurs.length > 0 && (
+                        <div className="space-y-3">
+                          {carnetRow.matrice_data.valeurs.map((v: any, i: number) => (
+                            <div key={i}>
+                              <div className="font-serif text-[14px] text-beige italic mb-1">{v.label}</div>
+                              <div className="flex flex-wrap gap-2">
+                                {v.proximite?.map((p: string, j: number) => (
+                                  <span key={j} className="font-mono text-[8px] text-beige-faint italic opacity-50">"{p}"</span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {carnetRow.matrice_data.defenses && carnetRow.matrice_data.defenses.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {carnetRow.matrice_data.defenses.map((d: any, i: number) => (
+                            <div key={i} className="bg-white/5 border border-white/10 p-4 rounded">
+                              <div className="font-serif text-[14px] text-beige mb-2">{d.label}</div>
+                              <div className="text-[10px] text-beige-faint mb-1"><span className="opacity-40 uppercase text-[7px]">Déclencheur</span> {d.declencheur}</div>
+                              <div className="text-[10px] text-beige-faint italic"><span className="opacity-40 uppercase text-[7px]">Direction</span> {d.direction}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {carnetRow.matrice_data.coherence_elan_matrice && (
+                        <div className="pt-4 border-t border-white/5 font-serif italic text-[13px] text-beige-faint opacity-80">
+                          Observation : {carnetRow.matrice_data.coherence_elan_matrice}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Lien */}
+                  {carnetRow.lien_data && (
+                    <div className="space-y-6">
+                      <div className="text-[8px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">Lien</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {['Familiale', 'Sociale', 'Amoureuse', 'Professionnelle'].map(s => {
+                          const key = s.toLowerCase();
+                          const data = carnetRow.lien_data[s] || carnetRow.lien_data[key];
+                          return (
+                            <div key={s} className="bg-white/5 p-3 rounded">
+                              <div className="text-[7px] uppercase opacity-40 mb-1">{s}</div>
+                              <div className="text-[10px] text-beige-faint mb-1">{data?.teinte || '—'} ({data?.intensite ?? '—'}%)</div>
+                              <div className="space-y-1">
+                                {data?.fragments?.map((f: string, i: number) => (
+                                  <div key={i} className="text-[9px] font-serif italic text-beige-faint/70 border-l border-white/10 pl-2">{f}</div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {carnetRow.lien_data.relief && (
+                        <div className="bg-white/[0.02] border border-white/5 p-4 rounded">
+                          <div className="text-[7px] tracking-widest uppercase text-beige/30 mb-2">Structure Invisible</div>
+                          <div className="text-sm font-serif italic text-beige-faint leading-relaxed">"{carnetRow.lien_data.relief}"</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Élan */}
+                  {carnetRow.elan_data && (
+                    <div className="space-y-6">
+                      <div className="text-[8px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">Élan</div>
+                      <div className="space-y-4">
+                        {carnetRow.elan_data.mouvement && (
+                          <div className="text-center">
+                            <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-beige/20 mb-2">Mouvement</div>
+                            <p className="text-xl font-serif italic text-beige leading-snug">"{carnetRow.elan_data.mouvement}"</p>
+                          </div>
+                        )}
+                        {carnetRow.elan_data.direction && (
+                          <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded">
+                            <div className="text-[7px] tracking-widest uppercase text-blue-400/60 mb-2">Direction</div>
+                            <div className="text-xs italic text-beige-faint">"{carnetRow.elan_data.direction}"</div>
+                          </div>
+                        )}
+                        {carnetRow.elan_data.question && (
+                          <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded">
+                            <div className="text-[7px] tracking-widest uppercase text-blue-400/60 mb-2">Question qui travaille</div>
+                            <div className="text-xs italic text-beige-faint">"{carnetRow.elan_data.question}"</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Affect */}
+                  {carnetRow.affect_data && (
+                    <div className="space-y-6">
+                      <div className="text-[8px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">Affect</div>
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { key: 'active', label: 'Moteurs' },
+                          { key: 'inhibe', label: 'Inhibiteurs' },
+                          { key: 'emerge', label: 'Émergents' },
+                        ].map(({ key, label }) => {
+                          const items = carnetRow.affect_data[key];
+                          return (
+                            <div key={key} className="bg-white/5 p-3 rounded">
+                              <div className="text-[7px] uppercase opacity-40 mb-1">{label}</div>
+                              <div className="text-[10px] text-beige-faint">
+                                {Array.isArray(items) && items.length > 0 ? items.join(', ') : '—'}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {carnetRow.affect_data.texture_semaine && (
+                        <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded">
+                          <div className="text-[7px] tracking-widest uppercase text-blue-400/60 mb-2">Texture de la semaine</div>
+                          <div className="text-xs italic text-beige-faint">"{carnetRow.affect_data.texture_semaine}"</div>
+                        </div>
+                      )}
+                      {carnetRow.affect_data.texture_croisee && carnetRow.affect_data.texture_croisee.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-[7px] tracking-widest uppercase text-beige-faint/50">Texture croisée</div>
+                          {carnetRow.affect_data.texture_croisee.map((obs: string, i: number) => (
+                            <div key={i} className="font-serif italic text-[13px] text-beige-faint opacity-80 leading-relaxed border-l border-white/10 pl-4">{obs}</div>
+                          ))}
+                        </div>
+                      )}
+                      {carnetRow.affect_data.lecture_croisee_affect_prismes && carnetRow.affect_data.lecture_croisee_affect_prismes.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-[7px] tracking-widest uppercase text-beige-faint/50">Lecture croisée Affects / Prismes</div>
+                          {carnetRow.affect_data.lecture_croisee_affect_prismes.map((obs: string, i: number) => (
+                            <div key={i} className="font-serif italic text-[13px] text-beige-faint opacity-80 leading-relaxed border-l border-white/10 pl-4">{obs}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
