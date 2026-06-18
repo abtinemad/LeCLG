@@ -52,36 +52,19 @@ import { LueurVisual } from "../components/LueurVisual";
 import { RetourModal } from "../components/RetourModal";
 import { EMOTIONS, SPHERES as SPHERE_PALETTE, type ReflectionCard } from "../data/emotions";
 import { PRISME_DESCRIPTIONS } from "../data/prismes";
+import {
+  normalizeSphere,
+  MAX_RETRY,
+  RETRY_DELAYS_MS,
+  FAST_RETRY_DELAYS_MS,
+  type FragWeek,
+  miroirPromptFor,
+  fetchMiroir,
+  groupCardsByWeek,
+} from "../lib/carnet-helpers";
 
 // Réexport conservé pour compatibilité d'éventuels imports externes.
 export { EMOTIONS } from "../data/emotions";
-
-// Helper to normalize spheres to "Familiale", "Sociale", "Amoureuse", "Professionnelle"
-const normalizeSphere = (sphere?: string): string => {
-  if (!sphere) return "";
-  const s = sphere.trim();
-  const lower = s.toLowerCase();
-  if (lower === "amoureux" || lower === "amoureuse") return "Amoureuse";
-  if (lower === "familial" || lower === "familiale") return "Familiale";
-  if (lower === "social" || lower === "sociale") return "Sociale";
-  if (lower === "professionnel" || lower === "professionnelle") return "Professionnelle";
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
-
-
-// Chantier robustesse de la chaîne d'analyses : une analyse qui échoue est
-// retentée un nombre borné de fois, puis — si elle échoue toujours — la
-// section affiche une erreur sobre au lieu d'un spinner éternel.
-const MAX_RETRY = 3; // tentatives totales avant de poser un état d'erreur
-// Backoff des relances : 1re rapide (un blip réseau se rattrape vite),
-// les suivantes plus espacées (sans inonder le Worker si c'est une vraie panne).
-const RETRY_DELAYS_MS = [2000, 4000]; // ms, par numéro de tentative (backoff prudent : LLM rate-limité)
-
-// Relances rapides pour les échecs transitoires (blip réseau, 5xx, JSON
-// vide/malformé) : une re-requête quasi immédiate les rattrape souvent, inutile
-// d'imposer 2 s. Le backoff long (RETRY_DELAYS_MS) reste réservé au vrai
-// rate-limit (429), seul cas où patienter a vraiment un sens.
-const FAST_RETRY_DELAYS_MS = [500, 1500];
 
 // Affiché à la place du spinner quand une analyse a définitivement échoué.
 // Ton accordé à LockedBlock / au « pas encore métabolisée » — discret,
@@ -99,92 +82,6 @@ const AnalysisError = ({ onRetry }: { onRetry: () => void }) => (
     </button>
   </div>
 );
-
-type FragWeek = { key: string; label: string; items: { card: ReflectionCard; i: number }[] };
-
-
-function __isoWeekKey(dateStr: string): string {
-  const d = new Date(dateStr);
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const day = (date.getUTCDay() + 6) % 7;
-  date.setUTCDate(date.getUTCDate() - day + 3);
-  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
-  const week = 1 + Math.round(((date.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
-  return date.getUTCFullYear() + "-W" + String(week).padStart(2, "0");
-}
-function __mondayLabel(dateStr: string): string {
-  const d = new Date(dateStr);
-  const day = (d.getDay() + 6) % 7;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() - day);
-  return "Semaine du " + monday.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
-}
-
-// Le « miroir » : la voix que le Collègue pose sur un fragment. Il est généré
-// par le supercerveau du worker (type:"chat" — le même cerveau clinique que le
-// chatbot, côté serveur), à partir des SEULES indications distillées du
-// fragment (jamais la conversation) → la règle de confidentialité tient.
-function miroirPromptFor(card: ReflectionCard): string {
-  return `Voici un fragment déposé dans le Carnet d'une personne :
-- Fragment : ${card.fragment}
-- Déplacement : ${card.deplacement}
-- Direction : ${card.direction}${card.texture_relationnelle ? `\n- Texture : ${card.texture_relationnelle}` : ""}
-
-Écris un court miroir : une pensée que tu poses sur ce fragment, à relire plus tard. Fais surgir une image juste à partir de ces éléments, accueille ce qui s'est déplacé, et termine sur une ouverture — une phrase qui continue de travailler. Ne résume pas, ne donne aucun conseil, ne pose aucune question. Deux à quatre phrases.`;
-}
-
-// Appelle le worker (type:"chat") et reconstitue le texte depuis le flux SSE.
-async function fetchMiroir(card: ReflectionCard): Promise<string> {
-  const res = await fetch("/api/worker", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      type: "chat",
-      messages: [{ role: "user", content: miroirPromptFor(card) }],
-      max_tokens: 400,
-      data: {
-        personal_id: localStorage.getItem("collegue_personal_id") || "",
-        code: localStorage.getItem("collegue_access_code") || "",
-      },
-    }),
-  });
-  if (!res.ok || !res.body) throw new Error(`worker ${res.status}`);
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let full = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const data = line.slice(6);
-      if (data === "[DONE]") continue;
-      try {
-        const parsed = JSON.parse(data);
-        full += parsed.delta?.text || "";
-      } catch {}
-    }
-  }
-  return full.trim();
-}
-
-function groupCardsByWeek(cards: ReflectionCard[]): FragWeek[] {
-  const map = new Map<string, FragWeek>();
-  cards.forEach((card, i) => {
-    if (!card || !card.date) return;
-    const k = __isoWeekKey(card.date);
-    if (!map.has(k)) map.set(k, { key: k, label: __mondayLabel(card.date), items: [] });
-    map.get(k)!.items.push({ card, i });
-  });
-  const arr = Array.from(map.values());
-  arr.forEach((w) => w.items.sort((a, b) => new Date(b.card.date).getTime() - new Date(a.card.date).getTime()));
-  arr.sort((a, b) => new Date(b.items[0].card.date).getTime() - new Date(a.items[0].card.date).getTime());
-  return arr;
-}
 
 function LienSphereDeck({ cards }: { cards: ReactNode[] }) {
   const [active, setActive] = useState(0);
