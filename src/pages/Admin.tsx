@@ -430,7 +430,7 @@ export default function Admin() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <div className="space-y-6">
                     <div className="text-[8px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">Matrice Snapshot</div>
                     {selectedEclat.matrice_snapshot ? (
@@ -472,6 +472,35 @@ export default function Admin() {
                        </div>
                     </div>
                   </div>
+
+                  {selectedEclat.affect_snapshot && Object.keys(selectedEclat.affect_snapshot).length > 0 && (
+                    <div className="space-y-6">
+                      <div className="text-[8px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">Affect Snapshot</div>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-3 gap-3">
+                          {[
+                            { key: 'active', label: 'Moteurs' },
+                            { key: 'inhibe', label: 'Inhibiteurs' },
+                            { key: 'emerge', label: 'Émergents' },
+                          ].map(({ key, label }) => {
+                            const items = selectedEclat.affect_snapshot[key];
+                            return (
+                              <div key={key} className="bg-white/5 p-3 rounded">
+                                <div className="text-[7px] uppercase opacity-40 mb-1">{label}</div>
+                                <div className="text-[10px] text-beige-faint">
+                                  {Array.isArray(items) && items.length > 0 ? items.join(', ') : '—'}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded">
+                          <div className="text-[7px] tracking-widest uppercase text-blue-400/60 mb-2">Texture de la semaine</div>
+                          <div className="text-xs italic text-beige-faint">"{selectedEclat.affect_snapshot.texture_semaine || 'Non évalué'}"</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Réponse — rédigée à la main, déposée sur la ligne eclats.
