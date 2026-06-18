@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useGoBack } from "../lib/useGoBack";
 import { useCarnetIdentity } from "../lib/useCarnetIdentity";
+import { useAffectElanNotes } from "../lib/useAffectElanNotes";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ArrowLeft,
@@ -147,6 +148,18 @@ export default function Carnet() {
     setConfirmLogout,
     handleLogout,
   } = useCarnetIdentity();
+  const {
+    affectNote,
+    setAffectNote,
+    affectHistory,
+    setAffectHistory,
+    elanNarrative,
+    setElanNarrative,
+    userNote,
+    setUserNote,
+    elanHistory,
+    setElanHistory,
+  } = useAffectElanNotes();
   const [view, setView] = useState<
     "fragments" | "lien" | "affect" | "elan" | "matrice"
   >("fragments");
@@ -222,21 +235,6 @@ export default function Carnet() {
     JSON.parse(localStorage.getItem("collegue_metacognition") || "null"),
   );
   const [loadingMeta, setLoadingMeta] = useState(false);
-  const [affectNote, setAffectNote] = useState(
-    localStorage.getItem("collegue_affect_note") || "",
-  );
-  const [affectHistory, setAffectHistory] = useState<
-    { date: string; note: string; analysis: string }[]
-  >(JSON.parse(localStorage.getItem("collegue_affect_history") || "[]"));
-  const [elanNarrative, setElanNarrative] = useState(
-    localStorage.getItem("collegue_elan_narrative") || "",
-  );
-  const [userNote, setUserNote] = useState(
-    localStorage.getItem("collegue_user_note") || "",
-  );
-  const [elanHistory, setElanHistory] = useState<
-    { date: string; narrative: string; userNote: string }[]
-  >(JSON.parse(localStorage.getItem("collegue_elan_history") || "[]"));
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [isSoundEnabled, setIsSoundEnabled] = useState(
     localStorage.getItem("collegue_sound") !== "false",
@@ -612,36 +610,6 @@ export default function Carnet() {
     setCopiedSection(section);
     setTimeout(() => setCopiedSection(null), 2000);
   };
-
-  useEffect(() => {
-    // Clear old default Elan message if it was saved in localStorage
-    if (elanNarrative.includes("accumulation plus longue de fragments")) {
-      setElanNarrative("");
-    }
-  }, [elanNarrative]);
-
-  useEffect(() => {
-    localStorage.setItem("collegue_affect_note", affectNote);
-  }, [affectNote]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "collegue_affect_history",
-      JSON.stringify(affectHistory),
-    );
-  }, [affectHistory]);
-
-  useEffect(() => {
-    localStorage.setItem("collegue_elan_narrative", elanNarrative);
-  }, [elanNarrative]);
-
-  useEffect(() => {
-    localStorage.setItem("collegue_user_note", userNote);
-  }, [userNote]);
-
-  useEffect(() => {
-    localStorage.setItem("collegue_elan_history", JSON.stringify(elanHistory));
-  }, [elanHistory]);
 
   const updateSphereSonge = (sphere: string, text: string) => {
     const newSonges = { ...sphereSonges, [sphere]: text };
