@@ -976,6 +976,7 @@ export default function Chat() {
     personalId: string;
     stepCount: number;
     userMessageCount: number;
+    code: string;
   }>({
     sessionActive: false,
     showEnded: false,
@@ -984,6 +985,7 @@ export default function Chat() {
     personalId: "",
     stepCount: 0,
     userMessageCount: 0,
+    code: "",
   });
 
   useEffect(() => {
@@ -995,6 +997,7 @@ export default function Chat() {
       personalId,
       stepCount: validatedSteps.size,
       userMessageCount: messages.filter((m) => m.role === "user").length,
+      code: localStorage.getItem("collegue_access_code") || "",
     };
   }, [
     sessionActive,
@@ -1021,9 +1024,9 @@ export default function Chat() {
           table: "sessions",
           id: s.sessionId,
           // code d'accès : le serveur exige un code valide pour toute écriture
-          // scopée à un personal_id (verifyAccess). Sans lui, le beacon est
-          // rejeté et la session n'est jamais marquée "abandoned".
-          code: localStorage.getItem("collegue_access_code") || "",
+          // scopée à un personal_id (verifyAccess). Capturé dans le ref pour
+          // être disponible au moment synchrone du pagehide.
+          code: s.code,
           // personal_id : borne la mise à jour côté serveur (sécurité).
           payload: {
             personal_id: s.personalId,
