@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } fro
 import { motion } from "motion/react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useGoBack } from "../lib/useGoBack";
+import { useCarnetIdentity } from "../lib/useCarnetIdentity";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ArrowLeft,
@@ -134,23 +135,18 @@ export default function Carnet() {
   const goBack = useGoBack();
   const [cards, setCards] = useState<ReflectionCard[]>([]);
   const [loading, setLoading] = useState(true);
-  const [personalId, setPersonalId] = useState(
-    localStorage.getItem("collegue_personal_id") || "",
-  );
-  // Affichage de la Clé-LCLG depuis le header (toujours consultable).
-  const [showKey, setShowKey] = useState(false);
-  const [keyCopied, setKeyCopied] = useState(false);
-  const [showQr, setShowQr] = useState(false);
-  const [confirmLogout, setConfirmLogout] = useState(false);
-  const handleLogout = () => {
-    try {
-      localStorage.removeItem("collegue_personal_id");
-      localStorage.removeItem("collegue_access_code");
-    } catch {
-      /* ignore */
-    }
-    navigate("/");
-  };
+  const {
+    personalId,
+    showKey,
+    setShowKey,
+    keyCopied,
+    copyKey,
+    showQr,
+    setShowQr,
+    confirmLogout,
+    setConfirmLogout,
+    handleLogout,
+  } = useCarnetIdentity();
   const [view, setView] = useState<
     "fragments" | "lien" | "affect" | "elan" | "matrice"
   >("fragments");
@@ -1627,16 +1623,7 @@ export default function Carnet() {
                       {personalId || "—"}
                     </code>
                     <button
-                      onClick={() => {
-                        if (!personalId) return;
-                        try {
-                          navigator.clipboard.writeText(personalId);
-                        } catch (e) {
-                          console.warn("copy failed", e);
-                        }
-                        setKeyCopied(true);
-                        setTimeout(() => setKeyCopied(false), 2000);
-                      }}
+                      onClick={copyKey}
                       className="shrink-0 text-beige-faint hover:text-beige transition-colors p-1.5"
                       title="Copier"
                     >
