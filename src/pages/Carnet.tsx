@@ -53,19 +53,6 @@ import {
   RotateCw,
   LogOut,
 } from "lucide-react";
-import {
-  ResponsiveContainer,
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip
-} from "recharts";
 import { AnimatePresence } from "motion/react";
 import { ClarteSection, PrismeExplainer } from "../components/SerpentinGuide";
 import PrismeIcon from "../components/PrismeIcon";
