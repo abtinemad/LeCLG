@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Visual-regression harness output (screenshots, diffs, reports)
+visual/__output__/
+test-results/
+playwright-report/
