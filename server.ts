@@ -266,7 +266,7 @@ async function geminiJSON(args: any): Promise<any> {
     // of JSON input »). On le désactive : tout le budget va au JSON renvoyé.
     thinkingConfig: { thinkingBudget: 0 },
   };
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 4;
   let lastErr: any;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     // --- Appel Gemini ---
@@ -283,7 +283,10 @@ async function geminiJSON(args: any): Promise<any> {
         `geminiJSON: appel Gemini en échec transitoire (tentative ${attempt}/${MAX_ATTEMPTS}): ${e?.message}`,
       );
       if (attempt < MAX_ATTEMPTS) {
-        await new Promise((r) => setTimeout(r, attempt * 1000));
+        // Backoff exponentiel + jitter : un pic de surcharge 503 a besoin de
+        // temps pour retomber ; 1s/2s ne suffit pas. ~2s, 4s, 8s.
+        const base = Math.min(2000 * 2 ** (attempt - 1), 8000);
+        await new Promise((r) => setTimeout(r, base + Math.floor(Math.random() * 500)));
       }
       continue;
     }
