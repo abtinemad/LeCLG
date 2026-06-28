@@ -1130,7 +1130,7 @@ Retourne un JSON pur : { "rythme": "..." }`,
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(data) }] }],
       config: {
         systemInstruction: `Analyse le contenu de ces cartes.
-Cherche s'il existe des "clusters" de situations récurrentes : quand plusieurs sessions en apparence différentes partagent la même structure profonde (même tension, même fuite).
+Cherche s'il existe des "motifs" de situations récurrentes : quand plusieurs sessions en apparence différentes partagent la même structure profonde (même tension, même fuite).
 Formule une observation discrète, sans mettre d'étiquette définitive. S'il n'y a rien de net, retourne null.
 Retourne un JSON pur : { "clusters_recurrents": "..." }`,
         responseMimeType: "application/json"

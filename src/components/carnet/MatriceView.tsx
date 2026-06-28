@@ -60,7 +60,7 @@ export function MatriceView({
             {/* Angoisses */}
             <div className="space-y-6">
               <h3 className="font-mono text-[11px] tracking-widest uppercase text-beige-faint border-b border-white/5 pb-2">
-                Angoisses de structure
+                Tensions de fond
               </h3>
 
               <div className="h-[200px] w-full mb-6">
@@ -213,7 +213,7 @@ export function MatriceView({
           {/* Défenses */}
           <div className="space-y-8">
             <h3 className="font-mono text-[11px] tracking-widest uppercase text-beige-faint text-center">
-              Système de Défense
+              Manières de se protéger
             </h3>
             <div className="grid md:grid-cols-3 gap-6">
               {matriceDataAnalysis.defenses?.map((d: any, i: number) => (
@@ -227,7 +227,7 @@ export function MatriceView({
                   <div className="space-y-3">
                     <div>
                       <div className="font-mono text-[7px] uppercase text-beige/20 mb-1">
-                        Déclencheur
+                        Ce qui les active
                       </div>
                       <div className="text-[13px] text-beige-faint leading-relaxed">
                         {d.declencheur}

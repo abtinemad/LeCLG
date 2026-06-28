@@ -89,7 +89,7 @@ export function ElanView({
                         {unlockedBlocks.elan_clusters && (
                           <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#FAF9F6] inline-flex items-center gap-2 mb-4">
                              <Orbit className="w-3 h-3" />
-                             Clusters récurrents & Signaux
+                             Motifs récurrents & Signaux
                           </div>
                         )}
                         {unlockedBlocks.elan_clusters ? (
@@ -99,7 +99,7 @@ export function ElanView({
                                 {enrichElan.clusters_recurrents}
                               </div>
                             ) : (
-                              <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas de clusters détectés</div>
+                              <div className="text-[11px] font-mono italic opacity-40 uppercase">Pas de motifs détectés</div>
                             )}
 
                             <div className="pt-6 border-t border-white/5">
@@ -161,7 +161,7 @@ export function ElanView({
                             </div>
                           </>
                         ) : isNextLocked('elan_clusters', 'elan') && (
-                          <div className="mt-4"><LockedBlock title="Clusters Récurrents" requirements="7 jours + 3 fragments" /></div>
+                          <div className="mt-4"><LockedBlock title="Motifs Récurrents" requirements="7 jours + 3 fragments" /></div>
                         )}
                      </div>
                      )}
@@ -208,7 +208,7 @@ export function ElanView({
                                     </div>
                                     {obs && (
                                       <div className="p-4 bg-white/[0.02] border border-white/5 rounded-sm">
-                                        <div className="text-[10px] font-mono uppercase text-beige/40 mb-1">Polarité dominante</div>
+                                        <div className="text-[10px] font-mono uppercase text-beige/40 mb-1">Tendance dominante</div>
                                         <div className="font-serif italic text-beige/80">{obs}</div>
                                       </div>
                                     )}
