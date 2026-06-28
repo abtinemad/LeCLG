@@ -103,6 +103,10 @@ export default function Carnet() {
   >("fragments");
   // Index de la carte affichée par semaine (feuilletage des piles).
   const [weekFlip, setWeekFlip] = useState<Record<string, number>>({});
+  // Lentille : teinte émotionnelle active filtrant le flux Fragments (clé
+  // EMOTIONS, null = aucun filtre). Axe orthogonal au temps. DISTINCT de
+  // `selectedPrisme` (qui, lui, monte la modale-explainer).
+  const [lensFilter, setLensFilter] = useState<string | null>(null);
   // Fragment dont la fenêtre « reprendre la réflexion » est ouverte (null = fermée).
   const [resumeConfirm, setResumeConfirm] = useState<ReflectionCard | null>(null);
   // Reprend un fragment : on le mémorise (localStorage survit au reload/re-render,
@@ -267,6 +271,8 @@ export default function Carnet() {
             isNextLocked={isNextLocked}
             weekFlip={weekFlip}
             setWeekFlip={setWeekFlip}
+            lensFilter={lensFilter}
+            setLensFilter={setLensFilter}
             voiceRead={voiceRead}
             openVoice={openVoice}
             copyToClipboard={copyToClipboard}

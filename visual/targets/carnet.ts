@@ -68,10 +68,16 @@ const cards = CARD_DATES.map((date, i) => ({
 
 // One "locked" fragment (no prisme) — renders the locked card style and the
 // "Reprendre cette réflexion" control, which only appears on prisme-less cards.
+// It carries an `emotion` (a real teinte) but no `prisme`: this is exactly a
+// "muette" card — the lens bar shows its colour-only pastille (no logo, no name)
+// for a teinte the person has met but not yet unlocked. The teinte (Mélancolie)
+// is deliberately absent from PRISMES above so it stands as a distinct muette
+// pastille rather than merging into a named one.
 cards.push({
   id: "fixture-card-locked",
   date: "2026-06-14T11:00:00.000Z",
   sphere: "Sociale",
+  emotion: "Mélancolie",
   prisme: "",
   texture_relationnelle: "",
   fragment:
@@ -338,7 +344,20 @@ export const carnetTarget: Target = {
     },
     {
       name: "view-fragments",
-      description: "Vue Fragments (vue par défaut)",
+      description:
+        "Vue Fragments (défaut) — barre de lentilles : pastilles nommées " +
+        "(couleur + logo prisme) ET une pastille muette (Mélancolie, couleur " +
+        "seule, teinte rencontrée non débloquée). Couvre les états (a) et (b).",
+    },
+    {
+      name: "view-fragments-lens",
+      description:
+        "Vue Fragments — filtre de lentille actif (c) : clic sur la pastille " +
+        "Joie ; flux restreint à cette teinte, pastille en état actif.",
+      action: async (p) => {
+        await p.getByTitle("Filtrer : Joie", { exact: true }).click();
+        await p.waitForTimeout(500);
+      },
     },
     {
       name: "view-lien",
