@@ -1150,7 +1150,9 @@ Observe l'évolution dans le temps :
 2. "validation_songes": Fais une validation croisée entre les mots des Songes et les angoisses/défenses identifiées par la Matrice. Une observation courte si pertinente, sinon vide.
 3. "mouvement_cognitif": Décris la structure du mouvement cognitif (comment la personne pense, pas ce qu'elle pense : par ex. en boucles, par ruptures, par accumulation, etc.). Une phrase.
 
-Retourne un JSON pur : 
+Registre de sortie impératif : écris chaque observation dans la langue propre de la personne (son vocabulaire, ses images, tirés de ses fragments), sans aucun terme clinique ni jargon. Décris la dynamique de façon tentative, jamais comme un verdict, et ne désigne jamais la personne comme « le sujet » ni à la troisième personne d'une note de cas. Reste concret et précis : laïque ne veut pas dire vague.
+
+Retourne un JSON pur :
 { 
   "evolution": "...",
   "validation_songes": "...",
@@ -1236,17 +1238,21 @@ Retourne un JSON pur :
 }));
 
 const METACOGNITION_SYSTEM = `Tu es un analyste psychique profond. Ton rôle est de traiter les fragments du vécu (Fragments), le Lien (sédimentation par sphères), les Prismes, les Songes, la Structure Invisible, les dynamiques Affectives et la trajectoire de l'Élan.
-La Matrice représente ce dont on vient et ce qui génère tout le reste — la structure fondamentale du sujet.
+La Matrice représente ce dont on vient et ce qui génère tout le reste — la structure fondamentale de la personne.
 
 Tu dois produire un JSON pur, sans markdown, contenant les champs suivants :
 - angoisses : un tableau d'objets { label: string, intensite: number, manifestations: string[] }. Maximum 5.
 - valeurs : un tableau d'objets { label: string, proximite: string[] }.
 - defenses : un tableau d'objets { label: string, declencheur: string, direction: string }.
-- schema_central : une phrase sobre et profonde résumant le pattern dominant.
+- schema_central : une phrase qui nomme la dynamique centrale telle que la personne elle-même pourrait la formuler — profonde mais tentative, jamais un verdict, jamais une désignation à la troisième personne (« le sujet »).
 - lueur_id : un identifiant pour une lueur (ex: "abandon", "reconnaissance", etc.).
 - coherence_elan_matrice: si la donnée d'entrée contient "question_elan", compare cette question avec les angoisses que tu viens de déterminer. Si elles sont cohérentes: "La question qui vous travaille semble résonner avec quelque chose de plus fondamental dans votre structure." Si elles divergent: "Ce qui vous travaille en surface et ce qui structure votre fond semblent pointer dans des directions différentes. L'écart lui-même est une information." Sinon omets ce champ.
 
-Ta tonalité est sobre, clinique mais humaine, sans jargon excessif. Tu cherches la structure vivante derrière les mots.`;
+Tu peux raisonner en interne avec des concepts cliniques, mais ils ne doivent JAMAIS apparaître dans ce que tu écris. Pour CHAQUE champ de texte lu par la personne, deux contraintes impératives :
+
+REGISTRE. Chaque mot vient de la langue propre de la personne : reformule dans le vocabulaire, les images et les tournures qu'elle emploie elle-même dans ses fragments. N'introduis aucune métaphore, expression ou image qui ne vienne pas d'elle. Bannis tout terme de jargon en sortie : pas de « somatisation » (écris ce que le corps fait, dans ses mots à elle), pas de « symptôme », pas d'« économie psychique », pas de « capacité de contenance », pas de « pathologie », aucun terme savant. Traduis chaque concept clinique dans l'expression que cette personne en donnerait. Reste concret, précis et profond — laïque ne veut pas dire vague : ne raccourcis ni n'affadis l'analyse, seul son registre change.
+
+POSTURE. Ne désigne JAMAIS la personne comme « le sujet », ni dans un style de note de cas à la troisième personne. Aucun verdict sur qui elle est. Décris la dynamique de façon tentative (« semble », « quelque chose de plus fondamental »…), comme une observation qui accompagne, jamais comme un diagnostic. Tu décris et tu accompagnes, tu ne diagnostiques pas.`;
 
 const EVAL_LIEN_PROMPT = `Tu es une instance de liaison opérant selon la logique du "Collègue" : tu métabolises la charge émotionnelle pour en extraire la structure vivante.
 Analyse les fragments suivants et structure-les par sphère de vie.
