@@ -10,6 +10,7 @@ import {
   Check,
   Copy,
   MessagesSquare,
+  X,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -32,6 +33,8 @@ interface FragmentsViewProps {
   isNextLocked: (key: string, viewMode: string) => boolean;
   weekFlip: Record<string, number>;
   setWeekFlip: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  lensFilter: string | null;
+  setLensFilter: (key: string | null) => void;
   voiceRead: Record<string, boolean>;
   openVoice: (card: ReflectionCard, key: string) => void;
   copyToClipboard: (text: string, section: string) => void;
@@ -52,6 +55,8 @@ export function FragmentsView({
   isNextLocked,
   weekFlip,
   setWeekFlip,
+  lensFilter,
+  setLensFilter,
   voiceRead,
   openVoice,
   copyToClipboard,
@@ -61,8 +66,93 @@ export function FragmentsView({
   updateCardNote,
   setResumeConfirm,
 }: FragmentsViewProps) {
+  // --- Lentille (filtre par teinte) ---------------------------------------
+  // Référentiel des teintes RÉELLEMENT rencontrées (apparition progressive :
+  // jamais 16 pastilles d'emblée). Une teinte est « présente » dès qu'une carte
+  // la porte via `emotion || prisme`, coercée au référentiel EMOTIONS ; le repli
+  // neutre (teinte hors-liste) reste hors barre. Elle est « nommée » dès qu'au
+  // moins une carte de cette teinte a un `prisme` débloqué — sinon « muette »
+  // (couleur seule, sans nom ni logo). Ordre = ordre fixe du référentiel.
+  const lensEntries = (() => {
+    const present = new Map<string, boolean>(); // clé -> nommée ?
+    for (const c of cards) {
+      const key = prismeKey(c.emotion || c.prisme);
+      if (!key || !(key in EMOTIONS)) continue;
+      present.set(key, (present.get(key) ?? false) || !!c.prisme);
+    }
+    return (Object.keys(EMOTIONS) as (keyof typeof EMOTIONS)[])
+      .filter((k) => present.has(k))
+      .map((k) => ({ key: k, named: present.get(k)!, data: EMOTIONS[k] }));
+  })();
+
+  // Si le filtre actif ne correspond plus à aucune teinte rencontrée (carte
+  // supprimée, etc.), on retombe sur « tout » plutôt que d'afficher du vide.
+  const activeLens =
+    lensFilter && lensEntries.some((e) => e.key === lensFilter)
+      ? lensFilter
+      : null;
+
+  // Le flux par semaine est restreint à la teinte active ; les blocs d'analyse
+  // plus bas continuent de raisonner sur l'ensemble des cartes.
+  const visibleCards = activeLens
+    ? cards.filter((c) => prismeKey(c.emotion || c.prisme) === activeLens)
+    : cards;
+
   return (
   <div className="space-y-6">
+    {!loading && cards.length > 0 && lensEntries.length > 0 && (
+      <div className="max-w-lg mx-auto w-full px-3">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <span className="font-mono text-[10px] tracking-widest uppercase text-beige-faint">
+            Teintes
+          </span>
+          {activeLens && (
+            <button
+              onClick={() => setLensFilter(null)}
+              className="font-mono text-[9px] tracking-widest uppercase text-beige-faint/60 hover:text-beige flex items-center gap-1 transition-colors"
+              title="Retirer le filtre — revenir à tout"
+            >
+              <X className="w-2.5 h-2.5" />
+              tout
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {lensEntries.map(({ key, named, data }) => {
+            const isActive = activeLens === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setLensFilter(isActive ? null : key)}
+                aria-pressed={isActive}
+                title={
+                  named
+                    ? `Filtrer : ${data.label.split(" ")[0]}`
+                    : "Filtrer cette teinte"
+                }
+                className={`relative h-7 w-7 rounded-full flex items-center justify-center border transition-all hover:brightness-125 ${
+                  isActive
+                    ? "ring-1 ring-beige/70 scale-110"
+                    : "opacity-80 hover:opacity-100"
+                }`}
+                style={{
+                  backgroundColor: `${data.color}${isActive ? "59" : "26"}`,
+                  borderColor: `${data.color}${isActive ? "cc" : "66"}`,
+                }}
+              >
+                {named && (
+                  <PrismeIcon
+                    rainbow={false}
+                    color={data.color}
+                    className="w-3.5 h-3.5"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    )}
     <div className="space-y-12">
       <style>{`
         .card-holo {
@@ -128,7 +218,7 @@ export function FragmentsView({
           </p>
         </div>
       ) : (
-        groupCardsByWeek(cards).map((week) => {
+        groupCardsByWeek(visibleCards).map((week) => {
           const __n = week.items.length;
           const __active = Math.min(weekFlip[week.key] ?? 0, __n - 1);
           const { card, i } = week.items[__active];
