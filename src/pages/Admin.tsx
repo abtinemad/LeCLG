@@ -786,7 +786,7 @@ export default function Admin() {
                           {carnetRow.matrice_data.defenses.map((d: any, i: number) => (
                             <div key={i} className="bg-white/5 border border-white/10 p-4 rounded">
                               <div className="font-serif text-[14px] text-beige mb-2">{d.label}</div>
-                              <div className="text-[10px] text-beige-faint mb-1"><span className="opacity-40 uppercase text-[7px]">Déclencheur</span> {d.declencheur}</div>
+                              <div className="text-[10px] text-beige-faint mb-1"><span className="opacity-40 uppercase text-[7px]">Ce qui les active</span> {d.declencheur}</div>
                               <div className="text-[10px] text-beige-faint italic"><span className="opacity-40 uppercase text-[7px]">Direction</span> {d.direction}</div>
                             </div>
                           ))}
