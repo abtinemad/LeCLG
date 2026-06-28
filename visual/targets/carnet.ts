@@ -51,6 +51,11 @@ const cards = CARD_DATES.map((date, i) => ({
   id: `fixture-card-${i + 1}`,
   date,
   sphere: SPHERES[i % SPHERES.length],
+  // `emotion` vide ici (teinte portée par `prisme` pour ces cartes nommées) :
+  // présent pour que le type d'élément du tableau inclue `emotion`, afin que la
+  // carte muette poussée plus bas (emotion sans prisme) soit assignable. Falsy
+  // -> `emotion || prisme` retombe sur `prisme`, rendu inchangé.
+  emotion: "",
   prisme: PRISMES[i],
   texture_relationnelle: TEXTURES[i],
   fragment: `Fragment ${i + 1} — un moment de bascule où quelque chose s'est dit autrement.`,
@@ -353,9 +358,22 @@ export const carnetTarget: Target = {
       name: "view-fragments-lens",
       description:
         "Vue Fragments — filtre de lentille actif (c) : clic sur la pastille " +
-        "Joie ; flux restreint à cette teinte, pastille en état actif.",
+        "Joie (NOMMÉE) ; flux restreint à cette teinte, pastille en état " +
+        "actif, et le NOM « Joie » s'affiche à côté du contrôle de filtre.",
       action: async (p) => {
         await p.getByTitle("Filtrer : Joie", { exact: true }).click();
+        await p.waitForTimeout(500);
+      },
+    },
+    {
+      name: "view-fragments-lens-muette",
+      description:
+        "Vue Fragments — filtre actif sur une pastille MUETTE (Mélancolie, " +
+        "prisme non débloqué) : le flux est restreint à la teinte mais AUCUN " +
+        "nom n'apparaît (le contrôle reste « ✕ tout »). Garde-fou « sentir " +
+        "d'abord, nommer ensuite ».",
+      action: async (p) => {
+        await p.getByTitle("Filtrer cette teinte", { exact: true }).click();
         await p.waitForTimeout(500);
       },
     },

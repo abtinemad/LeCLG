@@ -98,6 +98,17 @@ export function FragmentsView({
     ? cards.filter((c) => prismeKey(c.emotion || c.prisme) === activeLens)
     : cards;
 
+  // Libellé de l'ÉTAT de filtre (pas un attribut de pastille) : le nom du
+  // prisme n'apparaît à côté du contrôle que si la teinte active est NOMMÉE
+  // (prisme débloqué). On réutilise le prédicat `named` de lensEntries et la
+  // même source de nom que la modale/les pastilles (EMOTIONS[...].label). Une
+  // teinte MUETTE filtrée n'affiche AUCUN nom : on filtre une couleur sans la
+  // nommer (« sentir d'abord, nommer ensuite »).
+  const activeNamedLabel = (() => {
+    const e = activeLens ? lensEntries.find((x) => x.key === activeLens) : null;
+    return e && e.named ? e.data.label.split(" ")[0] : null;
+  })();
+
   return (
   <div className="space-y-6">
     {!loading && cards.length > 0 && lensEntries.length > 0 && (
@@ -112,8 +123,17 @@ export function FragmentsView({
               className="font-mono text-[9px] tracking-widest uppercase text-beige-faint/60 hover:text-beige flex items-center gap-1 transition-colors"
               title="Retirer le filtre — revenir à tout"
             >
-              <X className="w-2.5 h-2.5" />
-              tout
+              {activeNamedLabel ? (
+                <>
+                  <span className="text-beige-faint/80">{activeNamedLabel}</span>
+                  <X className="w-2.5 h-2.5" />
+                </>
+              ) : (
+                <>
+                  <X className="w-2.5 h-2.5" />
+                  tout
+                </>
+              )}
             </button>
           )}
         </div>
