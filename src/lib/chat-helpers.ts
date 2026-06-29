@@ -1,3 +1,4 @@
+export const API_BASE = "/api";
 export const WORKER_URL = "/api/worker";
 
 export const toWorkerMessages = (msgs: any[]) => {
