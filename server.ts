@@ -164,12 +164,16 @@ function cleanPayload(table: string, payload: any): any {
 }
 
 app.use("/api/", apiLimiter);
+// Transcription : l'audio (base64) dépasse la limite ~100 ko d'express.json.
+// On élargit la limite POUR CETTE ROUTE UNIQUEMENT, en amont du parseur global
+// (qui devient no-op sur ce chemin) ; les autres routes gardent le plafond strict.
+app.use("/api/transcribe", express.json({ limit: "8mb" }));
 app.use(express.json());
 
 // Limiteur strict sur les routes d'analyse IA — APRÈS express.json() pour
 // pouvoir lire req.body.type dans le skip. Le chat et les opérations Supabase
 // passent au travers (voir le skip de costlyLimiter).
-app.use(["/api/worker", "/api/reflection", "/api/metacognition"], costlyLimiter);
+app.use(["/api/worker", "/api/reflection", "/api/metacognition", "/api/transcribe"], costlyLimiter);
 
 // Request Logger
 app.use((req, res, next) => {
@@ -326,6 +330,47 @@ async function geminiJSON(args: any): Promise<any> {
   throw new Error(
     `Gemini a échoué après ${MAX_ATTEMPTS} tentatives: ${lastErr?.message}`,
   );
+}
+
+// Transcription audio via Gemini (multimodal). Frère de geminiJSON, mais SANS
+// sortie JSON forcée : texte brut. L'audio (base64) n'est jamais persisté ni loggé.
+async function geminiTranscribe(mimeType: string, base64Audio: string): Promise<string> {
+  const MAX_ATTEMPTS = 3;
+  let lastErr: any;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const result = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType, data: base64Audio } },
+              {
+                text:
+                  "Tu es un moteur de transcription. Transcris fidèlement, mot pour mot, " +
+                  "le contenu parlé de cet audio (en français). Ne réponds RIEN d'autre que " +
+                  "la transcription : aucun commentaire, aucune interprétation, aucune réponse, " +
+                  "aucune étiquette du type « Transcription : ». Si l'audio est vide ou inaudible, " +
+                  "renvoie une chaîne vide.",
+              },
+            ],
+          },
+        ],
+        config: { thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 2048 },
+      });
+      return (result.text || "").trim();
+    } catch (e: any) {
+      lastErr = e;
+      if (isHardGeminiError(e)) throw e;
+      console.warn(`geminiTranscribe: échec transitoire (${attempt}/${MAX_ATTEMPTS}): ${e?.message}`);
+      if (attempt < MAX_ATTEMPTS) {
+        const base = Math.min(2000 * 2 ** (attempt - 1), 8000);
+        await new Promise((r) => setTimeout(r, base + Math.floor(Math.random() * 500)));
+      }
+    }
+  }
+  throw new Error(`Gemini (transcription) a échoué après ${MAX_ATTEMPTS} tentatives: ${lastErr?.message}`);
 }
 
 // Supabase Helper
@@ -1327,6 +1372,29 @@ Analyse ce matériau holistique et produis la structure métacognitive demandée
   });
 
   res.json(parsed);
+}));
+
+// Transcription audio (dictée). L'audio arrive en base64, est transcrit par
+// Gemini, puis JETÉ — jamais écrit, jamais loggé. Pas de personal_id (utilitaire),
+// borné par costlyLimiter + le plafond de taille de la route.
+app.post("/api/transcribe", asyncHandler(async (req: Request, res: Response) => {
+  const { audio, mimeType } = req.body as { audio?: string; mimeType?: string };
+  if (!audio || typeof audio !== "string") {
+    return res.status(400).json({ error: "audio manquant" });
+  }
+  const mt =
+    typeof mimeType === "string" && mimeType.startsWith("audio/") ? mimeType : "audio/webm";
+  try {
+    const text = await geminiTranscribe(mt, audio);
+    return res.json({ text });
+  } catch (e: any) {
+    // DIAG temporaire : on renvoie le détail au client pour diagnostiquer sur
+    // iPhone. À revenir à { error: "transcription_failed" } une fois confirmé.
+    console.error(`/api/transcribe: ${e?.message}`);
+    return res
+      .status(502)
+      .json({ error: "transcription_failed", detail: String(e?.message || e).slice(0, 300) });
+  }
 }));
 
 // Code d'épicentre : token URL-safe non typé (partagé par QR/lien).

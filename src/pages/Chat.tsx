@@ -2773,26 +2773,32 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
     lastAudioRef.current = { base64, mimeType };
     setRecordError(null);
     setIsTranscribing(true);
+    const tag = `[${mimeType} · ${Math.round(base64.length / 1024)} ko b64]`; // DIAG temporaire
     try {
       const res = await fetch(`${API_BASE}/transcribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ audio: base64, mimeType }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        setRecordError(`DIAG échec ${res.status} · ${body.slice(0, 200)} · ${tag}`);
+        return; // on garde lastAudioRef pour Réessayer
+      }
       const data = await res.json();
       const text = String(data?.text || "").trim();
-      if (text) {
-        const base = dictationBase.current;
-        const sep = base && !base.endsWith(" ") && !base.endsWith("\n") ? " " : "";
-        const next = base + sep + text;
-        setInputText(next);
-        dictationBase.current = next; // la prochaine prise s'ajoutera à celle-ci
+      if (!text) {
+        setRecordError(`DIAG ok mais texte vide · ${tag}`);
+        return;
       }
-      lastAudioRef.current = null; // succès : plus rien à réessayer
-    } catch {
-      // On NE perd PAS la pensée : l'audio reste en mémoire, on propose un retry.
-      setRecordError("La transcription n'a pas abouti.");
+      const base = dictationBase.current;
+      const sep = base && !base.endsWith(" ") && !base.endsWith("\n") ? " " : "";
+      const next = base + sep + text;
+      setInputText(next);
+      dictationBase.current = next;
+      lastAudioRef.current = null;
+    } catch (e: any) {
+      setRecordError(`DIAG réseau: ${String(e?.message || e).slice(0, 200)} · ${tag}`);
     } finally {
       setIsTranscribing(false);
     }
@@ -3661,8 +3667,8 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
               </div>
             </div>
             {recordError && (
-              <div className="max-w-[620px] mx-auto mt-2 flex items-center gap-3 font-mono text-[11px] text-red">
-                <span>{recordError}</span>
+              <div className="max-w-[620px] mx-auto mt-2 flex flex-col items-start gap-2 font-mono text-[11px] text-red">
+                <span className="break-words whitespace-pre-wrap leading-relaxed">{recordError}</span>
                 {lastAudioRef.current && (
                   <button
                     onClick={retryTranscription}
