@@ -1074,8 +1074,9 @@ export default function Chat() {
 
       ctx.clearRect(0, 0, W, H);
       const vl = f.voiceLevel; // 0..1, niveau de voix lissé
-      // Surbrillance : on éclaircit la couleur vers le blanc quand tu parles (toutes
-      // les traînées/comètes l'héritent), on grandit l'onde et on épaissit le trait.
+      const vk = 1 + vl * VOICE_GLOW; // facteur d'opacité : 1 au repos, ~7 à pleine voix
+      // Surbrillance : couleur vers le blanc + onde plus grande + trait plus gras + ET
+      // surtout opacité des lignes remontée (vk) — sans ça l'onde reste à 0.10–0.16 d'alpha.
       const [r, g, b] = f.current.color.map((c) =>
         Math.min(255, Math.round(c + vl * VOICE_BRIGHT)),
       );
@@ -1084,7 +1085,7 @@ export default function Chat() {
 
       // Rail
       ctx.beginPath();
-      ctx.strokeStyle = `rgba(${r},${g},${b},0.10)`;
+      ctx.strokeStyle = `rgba(${r},${g},${b},${Math.min(1, 0.1 * vk).toFixed(2)})`;
       ctx.lineWidth = thickness * 0.6;
       for (let x = 0; x <= W; x++) {
         const y = waveY(x, amp, f.phase, H, W);
@@ -1095,7 +1096,7 @@ export default function Chat() {
 
       // Onde 2
       ctx.beginPath();
-      ctx.strokeStyle = `rgba(${r},${g},${b},0.16)`;
+      ctx.strokeStyle = `rgba(${r},${g},${b},${Math.min(1, 0.16 * vk).toFixed(2)})`;
       ctx.lineWidth = thickness * 0.5;
       for (let x = 0; x <= W; x++) {
         const y = waveY2(x, amp, f.phase, H, W);
@@ -2776,8 +2777,9 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
   const DICTATION_MAX_MS = 30000; // 30 s par prise
   const VOICE_GAIN = 8; // RMS (≈0.1 en parole normale) → niveau ~0.8
   const VOICE_AMP = 12; // surplus d'amplitude max (~14 = plafond imposé par la hauteur du canvas)
-  const VOICE_THICK = 1.6; // surplus d'épaisseur max (trait plus gras)
+  const VOICE_THICK = 2.0; // surplus d'épaisseur max (trait plus gras)
   const VOICE_BRIGHT = 60; // éclaircissement max de la couleur vers le blanc (surbrillance)
+  const VOICE_GLOW = 6; // multiplie l'opacité des lignes (jusqu'à ×7) — LE levier qui rend l'onde visible
 
   // Format réellement enregistrable par CE navigateur, en privilégiant ceux que
   // Gemini accepte le plus sûrement : mp4/aac d'abord (sûr Gemini + natif Safari),
