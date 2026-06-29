@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom";
 import { useGoBack } from "../lib/useGoBack";
 import { useAbandonBeacon } from "../lib/useAbandonBeacon";
+import { useSaveSession } from "../lib/useSaveSession";
 import { EMOTIONS } from "../data/emotions";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -126,7 +127,6 @@ const MAX_CONVERSATIONS_PER_DAY = 3;
 // consommé. Concrètement : 1 à 3 messages = gratuit, le 4e verrouille le
 // crédit. Le plafond s'appuyant sur `ended_at`, il suffit de ne poser
 // `ended_at` qu'une fois ce seuil franchi (voir saveSession).
-const ENGAGEMENT_MIN_USER_MESSAGES = 3;
 // Reprise : si une conversation est laissée ouverte et qu'on revient APRÈS ce
 // délai, on ne repose pas la personne dans le fil en silence — on lui propose
 // de le reprendre ou de repartir. En deçà (retour quasi immédiat), restauration
@@ -1904,27 +1904,12 @@ export default function Chat() {
   // d'engagement : c'est ce champ que le plafond compte, donc une
   // conversation de 3 messages ou moins ne décompte aucun crédit.
   // `step_reached` est toujours écrit (info admin, sans effet sur le plafond).
-  const saveSession = useCallback(
-    async (convo?: Message[]) => {
-      if (!currentSessionId.current || !personalId) return;
-      const list = convo ?? messages;
-      const userMessages = list.filter((m) => m.role === "user").length;
-      const payload: Record<string, unknown> = {
-        step_reached: validatedSteps.size,
-        validated_steps: Array.from(validatedSteps),
-        user_message_count: userMessages,
-      };
-      if (userMessages > ENGAGEMENT_MIN_USER_MESSAGES) {
-        payload.ended_at = new Date().toISOString();
-      }
-      try {
-        await sbUpdate("sessions", currentSessionId.current, payload);
-      } catch (e) {
-        console.error("saveSession failed", e);
-      }
-    },
-    [validatedSteps.size, personalId, messages],
-  );
+  const saveSession = useSaveSession({
+    currentSessionId,
+    personalId,
+    messages,
+    validatedSteps,
+  });
 
   // ── Streaming chat via Worker ─────────────────────────────
   const streamChat = useCallback(
