@@ -2738,7 +2738,6 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
 
   // ── Voix : enregistrement + transcription serveur (batch) ──────────────────
   const DICTATION_MAX_MS = 30000; // 30 s par prise
-  const DICTATION_ARC_C = 2 * Math.PI * 20; // circonférence de l'arc du compte à rebours (rayon 20)
 
   // Format réellement enregistrable par CE navigateur, en privilégiant ceux que
   // Gemini accepte le plus sûrement : mp4/aac d'abord (sûr Gemini + natif Safari),
@@ -3631,43 +3630,43 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
                   className={`relative w-11 h-11 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 font-mono text-xs
                     ${
                       isListening
-                        ? "bg-red-dim border-red text-red"
+                        ? "bg-red-dim border-transparent text-red"
                         : isTranscribing
                           ? "border-[#2a2820] text-beige-faint opacity-60"
                           : "border-[#2a2820] text-beige-faint hover:text-beige hover:border-beige-faint"
                     }`}
                 >
-                  {/* Arc 30 s : se vide pendant la prise, se réchauffe vers le rouge
-                      sur la fin, disparaît en douceur à l'arrêt. Pas de chiffres —
-                      c'est l'espace qui se referme, pas un compte à rebours. */}
+                  {/* Arc 30 s : le tour de la case se vide pendant la prise, en rouge
+                      comme l'oreille, et s'efface en douceur à l'arrêt. Pas de chiffres —
+                      c'est l'espace qui se referme, pas un compte à rebours. La bordure
+                      statique passe à transparent pendant l'écoute : l'arc EST le tour. */}
                   <AnimatePresence>
                     {isListening && (
                       <motion.svg
                         key="dictation-arc"
                         viewBox="0 0 44 44"
-                        className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none"
+                        className="absolute inset-0 w-full h-full pointer-events-none"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.4 }}
                       >
-                        <motion.circle
-                          cx="22"
-                          cy="22"
-                          r="20"
+                        <motion.rect
+                          x="1"
+                          y="1"
+                          width="42"
+                          height="42"
+                          rx="9"
+                          ry="9"
                           fill="none"
+                          stroke="#8a4848"
                           strokeWidth="2"
                           strokeLinecap="round"
-                          strokeDasharray={DICTATION_ARC_C}
-                          initial={{ strokeDashoffset: 0, stroke: "#E8D5B0" }}
-                          animate={{
-                            strokeDashoffset: DICTATION_ARC_C,
-                            stroke: ["#E8D5B0", "#E8D5B0", "#8a4848"],
-                          }}
-                          transition={{
-                            strokeDashoffset: { duration: DICTATION_MAX_MS / 1000, ease: "linear" },
-                            stroke: { duration: DICTATION_MAX_MS / 1000, times: [0, 0.8, 1] },
-                          }}
+                          pathLength={1}
+                          strokeDasharray={1}
+                          initial={{ strokeDashoffset: 0 }}
+                          animate={{ strokeDashoffset: 1 }}
+                          transition={{ duration: DICTATION_MAX_MS / 1000, ease: "linear" }}
                         />
                       </motion.svg>
                     )}
