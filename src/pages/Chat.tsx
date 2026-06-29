@@ -504,6 +504,7 @@ export default function Chat() {
   const audioCtxRef = useRef<any>(null);
   const analyserRef = useRef<any>(null);
   const analyserBufRef = useRef<any>(null);
+  const analyserFreqBufRef = useRef<any>(null); // données fréquentielles (texture #2)
   // Le champ de saisie suit la voix pendant la dictée : on écrit la variable CSS
   // --voice (0..1) sur cet élément, image par image, depuis la même source que
   // le serpentin (flowRef.voiceLevel). Pas de 2e mesure, pas de re-rendu React.
@@ -578,6 +579,7 @@ export default function Chat() {
     emotionalLevel: 0,
     isLoading: false,
     voiceLevel: 0, // niveau micro normalisé 0..1 pilotant la réaction du serpentin
+    voiceTone: 0, // texture : basculement -1 (grave) .. +1 (aigu), 0 = forme canonique
   });
   const rafRef = useRef<number | null>(null);
   const resizeHandlerRef = useRef<(() => void) | null>(null);
@@ -890,13 +892,22 @@ export default function Chat() {
       const f = (1 / W) * Math.PI * 2;
       const breathe = 1 + 0.22 * Math.sin(phase * 0.13 + 1.7);
       const a = safeAmp * breathe;
+      // Texture (#2) : la voix fait pencher la pile d'harmoniques.
+      // t<0 (grave) → poids vers les grandes ondulations ; t>0 (aigu) → vers les
+      // ridules. t=0 (repos/silence) → poids d'origine EXACTEMENT (forme canonique).
+      const t = flowRef.current.voiceTone;
+      const TONE_MORPH = 0.6; // intensité du basculement (monter = plus franc)
+      const w0 = 0.5 * (1 + t * -1.0 * TONE_MORPH);
+      const w1 = 0.28 * (1 + t * -0.5 * TONE_MORPH);
+      const w3 = 0.11 * (1 + t * 0.5 * TONE_MORPH);
+      const w4 = 0.07 * (1 + t * 1.0 * TONE_MORPH);
       return (
         H / 2 +
-        a * 0.5 * Math.sin(x * f * 4.0 + phase * 1.0) +
-        a * 0.28 * Math.sin(x * f * 6.47 + phase * 1.414) +
+        a * w0 * Math.sin(x * f * 4.0 + phase * 1.0) +
+        a * w1 * Math.sin(x * f * 6.47 + phase * 1.414) +
         a * 0.18 * Math.sin(x * f * 10.47 + phase * 0.618) +
-        a * 0.11 * Math.sin(x * f * 16.18 + phase * 2.178) +
-        a * 0.07 * Math.sin(x * f * 26.18 + phase * 0.414)
+        a * w3 * Math.sin(x * f * 16.18 + phase * 2.178) +
+        a * w4 * Math.sin(x * f * 26.18 + phase * 0.414)
       );
     }
 
@@ -981,6 +992,7 @@ export default function Chat() {
       // voiceAmp redescend doucement vers 0.
       const an = analyserRef.current;
       const buf = analyserBufRef.current;
+      const fbuf = analyserFreqBufRef.current;
       if (an && buf) {
         an.getByteTimeDomainData(buf);
         let sum = 0;
@@ -990,10 +1002,29 @@ export default function Chat() {
         }
         const rms = Math.sqrt(sum / buf.length);
         const tgt = Math.min(rms * VOICE_GAIN, 1); // niveau normalisé 0..1
-        // attaque vive (on suit la voix), relâche plus lente (on ne clignote pas entre les syllabes)
-        f.voiceLevel += (tgt - f.voiceLevel) * (tgt > f.voiceLevel ? 0.5 : 0.15);
+        // attaque vive (on suit la voix), relâche accélérée pour coller au rythme
+        // de la parole — réglée juste en deçà du clignotement entre les syllabes
+        f.voiceLevel += (tgt - f.voiceLevel) * (tgt > f.voiceLevel ? 0.5 : 0.22);
+
+        // Texture (#2) : centre de gravité spectral grave↔aigu de la voix.
+        // Sert à faire pencher la pile d'harmoniques du serpentin (cf. sineY).
+        if (fbuf) {
+          an.getByteFrequencyData(fbuf);
+          let lowE = 0;
+          let highE = 0;
+          for (let i = 1; i <= 8; i++) lowE += fbuf[i]; // ~170–1400 Hz : voisé/graves
+          for (let i = 9; i <= 40; i++) highE += fbuf[i]; // ~1.5–7 kHz : sifflantes/brillances
+          const ratio = highE / (lowE + highE + 1); // 0..1 (+1 évite la division par 0)
+          // 0.22 = ratio « neutre » d'une voix posée ; 4.0 = sensibilité (étalement).
+          // Silence → 0 = forme canonique. Borné à [-1, 1].
+          const toneTgt =
+            rms > 0.02 ? Math.max(-1, Math.min(1, (ratio - 0.22) * 4.0)) : 0;
+          // lissage fort : la texture respire, elle ne tremble pas
+          f.voiceTone += (toneTgt - f.voiceTone) * 0.06;
+        }
       } else {
         f.voiceLevel *= 0.85; // retour doux au calme
+        f.voiceTone += (0 - f.voiceTone) * 0.05; // hors dictée : retour à la forme canonique
       }
 
       // Couleur
@@ -2892,6 +2923,7 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
         audioCtxRef.current = actx;
         analyserRef.current = analyser;
         analyserBufRef.current = new Uint8Array(analyser.fftSize);
+        analyserFreqBufRef.current = new Uint8Array(analyser.frequencyBinCount); // texture #2
       }
     } catch {
       /* l'analyse de niveau est un agrément, pas une dépendance */
