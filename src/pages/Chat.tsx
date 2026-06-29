@@ -350,6 +350,13 @@ const POSTURE_COLORS: [number, number, number][] = [
   [220, 218, 214], // rupture — argenté
 ];
 
+// Couleurs de la voix sur la comète-signature : au lieu d'éclaircir vers le blanc,
+// la voix fait glisser la comète vers la braise (grave) ou l'or (aigu), selon le
+// centroïde spectral (voiceTone). Caractériel plutôt que générique.
+const BRAISE: [number, number, number] = [225, 90, 45]; // grave — braise
+const OR_GOLD: [number, number, number] = [255, 205, 100]; // aigu — or
+const VOICE_TONE_STRENGTH = 0.75; // force du glissement à pleine voix (0..1)
+
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   s /= 100;
   l /= 100;
@@ -1172,17 +1179,24 @@ export default function Chat() {
       }
       ctx.stroke();
 
-      // Couleur de la comète 1 : sa signature (dominante émotionnelle), gagnée avec
-      // le parcours. Ancrée : peu de cartes → blendW = 0 → couleur de l'onde inchangée.
-      // L'onde (Rail / Onde 2) garde sa couleur ; seule la comète porte la signature.
+      // Couleur de la comète 1 : base = sa signature (dominante), gagnée avec le
+      // parcours ; la VOIX la fait glisser vers braise (grave) ↔ or (aigu) au lieu
+      // d'éclaircir vers le blanc — caractériel plutôt que générique. L'onde, elle,
+      // garde son éclaircissement. Ancrée : repos + pas de voix → couleur d'aujourd'hui.
       const sigNow = signatureRef.current;
       const blendW = sigNow.active ? sigNow.w : 0;
-      const domR = Math.min(255, Math.round(sigNow.rgb[0] + vl * VOICE_BRIGHT));
-      const domG = Math.min(255, Math.round(sigNow.rgb[1] + vl * VOICE_BRIGHT));
-      const domB = Math.min(255, Math.round(sigNow.rgb[2] + vl * VOICE_BRIGHT));
-      const cometR = Math.round(r + (domR - r) * blendW);
-      const cometG = Math.round(g + (domG - g) * blendW);
-      const cometB = Math.round(b + (domB - b) * blendW);
+      const fc = f.current.color; // repos brut (non éclairci)
+      const baseR = fc[0] + (sigNow.rgb[0] - fc[0]) * blendW;
+      const baseG = fc[1] + (sigNow.rgb[1] - fc[1]) * blendW;
+      const baseB = fc[2] + (sigNow.rgb[2] - fc[2]) * blendW;
+      const toneT = (f.voiceTone + 1) / 2; // -1..+1 (grave→aigu) → 0..1 (braise→or)
+      const voiceR = BRAISE[0] + (OR_GOLD[0] - BRAISE[0]) * toneT;
+      const voiceG = BRAISE[1] + (OR_GOLD[1] - BRAISE[1]) * toneT;
+      const voiceB = BRAISE[2] + (OR_GOLD[2] - BRAISE[2]) * toneT;
+      const voiceMix = vl * VOICE_TONE_STRENGTH;
+      const cometR = Math.round(baseR + (voiceR - baseR) * voiceMix);
+      const cometG = Math.round(baseG + (voiceG - baseG) * voiceMix);
+      const cometB = Math.round(baseB + (voiceB - baseB) * voiceMix);
 
       // Comète 1 — traîne
       const trailLen = Math.round(70 + amp * 5);
