@@ -356,6 +356,9 @@ const POSTURE_COLORS: [number, number, number][] = [
 const BRAISE: [number, number, number] = [225, 90, 45]; // grave — braise
 const OR_GOLD: [number, number, number] = [255, 205, 100]; // aigu — or
 const VOICE_TONE_STRENGTH = 0.75; // force du glissement à pleine voix (0..1)
+// Puissance de la comète : elle enfle (traîne, halo, épaisseur) avec le volume de
+// cartes — combien la personne a réfléchi, indépendamment de l'émotion. Ancrée à 1.
+const MAX_POWER = 0.8; // grossissement max à plein parcours (échelle 1 → 1.8)
 
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   s /= 100;
@@ -1185,6 +1188,8 @@ export default function Chat() {
       // garde son éclaircissement. Ancrée : repos + pas de voix → couleur d'aujourd'hui.
       const sigNow = signatureRef.current;
       const blendW = sigNow.active ? sigNow.w : 0;
+      // Puissance : volume de cartes (w), sans condition sur la dominante.
+      const power = 1 + sigNow.w * MAX_POWER;
       const fc = f.current.color; // repos brut (non éclairci)
       const baseR = fc[0] + (sigNow.rgb[0] - fc[0]) * blendW;
       const baseG = fc[1] + (sigNow.rgb[1] - fc[1]) * blendW;
@@ -1199,7 +1204,7 @@ export default function Chat() {
       const cometB = Math.round(baseB + (voiceB - baseB) * voiceMix);
 
       // Comète 1 — traîne
-      const trailLen = Math.round(70 + amp * 5);
+      const trailLen = Math.round((70 + amp * 5) * power);
       const trailStart = Math.max(0, Math.round(f.cometX - trailLen));
       const trailEnd = Math.min(W, Math.round(f.cometX));
       if (trailEnd > trailStart) {
@@ -1211,7 +1216,7 @@ export default function Chat() {
         );
         ctx.beginPath();
         ctx.strokeStyle = grad;
-        ctx.lineWidth = thickness;
+        ctx.lineWidth = thickness * power;
         for (let x = trailStart; x <= trailEnd; x++) {
           const y = waveY(x, amp, f.phase, H, W);
           if (x === trailStart) ctx.moveTo(x, y);
@@ -1222,7 +1227,7 @@ export default function Chat() {
       // Tête 1
       if (f.cometX >= 0 && f.cometX <= W) {
         const headY = waveY(f.cometX, amp, f.phase, H, W);
-        const glowR = 2.5 + amp * 0.25;
+        const glowR = (2.5 + amp * 0.25) * power;
         const halo = ctx.createRadialGradient(
           f.cometX,
           headY,
