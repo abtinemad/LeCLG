@@ -1388,12 +1388,10 @@ app.post("/api/transcribe", asyncHandler(async (req: Request, res: Response) => 
     const text = await geminiTranscribe(mt, audio);
     return res.json({ text });
   } catch (e: any) {
-    // DIAG temporaire : on renvoie le détail au client pour diagnostiquer sur
-    // iPhone. À revenir à { error: "transcription_failed" } une fois confirmé.
+    // Échec dur ou tentatives épuisées : erreur nette. Le client GARDE l'audio
+    // en mémoire et propose de réessayer — une pensée dite n'est jamais perdue.
     console.error(`/api/transcribe: ${e?.message}`);
-    return res
-      .status(502)
-      .json({ error: "transcription_failed", detail: String(e?.message || e).slice(0, 300) });
+    return res.status(502).json({ error: "transcription_failed" });
   }
 }));
 

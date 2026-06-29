@@ -2773,32 +2773,26 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
     lastAudioRef.current = { base64, mimeType };
     setRecordError(null);
     setIsTranscribing(true);
-    const tag = `[${mimeType} · ${Math.round(base64.length / 1024)} ko b64]`; // DIAG temporaire
     try {
       const res = await fetch(`${API_BASE}/transcribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ audio: base64, mimeType }),
       });
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        setRecordError(`DIAG échec ${res.status} · ${body.slice(0, 200)} · ${tag}`);
-        return; // on garde lastAudioRef pour Réessayer
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const text = String(data?.text || "").trim();
-      if (!text) {
-        setRecordError(`DIAG ok mais texte vide · ${tag}`);
-        return;
+      if (text) {
+        const base = dictationBase.current;
+        const sep = base && !base.endsWith(" ") && !base.endsWith("\n") ? " " : "";
+        const next = base + sep + text;
+        setInputText(next);
+        dictationBase.current = next; // la prochaine prise s'ajoutera à celle-ci
       }
-      const base = dictationBase.current;
-      const sep = base && !base.endsWith(" ") && !base.endsWith("\n") ? " " : "";
-      const next = base + sep + text;
-      setInputText(next);
-      dictationBase.current = next;
-      lastAudioRef.current = null;
-    } catch (e: any) {
-      setRecordError(`DIAG réseau: ${String(e?.message || e).slice(0, 200)} · ${tag}`);
+      lastAudioRef.current = null; // succès : plus rien à réessayer
+    } catch {
+      // On NE perd PAS la pensée : l'audio reste en mémoire, on propose un retry.
+      setRecordError("La transcription n'a pas abouti.");
     } finally {
       setIsTranscribing(false);
     }
