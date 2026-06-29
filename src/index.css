@@ -260,10 +260,16 @@
   }
 }
 
-/* Champ de saisie : respiration rouge douce pendant la dictée — signale que
-   l'app écoute (le contenu n'apparaît qu'à l'arrêt, en mode batch). */
-@keyframes dictation-breathe {
-  0%, 100% { border-color: rgba(138, 72, 72, 0.45); box-shadow: 0 0 0 0 rgba(138, 72, 72, 0); }
-  50%      { border-color: rgba(138, 72, 72, 0.95); box-shadow: 0 0 14px 0 rgba(138, 72, 72, 0.22); }
+/* Champ de saisie pendant la dictée : la lueur rouge SUIT la voix.
+   --voice (0..1) est écrit image par image depuis la même source que le
+   serpentin. À 0 (silence) : lueur de base discrète = « j'écoute » ; plus tu
+   parles, plus l'anneau et le halo montent. Tout passe par box-shadow (aucun
+   conflit avec la bordure ni le focus). Hors dictée, la classe est absente :
+   le champ est strictement identique à avant (snapshots intacts). */
+textarea.dictation-listening {
+  box-shadow:
+    0 0 0 calc(1px + var(--voice, 0) * 1px) rgba(138, 72, 72, calc(0.45 + var(--voice, 0) * 0.55)),
+    0 0 calc(6px + var(--voice, 0) * 22px) 0 rgba(138, 72, 72, calc(0.18 + var(--voice, 0) * 0.50)),
+    inset 0 0 calc(2px + var(--voice, 0) * 12px) 0 rgba(138, 72, 72, calc(0.08 + var(--voice, 0) * 0.30));
+  transition: box-shadow 120ms ease-out;
 }
-.dictation-listening { animation: dictation-breathe 1.6s ease-in-out infinite; }

@@ -504,6 +504,10 @@ export default function Chat() {
   const audioCtxRef = useRef<any>(null);
   const analyserRef = useRef<any>(null);
   const analyserBufRef = useRef<any>(null);
+  // Le champ de saisie suit la voix pendant la dictée : on écrit la variable CSS
+  // --voice (0..1) sur cet élément, image par image, depuis la même source que
+  // le serpentin (flowRef.voiceLevel). Pas de 2e mesure, pas de re-rendu React.
+  const dictationFieldRef = useRef<HTMLTextAreaElement | null>(null);
   // Texte présent dans le champ au démarrage d'une prise : la transcription s'y
   // ajoute, elle ne l'écrase pas.
   const dictationBase = useRef("");
@@ -1074,6 +1078,9 @@ export default function Chat() {
 
       ctx.clearRect(0, 0, W, H);
       const vl = f.voiceLevel; // 0..1, niveau de voix lissé
+      // Le champ de saisie reçoit le même niveau (lueur rouge qui suit la voix).
+      // Au repos vl≈0 → --voice "0.000" (sans effet : .dictation-listening absente).
+      dictationFieldRef.current?.style.setProperty("--voice", vl.toFixed(3));
       const vk = 1 + vl * VOICE_GLOW; // facteur d'opacité : 1 au repos, ~7 à pleine voix
       // Surbrillance : couleur vers le blanc + onde plus grande + trait plus gras + ET
       // surtout opacité des lignes remontée (vk) — sans ça l'onde reste à 0.10–0.16 d'alpha.
@@ -3662,6 +3669,7 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
             <div className="max-w-[620px] mx-auto flex gap-3 items-stretch">
               {/* Input */}
               <textarea
+                ref={dictationFieldRef}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 disabled={loading || isRecentrage}
