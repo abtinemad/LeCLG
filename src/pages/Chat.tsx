@@ -18,6 +18,7 @@ import {
   Feather,
   Gem,
   MessagesSquare,
+  Ear,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { sbInsert, sbUpdate, sbGet } from "../lib/worker";
@@ -2737,6 +2738,7 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
 
   // ── Voix : enregistrement + transcription serveur (batch) ──────────────────
   const DICTATION_MAX_MS = 30000; // 30 s par prise
+  const DICTATION_ARC_C = 2 * Math.PI * 20; // circonférence de l'arc du compte à rebours (rayon 20)
 
   // Format réellement enregistrable par CE navigateur, en privilégiant ceux que
   // Gemini accepte le plus sûrement : mp4/aac d'abord (sûr Gemini + natif Safari),
@@ -3626,7 +3628,7 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
                   onClick={toggleListening}
                   disabled={isTranscribing}
                   title={isTranscribing ? "Transcription…" : isListening ? "Arrêter" : "Dicter"}
-                  className={`w-11 h-11 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 font-mono text-xs
+                  className={`relative w-11 h-11 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 font-mono text-xs
                     ${
                       isListening
                         ? "bg-red-dim border-red text-red"
@@ -3635,17 +3637,52 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
                           : "border-[#2a2820] text-beige-faint hover:text-beige hover:border-beige-faint"
                     }`}
                 >
+                  {/* Arc 30 s : se vide pendant la prise, se réchauffe vers le rouge
+                      sur la fin, disparaît en douceur à l'arrêt. Pas de chiffres —
+                      c'est l'espace qui se referme, pas un compte à rebours. */}
+                  <AnimatePresence>
+                    {isListening && (
+                      <motion.svg
+                        key="dictation-arc"
+                        viewBox="0 0 44 44"
+                        className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.4 }}
+                      >
+                        <motion.circle
+                          cx="22"
+                          cy="22"
+                          r="20"
+                          fill="none"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeDasharray={DICTATION_ARC_C}
+                          initial={{ strokeDashoffset: 0, stroke: "#E8D5B0" }}
+                          animate={{
+                            strokeDashoffset: DICTATION_ARC_C,
+                            stroke: ["#E8D5B0", "#E8D5B0", "#8a4848"],
+                          }}
+                          transition={{
+                            strokeDashoffset: { duration: DICTATION_MAX_MS / 1000, ease: "linear" },
+                            stroke: { duration: DICTATION_MAX_MS / 1000, times: [0, 0.8, 1] },
+                          }}
+                        />
+                      </motion.svg>
+                    )}
+                  </AnimatePresence>
                   <motion.span
-                    animate={
-                      isListening
-                        ? { scale: [1, 1.3, 1] }
-                        : isTranscribing
-                          ? { opacity: [0.4, 1, 0.4] }
-                          : {}
-                    }
+                    animate={isTranscribing ? { opacity: [0.4, 1, 0.4] } : {}}
                     transition={{ repeat: Infinity, duration: 1 }}
                   >
-                    {isListening ? "●" : isTranscribing ? "…" : <Lips className="w-5 h-5" />}
+                    {isListening ? (
+                      <Ear strokeWidth={1.5} className="w-5 h-5" />
+                    ) : isTranscribing ? (
+                      "…"
+                    ) : (
+                      <Lips className="w-5 h-5" />
+                    )}
                   </motion.span>
                 </button>
 
