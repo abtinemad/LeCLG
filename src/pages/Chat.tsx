@@ -498,6 +498,12 @@ export default function Chat() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAudioRef = useRef<{ base64: string; mimeType: string } | null>(null); // pour réessayer
+  // Analyse du niveau micro (Web Audio) → le serpentin réagit à la voix. Branchée
+  // sur le flux qu'on capte déjà (pas de 2e autorisation). Typage souple (any)
+  // comme MediaRecorder/AudioContext : ces APIs varient selon le navigateur.
+  const audioCtxRef = useRef<any>(null);
+  const analyserRef = useRef<any>(null);
+  const analyserBufRef = useRef<any>(null);
   // Texte présent dans le champ au démarrage d'une prise : la transcription s'y
   // ajoute, elle ne l'écrase pas.
   const dictationBase = useRef("");
@@ -567,6 +573,7 @@ export default function Chat() {
     isCalming: false,
     emotionalLevel: 0,
     isLoading: false,
+    voiceAmp: 0, // amplitude additive pilotée par le niveau micro pendant la dictée
   });
   const rafRef = useRef<number | null>(null);
   const resizeHandlerRef = useRef<(() => void) | null>(null);
@@ -814,6 +821,10 @@ export default function Chat() {
     return () => {
       if (autoStopRef.current) clearTimeout(autoStopRef.current);
       mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      analyserRef.current = null;
+      analyserBufRef.current = null;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
     };
   }, []);
 
@@ -961,6 +972,25 @@ export default function Chat() {
       f.phaseOffset2 += (f.phaseOffset2Target - f.phaseOffset2) * 0.006;
       f.dampExtra *= 0.94;
 
+      // Voix → serpentin : pendant la dictée, un surplus d'amplitude suit le niveau
+      // du micro (le compagnon frémit en t'écoutant). Hors dictée (analyser absent),
+      // voiceAmp redescend doucement vers 0.
+      const an = analyserRef.current;
+      const buf = analyserBufRef.current;
+      if (an && buf) {
+        an.getByteTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) {
+          const v = (buf[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / buf.length); // 0..~1
+        const tgt = Math.min(rms * VOICE_GAIN, VOICE_MAX);
+        f.voiceAmp += (tgt - f.voiceAmp) * 0.35; // montée vive et réactive
+      } else {
+        f.voiceAmp *= 0.9; // retour doux au calme
+      }
+
       // Couleur
       if (f.isChaos) {
         f.chaosPhase += 0.18;
@@ -1043,7 +1073,7 @@ export default function Chat() {
 
       ctx.clearRect(0, 0, W, H);
       const [r, g, b] = f.current.color.map(Math.round);
-      const amp = f.current.amplitude + f.dampExtra;
+      const amp = f.current.amplitude + f.dampExtra + f.voiceAmp;
       const thickness = f.current.thickness || 1;
 
       // Rail
@@ -2738,6 +2768,8 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
 
   // ── Voix : enregistrement + transcription serveur (batch) ──────────────────
   const DICTATION_MAX_MS = 30000; // 30 s par prise
+  const VOICE_GAIN = 30; // niveau micro (RMS 0..1) → surplus d'amplitude du serpentin
+  const VOICE_MAX = 8; // plafond du surplus (l'onde sature déjà ~14 vu la hauteur du canvas)
 
   // Format réellement enregistrable par CE navigateur, en privilégiant ceux que
   // Gemini accepte le plus sûrement : mp4/aac d'abord (sûr Gemini + natif Safari),
@@ -2829,6 +2861,24 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
       return;
     }
     mediaStreamRef.current = stream;
+    // Niveau sonore en direct → le serpentin frémit sur la voix. Agrément non
+    // critique : si Web Audio échoue, la dictée fonctionne quand même.
+    try {
+      const AC: any = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (AC) {
+        const actx = new AC();
+        actx.resume?.().catch(() => {});
+        const srcNode = actx.createMediaStreamSource(stream);
+        const analyser = actx.createAnalyser();
+        analyser.fftSize = 256;
+        srcNode.connect(analyser); // pas relié à la sortie : on ne rejoue pas le son
+        audioCtxRef.current = actx;
+        analyserRef.current = analyser;
+        analyserBufRef.current = new Uint8Array(analyser.fftSize);
+      }
+    } catch {
+      /* l'analyse de niveau est un agrément, pas une dépendance */
+    }
     const mime = pickRecordMime();
     let rec: MediaRecorder;
     try {
@@ -2845,6 +2895,10 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
     rec.onstop = async () => {
       mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); // libère le micro (+ l'indicateur iOS)
       mediaStreamRef.current = null;
+      analyserRef.current = null;
+      analyserBufRef.current = null;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
       const type = rec.mimeType || mime || "audio/webm";
       const blob = new Blob(audioChunksRef.current, { type });
       audioChunksRef.current = [];
