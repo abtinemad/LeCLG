@@ -1057,10 +1057,12 @@ export default function Chat() {
         }
       }
 
-      f.phase += f.current.speed;
+      // Voix → le flux de l'onde accélère légèrement quand tu parles (énergie, pas taille).
+      // À voix nulle (* 1) : vitesse d'origine → aucun changement au repos.
+      f.phase += f.current.speed * (1 + f.voiceLevel * 0.5);
 
-      // Déplacement comètes
-      const baseCometSpeed = 1.8 + f.current.speed * 80;
+      // Déplacement comètes — accélèrent pendant la dictée (à voix nulle : +0 → vitesse d'origine).
+      const baseCometSpeed = 1.8 + f.current.speed * 80 + f.voiceLevel * 4;
       const chaosJitter = f.isChaos
         ? baseCometSpeed * (0.4 + 1.6 * Math.abs(Math.sin(f.chaosPhase * 3.7)))
         : 0;
