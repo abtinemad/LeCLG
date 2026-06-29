@@ -259,6 +259,9 @@ export default function Carnet() {
           setIsRetourModalOpen={setIsRetourModalOpen}
         />
 
+        {/* Clarté : signature volontairement NON branchée. ClarteSection est partagé
+            (Landing, Climat = communauté) — une signature perso y serait inerte ou un
+            contresens. Les surfaces personnelles sont la comète du Chat et le Prisme. */}
         <ClarteSection section={`carnet-${view}`} voix={collegueVoice} onVoixClose={() => setCollegueVoice(null)} />
 
         {view === "fragments" ? (
@@ -351,6 +354,9 @@ export default function Carnet() {
           prismeKey={prismeKey}
         />
 
+        {/* Prisme : seule la PUISSANCE vient de la signature (volume de cartes via
+            personalSignature). La COULEUR reste celle du prisme révélé — surface
+            contextuelle qui montre une émotion précise ; ne PAS y passer la dominante. */}
         {selectedPrisme && (
           <PrismeExplainer
             isOpen={!!selectedPrisme}

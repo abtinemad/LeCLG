@@ -343,6 +343,9 @@ const FLOW_CHAOS: FlowLevel = {
   thickness: 2.8,
 };
 
+// Couleurs de la comète 2 = posture VIVANTE du Collègue (pilotée par
+// `collegue_posture`). Ne PAS les écraser par la dominante de la signature : la
+// signature perso vit sur la comète 1 ; la comète 2 raconte la posture du moment.
 const POSTURE_COLORS: [number, number, number][] = [
   [232, 213, 176], // calme
   [240, 200, 145], // engagement — ambré
