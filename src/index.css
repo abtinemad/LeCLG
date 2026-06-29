@@ -268,8 +268,8 @@
    le champ est strictement identique à avant (snapshots intacts). */
 textarea.dictation-listening {
   box-shadow:
-    0 0 0 calc(1px + var(--voice, 0) * 1px) rgba(138, 72, 72, calc(0.45 + var(--voice, 0) * 0.55)),
-    0 0 calc(6px + var(--voice, 0) * 22px) 0 rgba(138, 72, 72, calc(0.18 + var(--voice, 0) * 0.50)),
-    inset 0 0 calc(2px + var(--voice, 0) * 12px) 0 rgba(138, 72, 72, calc(0.08 + var(--voice, 0) * 0.30));
-  transition: box-shadow 120ms ease-out;
+    0 0 0 calc(1px + var(--voice, 0) * 1.5px) rgba(138, 72, 72, calc(0.45 + var(--voice, 0) * 0.55)),
+    0 0 calc(6px + var(--voice, 0) * 32px) 0 rgba(138, 72, 72, calc(0.18 + var(--voice, 0) * 0.62)),
+    inset 0 0 calc(2px + var(--voice, 0) * 18px) 0 rgba(138, 72, 72, calc(0.08 + var(--voice, 0) * 0.42));
+  transition: box-shadow 60ms ease-out;
 }
