@@ -1,4 +1,4 @@
-import { EMOTIONS, type ReflectionCard } from "../data/emotions";
+import { EMOTIONS } from "../data/emotions";
 
 /**
  * Signature personnelle de la comète / sinusoïde.
@@ -40,14 +40,25 @@ const MAX_INTENSITY = 2.0;
 
 const VALID = new Set<string>(Object.keys(EMOTIONS));
 
-const norm = (v: string | undefined): string =>
+const norm = (v: string | null | undefined): string =>
   (v || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
 
-export function personalSignature(cards: ReflectionCard[]): PersonalSignature {
+/**
+ * Type minimal accepté par le calcul : seuls `prisme`, `emotion` et `date` sont
+ * lus. Découplé de l'interface `ReflectionCard` exacte pour accepter aussi bien
+ * les cartes du Carnet que celles du Chat (dont le type local diffère légèrement).
+ */
+export interface SignatureCard {
+  prisme?: string | null;
+  emotion?: string | null;
+  date?: string | null;
+}
+
+export function personalSignature(cards: SignatureCard[]): PersonalSignature {
   const list = Array.isArray(cards) ? cards : [];
   const n = list.length;
 

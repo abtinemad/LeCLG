@@ -5,6 +5,7 @@ import { useAbandonBeacon } from "../lib/useAbandonBeacon";
 import { useSaveSession } from "../lib/useSaveSession";
 import { useStreamChat } from "../lib/useStreamChat";
 import { useReflectionCard } from "../lib/useReflectionCard";
+import { personalSignature } from "../lib/personalSignature";
 import { WORKER_URL, toWorkerMessages, API_BASE } from "../lib/chat-helpers";
 import { EMOTIONS } from "../data/emotions";
 import { motion, AnimatePresence } from "motion/react";
@@ -361,6 +362,15 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   return [f(0), f(8), f(4)];
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [
+    parseInt(h.slice(0, 2), 16) || 0,
+    parseInt(h.slice(2, 4), 16) || 0,
+    parseInt(h.slice(4, 6), 16) || 0,
+  ];
+}
+
 // ============================================================
 // COMPOSANT PRINCIPAL
 // ============================================================
@@ -554,6 +564,23 @@ export default function Chat() {
 
   // Serpentin
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Signature personnelle de la comète (couleur dominante + poids de parcours),
+  // recalculée quand les cartes changent. Lue dans la boucle de dessin via le ref
+  // pour rester fraîche sans recréer la boucle. Ancre : pas de dominante → inactive.
+  const signatureRef = useRef<{
+    rgb: [number, number, number];
+    w: number;
+    active: boolean;
+  }>({ rgb: [232, 213, 176], w: 0, active: false });
+  useEffect(() => {
+    const sig = personalSignature(pastReflections);
+    signatureRef.current = {
+      rgb: hexToRgb(sig.color),
+      w: Math.min(1, Math.max(0, (sig.intensity - 0.5) / 1.5)),
+      active: sig.dominant !== null,
+    };
+  }, [pastReflections]);
+
   const flowRef = useRef({
     current: { ...FLOW_LEVELS[0] } as FlowLevel,
     target: { ...FLOW_LEVELS[0] } as FlowLevel,
@@ -1145,16 +1172,28 @@ export default function Chat() {
       }
       ctx.stroke();
 
+      // Couleur de la comète 1 : sa signature (dominante émotionnelle), gagnée avec
+      // le parcours. Ancrée : peu de cartes → blendW = 0 → couleur de l'onde inchangée.
+      // L'onde (Rail / Onde 2) garde sa couleur ; seule la comète porte la signature.
+      const sigNow = signatureRef.current;
+      const blendW = sigNow.active ? sigNow.w : 0;
+      const domR = Math.min(255, Math.round(sigNow.rgb[0] + vl * VOICE_BRIGHT));
+      const domG = Math.min(255, Math.round(sigNow.rgb[1] + vl * VOICE_BRIGHT));
+      const domB = Math.min(255, Math.round(sigNow.rgb[2] + vl * VOICE_BRIGHT));
+      const cometR = Math.round(r + (domR - r) * blendW);
+      const cometG = Math.round(g + (domG - g) * blendW);
+      const cometB = Math.round(b + (domB - b) * blendW);
+
       // Comète 1 — traîne
       const trailLen = Math.round(70 + amp * 5);
       const trailStart = Math.max(0, Math.round(f.cometX - trailLen));
       const trailEnd = Math.min(W, Math.round(f.cometX));
       if (trailEnd > trailStart) {
         const grad = ctx.createLinearGradient(trailStart, 0, trailEnd, 0);
-        grad.addColorStop(0, `rgba(${r},${g},${b},0)`);
+        grad.addColorStop(0, `rgba(${cometR},${cometG},${cometB},0)`);
         grad.addColorStop(
           1,
-          `rgba(${r},${g},${b},${(f.current.opacity * 0.85).toFixed(2)})`,
+          `rgba(${cometR},${cometG},${cometB},${(f.current.opacity * 0.85).toFixed(2)})`,
         );
         ctx.beginPath();
         ctx.strokeStyle = grad;
@@ -1180,15 +1219,15 @@ export default function Chat() {
         );
         halo.addColorStop(
           0,
-          `rgba(${r},${g},${b},${(f.current.opacity * 0.55).toFixed(2)})`,
+          `rgba(${cometR},${cometG},${cometB},${(f.current.opacity * 0.55).toFixed(2)})`,
         );
-        halo.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        halo.addColorStop(1, `rgba(${cometR},${cometG},${cometB},0)`);
         ctx.beginPath();
         ctx.fillStyle = halo;
         ctx.arc(f.cometX, headY, glowR * 3.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.fillStyle = `rgba(${r},${g},${b},${f.current.opacity.toFixed(2)})`;
+        ctx.fillStyle = `rgba(${cometR},${cometG},${cometB},${f.current.opacity.toFixed(2)})`;
         ctx.arc(f.cometX, headY, glowR * 0.55, 0, Math.PI * 2);
         ctx.fill();
       }
