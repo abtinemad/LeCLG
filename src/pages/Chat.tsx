@@ -485,12 +485,20 @@ export default function Chat() {
   const [codeSubmitting, setCodeSubmitting] = useState(false);
   const currentSessionId = useRef<string | null>(null);
 
-  // Voix
-  const [isListening, setIsListening] = useState(false);
-  const recognition = useRef<any>(null);
-  // Texte présent dans le champ au démarrage de la dictée. À chaque résultat on
-  // reconstruit le champ = base + transcription recomposée depuis e.results
-  // (jamais d'ajout incrémental), ce qui supprime les doublons sur mobile.
+  // Voix — dictée par enregistrement audio + transcription côté serveur (batch).
+  // On enregistre, on envoie l'audio à /api/transcribe, le texte revient et
+  // S'AJOUTE au champ (prises additives) ; jamais auto-envoyé. L'audio n'est
+  // jamais persisté ; il vit en mémoire le temps de l'appel (+ d'un éventuel retry).
+  const [isListening, setIsListening] = useState(false);       // enregistrement en cours
+  const [isTranscribing, setIsTranscribing] = useState(false); // transcription en cours
+  const [recordError, setRecordError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAudioRef = useRef<{ base64: string; mimeType: string } | null>(null); // pour réessayer
+  // Texte présent dans le champ au démarrage d'une prise : la transcription s'y
+  // ajoute, elle ne l'écrase pas.
   const dictationBase = useRef("");
 
   // Recentrage
@@ -796,31 +804,16 @@ export default function Chat() {
     checkDailyLimit();
   }, []);
 
+  // La dictée n'utilise plus la Web Speech du navigateur (sur iOS elle décrochait
+  // en silence : onend sans relance → l'app croyait écouter alors que non). On
+  // enregistre désormais l'audio puis on le transcrit côté serveur (voir
+  // startRecording / stopRecording). Ce cleanup garantit qu'en quittant l'écran en
+  // pleine dictée, le micro est relâché et le timer d'arrêt annulé.
   useEffect(() => {
-    const SR =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
-    if (SR) {
-      recognition.current = new SR();
-      recognition.current.continuous = true;
-      // interimResults DÉSACTIVÉ : sur Android Chrome, les résultats
-      // intermédiaires font ré-émettre des segments finaux — c'est la cause des
-      // mots en double/triple. Sans interim, l'API ne livre que des finaux.
-      recognition.current.interimResults = false;
-      recognition.current.lang = "fr-FR";
-      recognition.current.onresult = (e: any) => {
-        // On RECOMPOSE tout le texte depuis e.results à chaque événement (on
-        // remplace, on n'ajoute jamais) : une ré-émission ne peut donc plus
-        // créer de doublon. Champ = texte de départ + transcription de session.
-        let finals = "";
-        for (let i = 0; i < e.results.length; i++) {
-          if (e.results[i].isFinal) finals += e.results[i][0].transcript;
-        }
-        setInputText(dictationBase.current + finals);
-      };
-      recognition.current.onerror = () => setIsListening(false);
-      recognition.current.onend = () => setIsListening(false);
-    }
+    return () => {
+      if (autoStopRef.current) clearTimeout(autoStopRef.current);
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    };
   }, []);
 
   // ── Scroll ────────────────────────────────────────────────
@@ -2742,22 +2735,138 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
     URL.revokeObjectURL(url);
   };
 
-  // ── Voix ──────────────────────────────────────────────────
-  const toggleListening = () => {
-    if (isListening) {
-      recognition.current?.stop();
-      setIsListening(false);
-    } else {
-      // Dictée additive : on part du texte déjà présent sans l'écraser.
-      // try/catch car start() lève si une session précédente traîne encore.
-      dictationBase.current = inputText;
-      try {
-        recognition.current?.start();
-      } catch {
-        /* déjà démarré : on resynchronise juste l'état */
+  // ── Voix : enregistrement + transcription serveur (batch) ──────────────────
+  const DICTATION_MAX_MS = 30000; // 30 s par prise
+
+  // Format réellement enregistrable par CE navigateur, en privilégiant ceux que
+  // Gemini accepte le plus sûrement : mp4/aac d'abord (sûr Gemini + natif Safari),
+  // puis webm (Chrome), puis ogg (Firefox). On lit ensuite le mime RÉEL sur
+  // l'enregistreur — jamais supposé.
+  const pickRecordMime = (): string => {
+    const MR: any = (window as any).MediaRecorder;
+    if (!MR || typeof MR.isTypeSupported !== "function") return "";
+    const candidates = [
+      "audio/mp4",
+      "audio/mp4;codecs=mp4a.40.2",
+      "audio/aac",
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+    ];
+    for (const c of candidates) if (MR.isTypeSupported(c)) return c;
+    return "";
+  };
+
+  const blobToBase64 = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const s = String(reader.result || "");
+        const comma = s.indexOf(","); // dataURL = "data:...;base64,XXXX" → on garde XXXX
+        resolve(comma >= 0 ? s.slice(comma + 1) : s);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+
+  const transcribeAudio = async (base64: string, mimeType: string) => {
+    lastAudioRef.current = { base64, mimeType };
+    setRecordError(null);
+    setIsTranscribing(true);
+    try {
+      const res = await fetch(`${API_BASE}/transcribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio: base64, mimeType }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const text = String(data?.text || "").trim();
+      if (text) {
+        const base = dictationBase.current;
+        const sep = base && !base.endsWith(" ") && !base.endsWith("\n") ? " " : "";
+        const next = base + sep + text;
+        setInputText(next);
+        dictationBase.current = next; // la prochaine prise s'ajoutera à celle-ci
       }
-      setIsListening(true);
+      lastAudioRef.current = null; // succès : plus rien à réessayer
+    } catch {
+      // On NE perd PAS la pensée : l'audio reste en mémoire, on propose un retry.
+      setRecordError("La transcription n'a pas abouti.");
+    } finally {
+      setIsTranscribing(false);
     }
+  };
+
+  const retryTranscription = () => {
+    const a = lastAudioRef.current;
+    if (a) transcribeAudio(a.base64, a.mimeType);
+  };
+
+  const stopRecording = () => {
+    if (autoStopRef.current) {
+      clearTimeout(autoStopRef.current);
+      autoStopRef.current = null;
+    }
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== "inactive") rec.stop(); // → onstop → transcription
+    setIsListening(false);
+  };
+
+  const startRecording = async () => {
+    setRecordError(null);
+    const MR: any = (window as any).MediaRecorder;
+    if (!MR || !navigator.mediaDevices?.getUserMedia) {
+      setRecordError("Ton navigateur ne permet pas l'enregistrement audio.");
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setRecordError("Micro indisponible — autorise l'accès au micro pour dicter.");
+      return;
+    }
+    mediaStreamRef.current = stream;
+    const mime = pickRecordMime();
+    let rec: MediaRecorder;
+    try {
+      rec = mime ? new MR(stream, { mimeType: mime }) : new MR(stream);
+    } catch {
+      rec = new MR(stream);
+    }
+    mediaRecorderRef.current = rec;
+    audioChunksRef.current = [];
+
+    rec.ondataavailable = (e: BlobEvent) => {
+      if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+    };
+    rec.onstop = async () => {
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); // libère le micro (+ l'indicateur iOS)
+      mediaStreamRef.current = null;
+      const type = rec.mimeType || mime || "audio/webm";
+      const blob = new Blob(audioChunksRef.current, { type });
+      audioChunksRef.current = [];
+      console.log("[dictée] capté:", blob.type, blob.size, "octets"); // diag dev (aucun contenu loggé)
+      if (blob.size === 0) {
+        setRecordError("Aucun son capté, réessaie.");
+        return;
+      }
+      const base64 = await blobToBase64(blob);
+      await transcribeAudio(base64, type);
+    };
+
+    dictationBase.current = inputText; // base à laquelle la transcription s'ajoutera
+    rec.start(); // sans timeslice : un seul blob livré à l'arrêt (max compat Safari)
+    setIsListening(true);
+
+    if (autoStopRef.current) clearTimeout(autoStopRef.current);
+    autoStopRef.current = setTimeout(() => stopRecording(), DICTATION_MAX_MS); // cap 30 s
+  };
+
+  const toggleListening = () => {
+    if (isListening) stopRecording();
+    else startRecording();
   };
 
   // ============================================================
@@ -3497,7 +3606,15 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
                     handleSend();
                   }
                 }}
-                placeholder={isRecentrage ? "Phase de recentrage…" : "..."}
+                placeholder={
+                  isRecentrage
+                    ? "Phase de recentrage…"
+                    : isListening
+                      ? "J'écoute…"
+                      : isTranscribing
+                        ? "Transcription…"
+                        : "..."
+                }
                 rows={Math.min(15, Math.max(3, inputText.split("\n").length))}
                 className={`flex-1 bg-[#161512] border border-[#2a2820] rounded-lg px-4 py-3 font-serif text-[16px] text-beige leading-relaxed focus:border-beige-faint outline-none transition-all resize-none ${isRecentrage ? "opacity-20" : ""}`}
               />
@@ -3507,19 +3624,28 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
                 {/* Voix */}
                 <button
                   onClick={toggleListening}
-                  title={isListening ? "Arrêter" : "Dicter"}
+                  disabled={isTranscribing}
+                  title={isTranscribing ? "Transcription…" : isListening ? "Arrêter" : "Dicter"}
                   className={`w-11 h-11 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 font-mono text-xs
                     ${
                       isListening
                         ? "bg-red-dim border-red text-red"
-                        : "border-[#2a2820] text-beige-faint hover:text-beige hover:border-beige-faint"
+                        : isTranscribing
+                          ? "border-[#2a2820] text-beige-faint opacity-60"
+                          : "border-[#2a2820] text-beige-faint hover:text-beige hover:border-beige-faint"
                     }`}
                 >
                   <motion.span
-                    animate={isListening ? { scale: [1, 1.3, 1] } : {}}
+                    animate={
+                      isListening
+                        ? { scale: [1, 1.3, 1] }
+                        : isTranscribing
+                          ? { opacity: [0.4, 1, 0.4] }
+                          : {}
+                    }
                     transition={{ repeat: Infinity, duration: 1 }}
                   >
-                    {isListening ? "●" : <Lips className="w-5 h-5" />}
+                    {isListening ? "●" : isTranscribing ? "…" : <Lips className="w-5 h-5" />}
                   </motion.span>
                 </button>
 
@@ -3534,6 +3660,20 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
                 </button>
               </div>
             </div>
+            {recordError && (
+              <div className="max-w-[620px] mx-auto mt-2 flex items-center gap-3 font-mono text-[11px] text-red">
+                <span>{recordError}</span>
+                {lastAudioRef.current && (
+                  <button
+                    onClick={retryTranscription}
+                    disabled={isTranscribing}
+                    className="px-2 py-0.5 rounded border border-red text-red hover:bg-red-dim transition-all disabled:opacity-50"
+                  >
+                    Réessayer
+                  </button>
+                )}
+              </div>
+            )}
             <div className="max-w-[620px] mx-auto mt-2 pl-1 font-mono text-[8px] text-beige-faint tracking-widest">
               ⌘ + Entrée pour envoyer
             </div>
