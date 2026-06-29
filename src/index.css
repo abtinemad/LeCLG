@@ -259,3 +259,11 @@
     .clg-voice-fab { bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
   }
 }
+
+/* Champ de saisie : respiration rouge douce pendant la dictée — signale que
+   l'app écoute (le contenu n'apparaît qu'à l'arrêt, en mode batch). */
+@keyframes dictation-breathe {
+  0%, 100% { border-color: rgba(138, 72, 72, 0.45); box-shadow: 0 0 0 0 rgba(138, 72, 72, 0); }
+  50%      { border-color: rgba(138, 72, 72, 0.95); box-shadow: 0 0 14px 0 rgba(138, 72, 72, 0.22); }
+}
+.dictation-listening { animation: dictation-breathe 1.6s ease-in-out infinite; }

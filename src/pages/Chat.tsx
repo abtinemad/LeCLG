@@ -573,7 +573,7 @@ export default function Chat() {
     isCalming: false,
     emotionalLevel: 0,
     isLoading: false,
-    voiceAmp: 0, // amplitude additive pilotée par le niveau micro pendant la dictée
+    voiceLevel: 0, // niveau micro normalisé 0..1 pilotant la réaction du serpentin
   });
   const rafRef = useRef<number | null>(null);
   const resizeHandlerRef = useRef<(() => void) | null>(null);
@@ -984,11 +984,12 @@ export default function Chat() {
           const v = (buf[i] - 128) / 128;
           sum += v * v;
         }
-        const rms = Math.sqrt(sum / buf.length); // 0..~1
-        const tgt = Math.min(rms * VOICE_GAIN, VOICE_MAX);
-        f.voiceAmp += (tgt - f.voiceAmp) * 0.35; // montée vive et réactive
+        const rms = Math.sqrt(sum / buf.length);
+        const tgt = Math.min(rms * VOICE_GAIN, 1); // niveau normalisé 0..1
+        // attaque vive (on suit la voix), relâche plus lente (on ne clignote pas entre les syllabes)
+        f.voiceLevel += (tgt - f.voiceLevel) * (tgt > f.voiceLevel ? 0.5 : 0.15);
       } else {
-        f.voiceAmp *= 0.9; // retour doux au calme
+        f.voiceLevel *= 0.85; // retour doux au calme
       }
 
       // Couleur
@@ -1072,9 +1073,14 @@ export default function Chat() {
       }
 
       ctx.clearRect(0, 0, W, H);
-      const [r, g, b] = f.current.color.map(Math.round);
-      const amp = f.current.amplitude + f.dampExtra + f.voiceAmp;
-      const thickness = f.current.thickness || 1;
+      const vl = f.voiceLevel; // 0..1, niveau de voix lissé
+      // Surbrillance : on éclaircit la couleur vers le blanc quand tu parles (toutes
+      // les traînées/comètes l'héritent), on grandit l'onde et on épaissit le trait.
+      const [r, g, b] = f.current.color.map((c) =>
+        Math.min(255, Math.round(c + vl * VOICE_BRIGHT)),
+      );
+      const amp = f.current.amplitude + f.dampExtra + vl * VOICE_AMP;
+      const thickness = (f.current.thickness || 1) + vl * VOICE_THICK;
 
       // Rail
       ctx.beginPath();
@@ -2768,8 +2774,10 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
 
   // ── Voix : enregistrement + transcription serveur (batch) ──────────────────
   const DICTATION_MAX_MS = 30000; // 30 s par prise
-  const VOICE_GAIN = 30; // niveau micro (RMS 0..1) → surplus d'amplitude du serpentin
-  const VOICE_MAX = 8; // plafond du surplus (l'onde sature déjà ~14 vu la hauteur du canvas)
+  const VOICE_GAIN = 8; // RMS (≈0.1 en parole normale) → niveau ~0.8
+  const VOICE_AMP = 12; // surplus d'amplitude max (~14 = plafond imposé par la hauteur du canvas)
+  const VOICE_THICK = 1.6; // surplus d'épaisseur max (trait plus gras)
+  const VOICE_BRIGHT = 60; // éclaircissement max de la couleur vers le blanc (surbrillance)
 
   // Format réellement enregistrable par CE navigateur, en privilégiant ceux que
   // Gemini accepte le plus sûrement : mp4/aac d'abord (sûr Gemini + natif Safari),
@@ -3671,7 +3679,7 @@ C'est la fin de cet échange. Renvoie un dernier message, un seul : un miroir de
                         : "..."
                 }
                 rows={Math.min(15, Math.max(3, inputText.split("\n").length))}
-                className={`flex-1 bg-[#161512] border border-[#2a2820] rounded-lg px-4 py-3 font-serif text-[16px] text-beige leading-relaxed focus:border-beige-faint outline-none transition-all resize-none ${isRecentrage ? "opacity-20" : ""}`}
+                className={`flex-1 bg-[#161512] border border-[#2a2820] rounded-lg px-4 py-3 font-serif text-[16px] text-beige leading-relaxed focus:border-beige-faint outline-none transition-all resize-none ${isListening ? "dictation-listening " : ""}${isRecentrage ? "opacity-20" : ""}`}
               />
 
               {/* Actions Column */}
