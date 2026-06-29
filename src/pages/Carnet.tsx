@@ -9,6 +9,7 @@ import { useCarnetUnlocks } from "../lib/useCarnetUnlocks";
 import { useCollegueVoice } from "../lib/useCollegueVoice";
 import { useCarnetSync } from "../lib/useCarnetSync";
 import { useCarnetData } from "../lib/useCarnetData";
+import { personalSignature } from "../lib/personalSignature";
 import {
   AnalysisError,
   LienSphereDeck,
@@ -361,6 +362,7 @@ export default function Carnet() {
             }
             content={PRISME_DESCRIPTIONS[selectedPrisme]}
             color={EMOTIONS[selectedPrisme as keyof typeof EMOTIONS].color}
+            intensity={personalSignature(cards).intensity}
           />
         )}
 

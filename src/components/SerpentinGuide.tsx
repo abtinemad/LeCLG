@@ -687,13 +687,15 @@ export const PrismeExplainer = ({
   content, 
   color, 
   isOpen, 
-  onClose 
+  onClose,
+  intensity = 0.5,
 }: { 
   title: string; 
   content: string; 
   color: string; 
   isOpen: boolean; 
   onClose: () => void;
+  intensity?: number;
 }) => {
   return (
     <AnimatePresence>
@@ -712,7 +714,7 @@ export const PrismeExplainer = ({
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             className="relative w-full max-w-sm bg-bg/95 border border-white/10 rounded-xl p-8 shadow-2xl pointer-events-auto overflow-hidden"
           >
-            <CometAnimation isPrisme prismeColor={color} />
+            <CometAnimation isPrisme prismeColor={color} intensity={intensity} />
 
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="mb-6 flex flex-col items-center gap-2">
