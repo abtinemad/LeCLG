@@ -31,13 +31,13 @@ export interface GalaxyRenderOpts {
   twistTurns?: number;
   /** Override de la diversité [0,1] (simulateur) ; null = diversité réelle calculée. */
   diversityOverride?: number | null;
-  /** Force l'or (sur-couronne 16 prismes) — réservé au simulateur. */
-  goldForced?: boolean;
+  /** Override de l'or (simulateur) : null = condition réelle (16 prismes) ; true/false = forcé. */
+  goldOverride?: boolean | null;
 }
 
 const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
   pointAlpha: 1,
-  pointGlow: 4,
+  pointGlow: 6,
   edgeBlur: 3,
   coreScale: 22,
   rotationPeriodS: 120,
@@ -46,7 +46,7 @@ const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
   tiltDeg: 55,
   twistTurns: 0.5,
   diversityOverride: null,
-  goldForced: false,
+  goldOverride: null,
 };
 
 const DEPLOY_MS = 2500;
@@ -84,7 +84,7 @@ export function GalaxyCanvas({
       tiltDeg: render?.tiltDeg ?? RENDER_DEFAULTS.tiltDeg,
       twistTurns: render?.twistTurns ?? RENDER_DEFAULTS.twistTurns,
       diversityOverride: render?.diversityOverride ?? null,
-      goldForced: render?.goldForced ?? RENDER_DEFAULTS.goldForced,
+      goldOverride: render?.goldOverride ?? null,
     };
   }, [render]);
 
@@ -190,7 +190,7 @@ export function GalaxyCanvas({
       const tilt = (rp.tiltDeg * Math.PI) / 180;
       const flatten = Math.cos(tilt);
       const sinTilt = Math.sin(tilt);
-      const goldOn = prismsUnlocked >= PRISME_TOTAL || rp.goldForced;
+      const goldOn = rp.goldOverride !== null ? rp.goldOverride : prismsUnlocked >= PRISME_TOTAL;
 
       // Torsion pilotée par la diversité (intégration des domaines), plafonnée par twistTurns.
       const effDiversity = rp.diversityOverride !== null ? rp.diversityOverride : diversity;
@@ -243,20 +243,20 @@ export function GalaxyCanvas({
         // dominante reste visible. Sur-impose, ne remplace pas.
         if (goldOn) {
           ctx.globalCompositeOperation = "lighter";
-          const goldR = haloR * 1.4;
-          const g = ctx.createRadialGradient(cx, cy, coreR * 0.7, cx, cy, goldR);
+          const goldR = coreR * 2.0; // confiné au bulbe, pas à toute la galaxie
+          const g = ctx.createRadialGradient(cx, cy, coreR * 0.6, cx, cy, goldR);
           g.addColorStop(0, "rgba(255,205,110,0)");
-          g.addColorStop(0.55, "rgba(255,200,100,0.30)");
+          g.addColorStop(0.5, "rgba(255,200,100,0.32)");
           g.addColorStop(1, "rgba(255,190,90,0)");
           ctx.fillStyle = g;
           ctx.beginPath();
           ctx.arc(cx, cy, goldR, 0, Math.PI * 2);
           ctx.fill();
           ctx.globalCompositeOperation = "source-over";
-          ctx.strokeStyle = "rgba(255,212,120,0.55)";
+          ctx.strokeStyle = "rgba(255,212,120,0.6)";
           ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.arc(cx, cy, haloR * 0.92, 0, Math.PI * 2);
+          ctx.arc(cx, cy, coreR * 1.35, 0, Math.PI * 2);
           ctx.stroke();
         }
       };
@@ -276,13 +276,15 @@ export function GalaxyCanvas({
         const [r, g, b] = hexToRgb(p.color);
         const a = p.alpha * rp.pointAlpha * ps.ease * ps.depthAlpha;
         const glowR =
-          rp.pointGlow * (0.3 + ps.rNorm * rp.edgeBlur) * (0.6 + p.size) * ps.depthScale;
-        const halo = ctx.createRadialGradient(ps.x, ps.y, 0, ps.x, ps.y, Math.max(0.1, glowR));
-        halo.addColorStop(0, `rgba(${r},${g},${b},${a})`);
+          rp.pointGlow * (0.45 + ps.rNorm * rp.edgeBlur) * (0.75 + p.size) * ps.depthScale;
+        const gR = Math.max(0.1, glowR);
+        const halo = ctx.createRadialGradient(ps.x, ps.y, 0, ps.x, ps.y, gR);
+        halo.addColorStop(0, `rgba(255,252,248,${a})`); // étincelle chaude → corps/volume (comme le bulbe)
+        halo.addColorStop(0.18, `rgba(${r},${g},${b},${a})`);
         halo.addColorStop(1, `rgba(${r},${g},${b},0)`);
         ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.arc(ps.x, ps.y, Math.max(0.1, glowR), 0, Math.PI * 2);
+        ctx.arc(ps.x, ps.y, gR, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalCompositeOperation = "source-over";

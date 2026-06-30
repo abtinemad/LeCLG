@@ -85,7 +85,7 @@ export default function GalaxySim() {
       armThread: armThreadPct / 100,
       tiltDeg,
       twistTurns: twistPct / 100,
-      goldForced,
+      goldOverride: goldForced,
       diversityOverride: divPct / 100,
     }),
     [pointAlphaPct, pointGlow, edgeBlur, coreScale, rotationS, spiralPct, armThreadPct, tiltDeg, twistPct, goldForced, divPct],
