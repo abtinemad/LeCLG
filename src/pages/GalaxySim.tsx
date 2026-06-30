@@ -94,14 +94,17 @@ export default function GalaxySim() {
   if (!allowed) return <Navigate to="/" replace />;
 
   return (
-    <div className="min-h-screen bg-[#070707] text-beige p-4 flex flex-col gap-4">
-      <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-matrice/80">
+    <div className="min-h-screen bg-[#070707] text-beige p-4">
+      <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-matrice/80 mb-3">
         Galaxie — simulateur de réglage (dev)
       </div>
-      <div key={replayKey} className="relative w-full aspect-square max-w-xl mx-auto">
-        <GalaxyCanvas cards={cards} opts={opts} render={render} />
-      </div>
-      <div className="max-w-xl mx-auto w-full flex flex-col gap-3 font-mono text-[11px]">
+      <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
+        <div className="sticky top-0 z-10 -mx-4 px-4 pb-2 bg-[#070707] lg:flex-1 lg:top-4 lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent">
+          <div key={replayKey} className="relative w-full max-w-[42vh] lg:max-w-md aspect-square mx-auto">
+            <GalaxyCanvas cards={cards} opts={opts} render={render} />
+          </div>
+        </div>
+        <div className="lg:flex-1 grid grid-cols-2 gap-x-4 gap-y-3 font-mono text-[11px]">
         <Slider label={`Mois de pratique : ${months}`} min={1} max={24} value={months} onChange={setMonths} />
         <Slider label={`Fréquence : ${freqPerWeek} carte(s)/semaine`} min={1} max={7} value={freqPerWeek} onChange={setFreqPerWeek} />
         <Slider label={`σ bras : ${sigmaDeg}°`} min={0} max={90} value={sigmaDeg} onChange={setSigmaDeg} />
@@ -133,12 +136,13 @@ export default function GalaxySim() {
         >
           Rejouer la naissance
         </button>
-        <div className="text-[9px] text-beige-faint/40 italic mt-2">
+        <div className="col-span-2 text-[9px] text-beige-faint/40 italic mt-2">
           ≈ {count} cartes sur {months} mois ({spanYears.toFixed(2)} an). σ/τ = géométrie ; éclat/flou = lumière (densité additive).{" "}
           {seed.length > 0
             ? `Teintes amorcées sur tes ${seed.length} cartes réelles (lecture seule).`
             : "Aucune carte réelle → teintes synthétiques."}
         </div>
+      </div>
       </div>
     </div>
   );
