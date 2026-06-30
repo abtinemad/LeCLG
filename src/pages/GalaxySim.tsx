@@ -60,6 +60,7 @@ export default function GalaxySim() {
   const [armThreadPct, setArmThreadPct] = useState(100);
   const [tiltDeg, setTiltDeg] = useState(55);
   const [twistPct, setTwistPct] = useState(50); // /100 → tours de torsion
+  const [trailDeg, setTrailDeg] = useState(0); // recul angulaire (°) de la traînée des astéroïdes
   const [goldForced, setGoldForced] = useState(false);
   const [divPct, setDivPct] = useState(100); // diversité simulée → module la torsion
 
@@ -85,10 +86,11 @@ export default function GalaxySim() {
       armThread: armThreadPct / 100,
       tiltDeg,
       twistTurns: twistPct / 100,
+      trailTurns: trailDeg / 360,
       goldOverride: goldForced,
       diversityOverride: divPct / 100,
     }),
-    [pointAlphaPct, pointGlow, edgeBlur, coreScale, rotationS, spiralPct, armThreadPct, tiltDeg, twistPct, goldForced, divPct],
+    [pointAlphaPct, pointGlow, edgeBlur, coreScale, rotationS, spiralPct, armThreadPct, tiltDeg, twistPct, trailDeg, goldForced, divPct],
   );
 
   if (!allowed) return <Navigate to="/" replace />;
@@ -119,6 +121,7 @@ export default function GalaxySim() {
         <Slider label={`Fils sphères : ${armThreadPct}%`} min={0} max={100} value={armThreadPct} onChange={setArmThreadPct} />
         <Slider label={`Inclinaison : ${tiltDeg}°`} min={0} max={75} value={tiltDeg} onChange={setTiltDeg} />
         <Slider label={`Torsion bras : ${twistPct}%`} min={0} max={300} value={twistPct} onChange={setTwistPct} />
+        <Slider label={`Traînée : ${trailDeg}°`} min={0} max={30} value={trailDeg} onChange={setTrailDeg} />
         <Slider label={`Diversité simulée : ${divPct}%`} min={0} max={100} value={divPct} onChange={setDivPct} />
         <button
           onClick={() => setGoldForced((v) => !v)}

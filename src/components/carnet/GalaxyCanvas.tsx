@@ -29,6 +29,8 @@ export interface GalaxyRenderOpts {
   armThread?: number;
   tiltDeg?: number;
   twistTurns?: number;
+  /** Recul angulaire de la traînée des astéroïdes, en tours (0 = aucune traînée). */
+  trailTurns?: number;
   /** Override de la diversité [0,1] (simulateur) ; null = diversité réelle calculée. */
   diversityOverride?: number | null;
   /** Override de l'or (simulateur) : null = condition réelle (16 prismes) ; true/false = forcé. */
@@ -45,6 +47,7 @@ const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
   armThread: 1,
   tiltDeg: 55,
   twistTurns: 0.5,
+  trailTurns: 0,
   diversityOverride: null,
   goldOverride: null,
 };
@@ -83,6 +86,7 @@ export function GalaxyCanvas({
       armThread: render?.armThread ?? RENDER_DEFAULTS.armThread,
       tiltDeg: render?.tiltDeg ?? RENDER_DEFAULTS.tiltDeg,
       twistTurns: render?.twistTurns ?? RENDER_DEFAULTS.twistTurns,
+      trailTurns: render?.trailTurns ?? RENDER_DEFAULTS.trailTurns,
       diversityOverride: render?.diversityOverride ?? null,
       goldOverride: render?.goldOverride ?? null,
     };
@@ -199,6 +203,17 @@ export function GalaxyCanvas({
         computeP((p.r - CONSTELLATION_R0) / span01, p.theta, innerPx, deployG, rot, rp, flatten, sinTilt, twistTurnsEff),
       );
 
+      // Traînée des astéroïdes : position reculée d'un angle dθ (même computeP, donc
+      // suit l'ellipse inclinée et la torsion). Recalculée chaque frame (aucune
+      // persistance du canvas) → centre net, pas de salissage. null si éteinte.
+      const dTheta = rp.trailTurns * Math.PI * 2;
+      const posBack =
+        rp.trailTurns > 0
+          ? points.map((p) =>
+              computeP((p.r - CONSTELLATION_R0) / span01, p.theta, innerPx, deployG, rot - dTheta, rp, flatten, sinTilt, twistTurnsEff),
+            )
+          : null;
+
       if (rp.armThread > 0) {
         ctx.lineWidth = 1;
         ctx.strokeStyle = `rgba(190,200,220,${(0.12 * rp.armThread).toFixed(3)})`;
@@ -275,6 +290,23 @@ export function GalaxyCanvas({
         const ps = pos[idx];
         const [r, g, b] = hexToRgb(p.color);
         const a = p.alpha * rp.pointAlpha * ps.ease * ps.depthAlpha;
+        // Traînée flamboyante : trace couleur→transparent de la position reculée à
+        // la tête, en additif (flambe à la superposition). Astéroïdes seulement
+        // (arm ≠ null) → les étoiles de fond restent des points nets.
+        if (posBack && p.arm !== null && ps.pp > 0) {
+          const pb = posBack[idx];
+          const aTrail = a * 0.55;
+          const grad = ctx.createLinearGradient(pb.x, pb.y, ps.x, ps.y);
+          grad.addColorStop(0, `rgba(${r},${g},${b},0)`);
+          grad.addColorStop(1, `rgba(${r},${g},${b},${aTrail.toFixed(3)})`);
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = Math.max(0.6, (0.75 + p.size) * 0.9 * ps.depthScale);
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(pb.x, pb.y);
+          ctx.lineTo(ps.x, ps.y);
+          ctx.stroke();
+        }
         const glowR =
           rp.pointGlow * (0.45 + ps.rNorm * rp.edgeBlur) * (0.75 + p.size) * ps.depthScale;
         const gR = Math.max(0.1, glowR);
