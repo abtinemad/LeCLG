@@ -63,7 +63,7 @@ export default function GalaxySim() {
     [seed, count, spanYears],
   );
   const opts = useMemo(
-    () => ({ armSigmaRad: (sigmaDeg * Math.PI) / 180, tauDays, radianceConcavity: concavityPct / 100 }),
+    () => ({ armSigmaRad: (sigmaDeg * Math.PI) / 180, tauDays, radianceConcavity: 1 - 0.7 * (concavityPct / 100) }),
     [sigmaDeg, tauDays, concavityPct],
   );
   const render = useMemo(
@@ -89,7 +89,7 @@ export default function GalaxySim() {
         <Slider label={`Éclat point : ${pointAlphaPct}%`} min={20} max={300} value={pointAlphaPct} onChange={setPointAlphaPct} />
         <Slider label={`Flou point : ${pointGlow} px`} min={1} max={20} value={pointGlow} onChange={setPointGlow} />
         <Slider label={`Flou bord : ${edgeBlur}×`} min={0} max={8} value={edgeBlur} onChange={setEdgeBlur} />
-        <Slider label={`Concavité XP : ${concavityPct}%`} min={30} max={100} value={concavityPct} onChange={setConcavityPct} />
+        <Slider label={`Récompense précoce : ${concavityPct}%`} min={0} max={100} value={concavityPct} onChange={setConcavityPct} />
         <Slider label={`Rayonnement max : ${coreScale} px`} min={5} max={50} value={coreScale} onChange={setCoreScale} />
         <div className="text-[9px] text-beige-faint/40 italic mt-2">
           ≈ {count} cartes sur {months} mois ({spanYears.toFixed(2)} an). σ/τ = géométrie ; éclat/flou = lumière (densité additive).{" "}
