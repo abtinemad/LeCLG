@@ -14,31 +14,32 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-/** Réglages de rendu (lumière), distincts de la géométrie (σ/τ). Défauts pensés
- *  pour la modale réelle ; le simulateur les pilote par curseurs. */
+/** Réglages de rendu (lumière), distincts de la géométrie (σ/τ). */
 export interface GalaxyRenderOpts {
-  /** Multiplicateur d'éclat par point (1 = tel quel). Bas → seule la densité allume. */
+  /** Multiplicateur d'éclat par point (1 = tel quel). */
   pointAlpha?: number;
-  /** Rayon de halo par point en px, AU CENTRE (net). */
+  /** Rayon de halo par point en px, au centre (net). */
   pointGlow?: number;
-  /** Facteur de flou au bord : glow effectif = pointGlow·(0.3 + rNorm·edgeBlur).
-   *  0 = flou constant ; grand = très diffus au bord, piqué au centre. */
+  /** Facteur de flou au bord : glow = pointGlow·(0.3 + rNorm·edgeBlur)·(0.6+size). */
   edgeBlur?: number;
+  /** Plafond de rayonnement : px ajoutés au rayon du noyau à radiance=1 (l'XP « plus fort »). */
+  coreScale?: number;
 }
 
 const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
   pointAlpha: 1,
   pointGlow: 4,
   edgeBlur: 3,
+  coreScale: 22,
 };
 
 // Renderer canvas 2D. Lumière par DENSITÉ (composition additive `lighter`) :
-// chaque astéroïde est un halo doux dont le rayon CROÎT avec la distance au
-// centre — net au cœur, diffus au bord (où les vieux comprimés fondent en nappe).
-// Le centre est un NOYAU rayonnant (le « vous-maintenant ») : halo coloré + cœur
-// net. Sa couleur = la dominante émotionnelle vivante (core.color, crème seulement
-// tant qu'il n'y a pas de dominante) — signifiante, jamais le crème figé.
-// Rendu STATIQUE (dessin une fois + au resize) — la Phase 2 (rotation) viendra ici.
+// halo doux par astéroïde, rayon croissant vers le bord (net au cœur, diffus au
+// bord → nappe). Noyau central (le « vous-maintenant ») = halo rayonnant + cœur
+// net, couleur = dominante vivante (core.color). Sa TAILLE et son INTENSITÉ
+// suivent la RADIANCE (XP : volume × régularité) → il irradie de plus en plus
+// fort à mesure qu'on pratique. Rendu STATIQUE — la Phase 2 (profondeur, rotation)
+// viendra ici.
 export function GalaxyCanvas({
   cards,
   opts,
@@ -58,10 +59,11 @@ export function GalaxyCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const { core, points } = personalConstellation(cards, Date.now(), opts);
+    const { core, points, radiance } = personalConstellation(cards, Date.now(), opts);
     const pointAlpha = render?.pointAlpha ?? RENDER_DEFAULTS.pointAlpha;
     const pointGlow = render?.pointGlow ?? RENDER_DEFAULTS.pointGlow;
     const edgeBlur = render?.edgeBlur ?? RENDER_DEFAULTS.edgeBlur;
+    const coreScale = render?.coreScale ?? RENDER_DEFAULTS.coreScale;
 
     const draw = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -77,19 +79,17 @@ export function GalaxyCanvas({
       const Rpx = (Math.min(cssW, cssH) / 2) * 0.92;
 
       const [cr, cg, cb] = hexToRgb(core.color);
-      const coreR = 4 + core.intensity * 7;
+      // Taille du noyau pilotée par l'XP (radiance), pas par core.intensity.
+      const coreR = 4 + radiance * coreScale;
       const haloR = coreR * 3.5;
 
-      // Plancher radial couplé au halo central : les points démarrent juste après
-      // le noyau, jamais dedans (sinon ils naissent dans le halo et le brouillent).
       const innerPx = Math.max(CONSTELLATION_R0 * Rpx, haloR + 6);
       const span01 = 1 - CONSTELLATION_R0;
 
-      // Astéroïdes — composition ADDITIVE. Halo dont le rayon croît avec rNorm :
-      // net au centre, diffus au bord (fondu en nappe). Pas d'aplat dur.
+      // Astéroïdes — additif, halo croissant vers le bord.
       ctx.globalCompositeOperation = "lighter";
       for (const p of points) {
-        const rNorm = (p.r - CONSTELLATION_R0) / span01; // [0,1] centre→bord
+        const rNorm = (p.r - CONSTELLATION_R0) / span01;
         const rPx = innerPx + (Rpx - innerPx) * rNorm;
         const x = cx + rPx * Math.cos(p.theta);
         const y = cy + rPx * Math.sin(p.theta);
@@ -106,18 +106,19 @@ export function GalaxyCanvas({
       }
       ctx.globalCompositeOperation = "source-over";
 
-      // Noyau central (le « vous-maintenant ») : halo rayonnant + cœur net.
-      // Couleur = dominante vivante (core.color). Posé APRÈS la nuée → non lavé.
+      // Noyau central : halo rayonnant + cœur net. Intensité ↑ avec la radiance.
+      const haloA0 = 0.35 + radiance * 0.45;
+      const haloA1 = 0.15 + radiance * 0.25;
       const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
-      halo.addColorStop(0, `rgba(${cr},${cg},${cb},0.7)`);
-      halo.addColorStop(0.4, `rgba(${cr},${cg},${cb},0.3)`);
+      halo.addColorStop(0, `rgba(${cr},${cg},${cb},${haloA0.toFixed(3)})`);
+      halo.addColorStop(0.4, `rgba(${cr},${cg},${cb},${haloA1.toFixed(3)})`);
       halo.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
       ctx.fillStyle = halo;
       ctx.beginPath();
       ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},0.95)`;
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${(0.6 + radiance * 0.35).toFixed(3)})`;
       ctx.beginPath();
       ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
       ctx.fill();

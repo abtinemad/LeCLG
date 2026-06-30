@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { personalConstellation } from "./personalConstellation";
+import { personalConstellation, constellationRadiance } from "./personalConstellation";
 import type { ReflectionCard } from "../data/emotions";
 
 const NOW = new Date("2026-06-30T00:00:00.000Z").getTime();
@@ -99,5 +99,24 @@ describe("personalConstellation", () => {
     const slow = personalConstellation([old], NOW, { tauDays: 200 });
     const fast = personalConstellation([old], NOW, { tauDays: 20 });
     expect(fast.points[0].r).toBeGreaterThan(slow.points[0].r);
+  });
+
+  it("radiance : vide → 0", () => {
+    expect(constellationRadiance([])).toBe(0);
+  });
+
+  it("radiance : 1 an régulier (~52 semaines, ~156 cartes) → proche du plein", () => {
+    const reg: ReflectionCard[] = [];
+    for (let w = 0; w < 52; w++)
+      for (let k = 0; k < 3; k++)
+        reg.push(card({ id: `r${w}-${k}`, date: new Date(NOW - w * 7 * 86400000 - k * 86400000).toISOString() }));
+    expect(constellationRadiance(reg)).toBeGreaterThan(0.9);
+  });
+
+  it("radiance : bourrage (156 cartes, 1 semaine) → bridé par la régularité", () => {
+    const binge: ReflectionCard[] = [];
+    for (let i = 0; i < 156; i++)
+      binge.push(card({ id: `b${i}`, date: "2026-06-01T00:00:00.000Z" }));
+    expect(constellationRadiance(binge)).toBeLessThan(0.3);
   });
 });

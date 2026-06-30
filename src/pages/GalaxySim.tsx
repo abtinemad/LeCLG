@@ -52,6 +52,8 @@ export default function GalaxySim() {
   const [pointAlphaPct, setPointAlphaPct] = useState(100);
   const [pointGlow, setPointGlow] = useState(5);
   const [edgeBlur, setEdgeBlur] = useState(3);
+  const [concavityPct, setConcavityPct] = useState(60); // /100 → concavité
+  const [coreScale, setCoreScale] = useState(22);
 
   const count = Math.max(1, Math.round(months * WEEKS_PER_MONTH * freqPerWeek));
   const spanYears = months / 12;
@@ -61,12 +63,12 @@ export default function GalaxySim() {
     [seed, count, spanYears],
   );
   const opts = useMemo(
-    () => ({ armSigmaRad: (sigmaDeg * Math.PI) / 180, tauDays }),
-    [sigmaDeg, tauDays],
+    () => ({ armSigmaRad: (sigmaDeg * Math.PI) / 180, tauDays, radianceConcavity: concavityPct / 100 }),
+    [sigmaDeg, tauDays, concavityPct],
   );
   const render = useMemo(
-    () => ({ pointAlpha: pointAlphaPct / 100, pointGlow, edgeBlur }),
-    [pointAlphaPct, pointGlow, edgeBlur],
+    () => ({ pointAlpha: pointAlphaPct / 100, pointGlow, edgeBlur, coreScale }),
+    [pointAlphaPct, pointGlow, edgeBlur, coreScale],
   );
 
   if (!allowed) return <Navigate to="/" replace />;
@@ -87,6 +89,8 @@ export default function GalaxySim() {
         <Slider label={`Éclat point : ${pointAlphaPct}%`} min={20} max={300} value={pointAlphaPct} onChange={setPointAlphaPct} />
         <Slider label={`Flou point : ${pointGlow} px`} min={1} max={20} value={pointGlow} onChange={setPointGlow} />
         <Slider label={`Flou bord : ${edgeBlur}×`} min={0} max={8} value={edgeBlur} onChange={setEdgeBlur} />
+        <Slider label={`Concavité XP : ${concavityPct}%`} min={30} max={100} value={concavityPct} onChange={setConcavityPct} />
+        <Slider label={`Rayonnement max : ${coreScale} px`} min={5} max={50} value={coreScale} onChange={setCoreScale} />
         <div className="text-[9px] text-beige-faint/40 italic mt-2">
           ≈ {count} cartes sur {months} mois ({spanYears.toFixed(2)} an). σ/τ = géométrie ; éclat/flou = lumière (densité additive).{" "}
           {seed.length > 0

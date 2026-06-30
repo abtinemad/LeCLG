@@ -39,6 +39,39 @@ const RECENCY_MIN_ALPHA = 0.18;               // opacité plancher (plus ancien)
 const RECENCY_MIN_SIZE = 0.3;                 // taille plancher 0..1 (plus ancien)
 const DEFAULT_COLOR = "#E8D5B0";              // ancre beige (cohérent personalSignature)
 
+// --- Rayonnement (XP) : volume × régularité, concave. Galaxie SEULE — n'altère
+// pas personalSignature (donc pas la comète du Chat). ---
+const RADIANCE_N_FULL = 156; // cartes pour le plein (≈ 1 an à 3/sem)
+const RADIANCE_W_FULL = 52; // semaines actives pour le plein (1 an)
+const RADIANCE_CONCAVITY = 0.6; // <1 = concave (récompense rapide tôt, plateau tard)
+const WEEK_MS = 7 * 86400000;
+
+/**
+ * Rayonnement ∈ [0,1] : monte avec le VOLUME (n cartes) ET la RÉGULARITÉ
+ * (semaines distinctes d'activité), couplés par un min → ni le bourrage (peu de
+ * semaines) ni l'attente (peu de cartes) ne suffisent. Concave (`^concavity`).
+ * Indépendant de `now` : XP cumulée, pas activité récente.
+ */
+export function constellationRadiance(
+  cards: ConstellationCard[],
+  concavity: number = RADIANCE_CONCAVITY,
+): number {
+  const list = Array.isArray(cards) ? cards : [];
+  const n = list.length;
+  if (n === 0) return 0;
+  const weeks = new Set<number>();
+  for (const c of list) {
+    if (!c.date) continue;
+    const t = new Date(c.date).getTime();
+    if (!Number.isNaN(t)) weeks.add(Math.floor(t / WEEK_MS));
+  }
+  const xpRaw = Math.min(
+    1,
+    Math.min(n / RADIANCE_N_FULL, weeks.size / RADIANCE_W_FULL),
+  );
+  return Math.pow(xpRaw, Math.max(0.05, concavity));
+}
+
 // Angle de base par sphère. Les 4 sphères → 4 quartiers. La PALETTE des sphères
 // (or/violet/rose/gris) n'entre PAS ici : seule leur POSITION compte ; la
 // couleur du point porte l'émotion.
@@ -110,6 +143,8 @@ export interface ConstellationPoint {
 export interface PersonalConstellation {
   core: PersonalSignature;
   points: ConstellationPoint[];
+  /** Rayonnement (XP) ∈ [0,1] : volume × régularité, concave. Pilote le noyau. */
+  radiance: number;
 }
 
 /** Réglages injectables (simulateur). Défauts = les molettes calées en Phase 1. */
@@ -118,12 +153,15 @@ export interface ConstellationOpts {
   armSigmaRad?: number;
   /** Échelle du « récent » en jours (loi radiale + récence). */
   tauDays?: number;
+  /** Concavité de la courbe d'XP (<1 = concave). */
+  radianceConcavity?: number;
 }
 
 /** Défauts des molettes — pour initialiser les curseurs du simulateur. */
 export const CONSTELLATION_DEFAULTS = {
   armSigmaRad: ARM_SIGMA_RAD,
   tauDays: TAU_DAYS,
+  radianceConcavity: RADIANCE_CONCAVITY,
 } as const;
 
 /**
@@ -141,6 +179,7 @@ export function personalConstellation(
   const sigma = opts?.armSigmaRad ?? ARM_SIGMA_RAD;
   const list = Array.isArray(cards) ? cards : [];
   const core = personalSignature(list);
+  const radiance = constellationRadiance(list, opts?.radianceConcavity);
 
   const points: ConstellationPoint[] = list.map((card, i) => {
     const seedBase = String(card.id || card.date || i);
@@ -163,5 +202,5 @@ export function personalConstellation(
     };
   });
 
-  return { core, points };
+  return { core, points, radiance };
 }
