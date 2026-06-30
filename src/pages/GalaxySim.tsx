@@ -94,12 +94,12 @@ export default function GalaxySim() {
   if (!allowed) return <Navigate to="/" replace />;
 
   return (
-    <div className="min-h-screen bg-[#070707] text-beige p-4">
+    <div className="min-h-screen bg-[#070707] text-beige p-4 pt-16">
       <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-matrice/80 mb-3">
         Galaxie — simulateur de réglage (dev)
       </div>
       <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
-        <div className="sticky top-0 z-10 -mx-4 px-4 pb-2 bg-[#070707] lg:flex-1 lg:top-4 lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent">
+        <div className="sticky top-16 z-10 -mx-4 px-4 pb-2 bg-[#070707] lg:flex-1 lg:top-16 lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent">
           <div key={replayKey} className="relative w-full max-w-[42vh] lg:max-w-md aspect-square mx-auto">
             <GalaxyCanvas cards={cards} opts={opts} render={render} />
           </div>
