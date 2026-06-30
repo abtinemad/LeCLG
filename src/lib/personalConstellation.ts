@@ -1,4 +1,5 @@
 import { EMOTIONS } from "../data/emotions";
+import { PRISME_DESCRIPTIONS } from "../data/prismes";
 import { normalizeSphere } from "./carnet-helpers";
 import { personalSignature, type PersonalSignature } from "./personalSignature";
 
@@ -75,6 +76,20 @@ export function constellationRadiance(
 // Angle de base par sphère. Les 4 sphères → 4 quartiers. La PALETTE des sphères
 // (or/violet/rose/gris) n'entre PAS ici : seule leur POSITION compte ; la
 // couleur du point porte l'émotion.
+const PRISME_KEYS = Object.keys(PRISME_DESCRIPTIONS); // 16 prismes canoniques
+export const PRISME_TOTAL = PRISME_KEYS.length;
+
+/** Prismes canoniques DISTINCTS découverts dans les cartes (0..16). 16 = terminal. */
+export function constellationPrismes(cards: ConstellationCard[]): number {
+  const list = Array.isArray(cards) ? cards : [];
+  const seen = new Set<string>();
+  for (const c of list) {
+    const p = (c.prisme || "").toString();
+    if (p && PRISME_KEYS.includes(p)) seen.add(p);
+  }
+  return seen.size;
+}
+
 const SPHERE_ANGLE: Record<string, number> = {
   familiale: 0,
   sociale: Math.PI / 2,
@@ -146,6 +161,8 @@ export interface PersonalConstellation {
   points: ConstellationPoint[];
   /** Rayonnement (XP) ∈ [0,1] : volume × régularité, concave. Pilote le noyau. */
   radiance: number;
+  /** Prismes canoniques distincts découverts (0..16). 16 → état terminal (or). */
+  prismsUnlocked: number;
 }
 
 /** Réglages injectables (simulateur). Défauts = les molettes calées en Phase 1. */
@@ -181,6 +198,7 @@ export function personalConstellation(
   const list = Array.isArray(cards) ? cards : [];
   const core = personalSignature(list);
   const radiance = constellationRadiance(list, opts?.radianceConcavity);
+  const prismsUnlocked = constellationPrismes(list);
 
   const points: ConstellationPoint[] = list.map((card, i) => {
     const seedBase = String(card.id || card.date || i);
@@ -212,5 +230,5 @@ export function personalConstellation(
     };
   });
 
-  return { core, points, radiance };
+  return { core, points, radiance, prismsUnlocked };
 }

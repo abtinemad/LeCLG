@@ -60,6 +60,7 @@ export default function GalaxySim() {
   const [armThreadPct, setArmThreadPct] = useState(100);
   const [tiltDeg, setTiltDeg] = useState(55);
   const [twistPct, setTwistPct] = useState(50); // /100 → tours de torsion
+  const [goldForced, setGoldForced] = useState(false);
 
   const count = Math.max(1, Math.round(months * WEEKS_PER_MONTH * freqPerWeek));
   const spanYears = months / 12;
@@ -83,8 +84,9 @@ export default function GalaxySim() {
       armThread: armThreadPct / 100,
       tiltDeg,
       twistTurns: twistPct / 100,
+      goldForced,
     }),
-    [pointAlphaPct, pointGlow, edgeBlur, coreScale, rotationS, spiralPct, armThreadPct, tiltDeg, twistPct],
+    [pointAlphaPct, pointGlow, edgeBlur, coreScale, rotationS, spiralPct, armThreadPct, tiltDeg, twistPct, goldForced],
   );
 
   if (!allowed) return <Navigate to="/" replace />;
@@ -112,6 +114,16 @@ export default function GalaxySim() {
         <Slider label={`Fils sphères : ${armThreadPct}%`} min={0} max={100} value={armThreadPct} onChange={setArmThreadPct} />
         <Slider label={`Inclinaison : ${tiltDeg}°`} min={0} max={75} value={tiltDeg} onChange={setTiltDeg} />
         <Slider label={`Torsion bras : ${twistPct}%`} min={0} max={300} value={twistPct} onChange={setTwistPct} />
+        <button
+          onClick={() => setGoldForced((v) => !v)}
+          className={`mt-1 py-2 px-4 self-start border rounded-md text-[10px] uppercase tracking-[0.2em] transition-colors ${
+            goldForced
+              ? "bg-amber-400/20 border-amber-300/50 text-amber-200"
+              : "bg-white/5 border-white/15 text-beige-faint/60"
+          }`}
+        >
+          Or (16 prismes) : {goldForced ? "ON" : "OFF"}
+        </button>
         <button
           onClick={() => setReplayKey((k) => k + 1)}
           className="mt-1 py-2 px-4 self-start bg-matrice/10 hover:bg-matrice/20 border border-matrice/30 text-matrice/90 rounded-md text-[10px] uppercase tracking-[0.2em] transition-colors"

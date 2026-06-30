@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { personalConstellation, constellationRadiance } from "./personalConstellation";
+import { personalConstellation, constellationRadiance, constellationPrismes } from "./personalConstellation";
 import type { ReflectionCard } from "../data/emotions";
 
 const NOW = new Date("2026-06-30T00:00:00.000Z").getTime();
@@ -129,5 +129,16 @@ describe("personalConstellation", () => {
     expect(c.points[0].isField).toBe(false);
     expect(c.points[1].arm).toBeNull();
     expect(c.points[1].isField).toBe(true);
+  });
+
+  it("prismes : aucun → 0 ; les 16 présents → 16 (état terminal)", () => {
+    expect(constellationPrismes([])).toBe(0);
+    const keys = [
+      "joie", "tristesse", "colere", "peur", "confiance", "degout",
+      "anticipation", "surprise", "honte", "melancolie", "envie",
+      "soulagement", "gratitude", "jalousie", "amour", "culpabilite",
+    ];
+    const all = keys.map((p, i) => card({ id: `p${i}`, prisme: p }));
+    expect(constellationPrismes(all)).toBe(16);
   });
 });

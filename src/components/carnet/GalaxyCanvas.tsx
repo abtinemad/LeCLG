@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 import {
   personalConstellation,
   CONSTELLATION_R0,
+  PRISME_TOTAL,
   type ConstellationCard,
   type ConstellationOpts,
 } from "../../lib/personalConstellation";
@@ -26,10 +27,10 @@ export interface GalaxyRenderOpts {
   rotationPeriodS?: number;
   spiralTurns?: number;
   armThread?: number;
-  /** Inclinaison du disque en degrés (0 = face, ~75 = très incliné). Profondeur 2D simulée. */
   tiltDeg?: number;
-  /** Torsion des bras en tours (décalage angulaire ∝ rayon). 0 = bras droits. */
   twistTurns?: number;
+  /** Force l'or (sur-couronne 16 prismes) — réservé au simulateur. */
+  goldForced?: boolean;
 }
 
 const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
@@ -42,18 +43,18 @@ const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
   armThread: 1,
   tiltDeg: 55,
   twistTurns: 0.5,
+  goldForced: false,
 };
 
-const DEPLOY_MS = 2500; // durée de la naissance (déploiement des astéroïdes)
+const DEPLOY_MS = 2500;
 
-// Renderer canvas 2D ANIMÉ avec PROFONDEUR 2D SIMULÉE. Le disque est incliné
-// (aplatissement vertical + axe de profondeur z) et tourne en bloc (rotation
-// rigide). Les points sont triés en profondeur (peintre : fond → avant), leur
-// taille/opacité modulées par z (avant gros/net, fond petit/estompé) ; le noyau
-// s'intercale à z=0 → bulbe devant le fond, derrière l'avant : volume quand ça
-// tourne. Bras enroulés en spirale (torsion ∝ rayon, statique → pas de winding,
-// sphères tenues par les fils de connexité). Naissance spiralée depuis le centre.
-// Lumière par densité additive. Respecte prefers-reduced-motion.
+// Renderer canvas 2D ANIMÉ, profondeur 2D simulée (disque incliné + tri en
+// profondeur), torsion des bras, fils de connexité par sphère. NOYAU terminal :
+// bulbe BOMBÉ (dégradé sphérique, couleur = dominante vivante, taille/intensité =
+// radiance/XP) — reste circulaire (une sphère se projette en cercle). À 16 prismes
+// découverts, une SUR-COURONNE dorée le nimbe (transparente au centre : la
+// dominante reste visible — l'or s'ajoute, ne remplace pas). Respecte
+// prefers-reduced-motion.
 export function GalaxyCanvas({
   cards,
   opts,
@@ -79,6 +80,7 @@ export function GalaxyCanvas({
       armThread: render?.armThread ?? RENDER_DEFAULTS.armThread,
       tiltDeg: render?.tiltDeg ?? RENDER_DEFAULTS.tiltDeg,
       twistTurns: render?.twistTurns ?? RENDER_DEFAULTS.twistTurns,
+      goldForced: render?.goldForced ?? RENDER_DEFAULTS.goldForced,
     };
   }, [render]);
 
@@ -88,11 +90,10 @@ export function GalaxyCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const { core, points, radiance } = personalConstellation(cards, Date.now(), opts);
+    const { core, points, radiance, prismsUnlocked } = personalConstellation(cards, Date.now(), opts);
     const [cr, cg, cb] = hexToRgb(core.color);
     const span01 = 1 - CONSTELLATION_R0;
 
-    // Groupement par sphère, trié par rayon — STATIQUE. Sert aux fils de connexité.
     const arms = new Map<number, number[]>();
     points.forEach((p, idx) => {
       if (p.arm === null) return;
@@ -132,8 +133,6 @@ export function GalaxyCanvas({
       ease: number;
     }
 
-    // Position d'un point : naissance spiralée + torsion + rotation rigide, puis
-    // projection inclinée (aplatissement vertical + profondeur z).
     const computeP = (
       rNorm: number,
       thetaBase: number,
@@ -150,19 +149,19 @@ export function GalaxyCanvas({
       const ease = 1 - Math.pow(1 - pp, 3);
       const rPx = rPxFinal * ease;
       const spiral = rp.spiralTurns * (1 - pp) * Math.PI * 2;
-      const twist = rNorm * rp.twistTurns * Math.PI * 2; // torsion ∝ rayon (statique)
+      const twist = rNorm * rp.twistTurns * Math.PI * 2;
       const theta = thetaBase + twist + spiral + rot;
       const xp = rPx * Math.cos(theta);
       const yp = rPx * Math.sin(theta);
-      const z = -yp * sinTilt; // >0 = fond (haut), <0 = avant (bas)
+      const z = -yp * sinTilt;
       const zNorm = z / Rpx;
       return {
         rNorm,
         x: cx + xp,
         y: cy + yp * flatten,
         z,
-        depthScale: clamp(1 - zNorm * 0.45, 0.4, 1.7), // avant gros, fond petit
-        depthAlpha: clamp01(1 - zNorm * 0.55), // avant net, fond estompé
+        depthScale: clamp(1 - zNorm * 0.45, 0.4, 1.7),
+        depthAlpha: clamp01(1 - zNorm * 0.55),
         pp,
         ease,
       };
@@ -186,13 +185,12 @@ export function GalaxyCanvas({
       const tilt = (rp.tiltDeg * Math.PI) / 180;
       const flatten = Math.cos(tilt);
       const sinTilt = Math.sin(tilt);
+      const goldOn = prismsUnlocked >= PRISME_TOTAL || rp.goldForced;
 
-      // Passe 1 — calcul des positions (réutilisé par fils ET points).
       const pos = points.map((p) =>
         computeP((p.r - CONSTELLATION_R0) / span01, p.theta, innerPx, deployG, rot, rp, flatten, sinTilt),
       );
 
-      // Fils de connexité (sous tout, ténus).
       if (rp.armThread > 0) {
         ctx.lineWidth = 1;
         ctx.strokeStyle = `rgba(190,200,220,${(0.12 * rp.armThread).toFixed(3)})`;
@@ -211,6 +209,7 @@ export function GalaxyCanvas({
       }
 
       const drawCore = () => {
+        // Halo diffus (dominante) — rondeur lumineuse.
         const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
         halo.addColorStop(0, `rgba(${cr},${cg},${cb},${haloA0.toFixed(3)})`);
         halo.addColorStop(0.4, `rgba(${cr},${cg},${cb},${haloA1.toFixed(3)})`);
@@ -219,13 +218,41 @@ export function GalaxyCanvas({
         ctx.beginPath();
         ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = `rgba(${cr},${cg},${cb},${(0.6 + radiance * 0.35).toFixed(3)})`;
+
+        // Cœur BOMBÉ : point chaud quasi-blanc décalé → dominante → fondu, sans
+        // bord dur → lit comme une sphère lumineuse, pas un disque plat.
+        const cR = coreR * 1.6;
+        const bulb = ctx.createRadialGradient(cx, cy - coreR * 0.25, 0, cx, cy, cR);
+        bulb.addColorStop(0, `rgba(255,250,244,0.85)`);
+        bulb.addColorStop(0.45, `rgba(${cr},${cg},${cb},${(0.6 + radiance * 0.3).toFixed(3)})`);
+        bulb.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+        ctx.fillStyle = bulb;
         ctx.beginPath();
-        ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+        ctx.arc(cx, cy, cR, 0, Math.PI * 2);
         ctx.fill();
+
+        // OR (16 prismes) : sur-couronne dorée, transparente au centre → la
+        // dominante reste visible. Sur-impose, ne remplace pas.
+        if (goldOn) {
+          ctx.globalCompositeOperation = "lighter";
+          const goldR = haloR * 1.4;
+          const g = ctx.createRadialGradient(cx, cy, coreR * 0.7, cx, cy, goldR);
+          g.addColorStop(0, "rgba(255,205,110,0)");
+          g.addColorStop(0.55, "rgba(255,200,100,0.30)");
+          g.addColorStop(1, "rgba(255,190,90,0)");
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(cx, cy, goldR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalCompositeOperation = "source-over";
+          ctx.strokeStyle = "rgba(255,212,120,0.55)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(cx, cy, haloR * 0.92, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       };
 
-      // Passe 2 — points triés en profondeur (fond → avant). Noyau intercalé à z=0.
       const order = points.map((_, i) => i).sort((a, b) => pos[b].z - pos[a].z);
       ctx.globalCompositeOperation = "lighter";
       let coreDrawn = false;
@@ -251,7 +278,7 @@ export function GalaxyCanvas({
         ctx.fill();
       }
       ctx.globalCompositeOperation = "source-over";
-      if (!coreDrawn) drawCore(); // tilt≈0 : tous z≥0 → noyau par-dessus
+      if (!coreDrawn) drawCore();
     };
 
     let raf = 0;
