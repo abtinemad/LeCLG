@@ -9,6 +9,7 @@ import Restore from './pages/Restore';
 import Climat from './pages/Climat';
 import Epicentre from './pages/Epicentre';
 import QuestCeQueCest from './pages/QuestCeQueCest';
+import GalaxySim from './pages/GalaxySim';
 import { GlobalNav } from './components/GlobalNav';
 
 import { Toaster } from "@/components/ui/sonner";
@@ -71,6 +72,10 @@ function AnimatedRoutes() {
           <Route path="/epicentre" element={<Epicentre />} />
           <Route path="/epicentre/rejoindre" element={<Epicentre />} />
           <Route path="/quest-ce-que-cest" element={<QuestCeQueCest />} />
+          {/* Simulateur de réglage de la Galaxie — outil dev, route NON listée,
+              gatée par ?dev=galaxie (sinon redirect accueil). Présente en prod
+              pour être ouverte sur device ; lecture seule des cartes du visiteur. */}
+          <Route path="/galaxie-sim" element={<GalaxySim />} />
           {/* Filet attrape-tout : toute route inconnue renvoie à l'accueil
               plutôt que de laisser une page nue (juste le header). */}
           <Route path="*" element={<Navigate to="/" replace />} />
