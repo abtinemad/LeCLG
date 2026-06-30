@@ -54,6 +54,9 @@ export default function GalaxySim() {
   const [edgeBlur, setEdgeBlur] = useState(3);
   const [concavityPct, setConcavityPct] = useState(60); // /100 → concavité
   const [coreScale, setCoreScale] = useState(22);
+  const [rotationS, setRotationS] = useState(120);
+  const [spiralPct, setSpiralPct] = useState(100); // /100 → tours de spirale
+  const [replayKey, setReplayKey] = useState(0);
 
   const count = Math.max(1, Math.round(months * WEEKS_PER_MONTH * freqPerWeek));
   const spanYears = months / 12;
@@ -67,8 +70,15 @@ export default function GalaxySim() {
     [sigmaDeg, tauDays, concavityPct],
   );
   const render = useMemo(
-    () => ({ pointAlpha: pointAlphaPct / 100, pointGlow, edgeBlur, coreScale }),
-    [pointAlphaPct, pointGlow, edgeBlur, coreScale],
+    () => ({
+      pointAlpha: pointAlphaPct / 100,
+      pointGlow,
+      edgeBlur,
+      coreScale,
+      rotationPeriodS: rotationS,
+      spiralTurns: spiralPct / 100,
+    }),
+    [pointAlphaPct, pointGlow, edgeBlur, coreScale, rotationS, spiralPct],
   );
 
   if (!allowed) return <Navigate to="/" replace />;
@@ -78,7 +88,7 @@ export default function GalaxySim() {
       <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-matrice/80">
         Galaxie — simulateur de réglage (dev)
       </div>
-      <div className="relative w-full aspect-square max-w-xl mx-auto">
+      <div key={replayKey} className="relative w-full aspect-square max-w-xl mx-auto">
         <GalaxyCanvas cards={cards} opts={opts} render={render} />
       </div>
       <div className="max-w-xl mx-auto w-full flex flex-col gap-3 font-mono text-[11px]">
@@ -91,6 +101,14 @@ export default function GalaxySim() {
         <Slider label={`Flou bord : ${edgeBlur}×`} min={0} max={8} value={edgeBlur} onChange={setEdgeBlur} />
         <Slider label={`Récompense précoce : ${concavityPct}%`} min={0} max={100} value={concavityPct} onChange={setConcavityPct} />
         <Slider label={`Rayonnement max : ${coreScale} px`} min={5} max={50} value={coreScale} onChange={setCoreScale} />
+        <Slider label={`Rotation : ${rotationS === 0 ? "figé" : `${rotationS}s/tour`}`} min={0} max={240} value={rotationS} onChange={setRotationS} />
+        <Slider label={`Spirale naissance : ${spiralPct}%`} min={0} max={300} value={spiralPct} onChange={setSpiralPct} />
+        <button
+          onClick={() => setReplayKey((k) => k + 1)}
+          className="mt-1 py-2 px-4 self-start bg-matrice/10 hover:bg-matrice/20 border border-matrice/30 text-matrice/90 rounded-md text-[10px] uppercase tracking-[0.2em] transition-colors"
+        >
+          Rejouer la naissance
+        </button>
         <div className="text-[9px] text-beige-faint/40 italic mt-2">
           ≈ {count} cartes sur {months} mois ({spanYears.toFixed(2)} an). σ/τ = géométrie ; éclat/flou = lumière (densité additive).{" "}
           {seed.length > 0

@@ -10,7 +10,8 @@ interface GalaxyEntryProps {
 
 // Modale « Galaxie personnelle » — vue contemplative du parcours, ouverte depuis
 // la Matrice. Le rendu canvas vit dans <GalaxyCanvas> (réutilisé par le
-// simulateur de réglage). Rendu STATIQUE, aucune animation (Phase 2 à venir).
+// simulateur de réglage). Animé : naissance des astéroïdes depuis le centre +
+// rotation rigide lente (Phase 2). Respecte prefers-reduced-motion.
 function GalaxyModal({
   cards,
   onClose,
