@@ -6,18 +6,44 @@ import {
   type ConstellationOpts,
 } from "../../lib/personalConstellation";
 
-// Renderer canvas 2D de la galaxie — EXTRAIT verbatim de GalaxyModal pour être
-// réutilisable (modale réelle + simulateur de réglage). Le corps de `draw` est
-// byte-identique à l'original : aucun changement de rendu, seulement la
-// réutilisabilité (cards + opts injectables). Rendu STATIQUE (dessin une fois +
-// au resize), aucune animation — la Phase 2 viendra ici.
+// hex → rgb (repris de SerpentinCanvas) : parler en rgba comme le serpentin.
+function hexToRgb(hex: string): [number, number, number] {
+  const m = hex.replace("#", "");
+  const full = m.length === 3 ? m.split("").map((c) => c + c).join("") : m;
+  const n = parseInt(full || "E8D5B0", 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/** Réglages de rendu (lumière), distincts de la géométrie (σ/τ). Défauts pensés
+ *  pour la modale réelle ; le simulateur les pilote par curseurs. */
+export interface GalaxyRenderOpts {
+  /** Multiplicateur d'éclat par point (1 = tel quel). Bas → seule la densité allume. */
+  pointAlpha?: number;
+  /** Rayon de halo par point en px (le flou qui fait « fondre » les amas). */
+  pointGlow?: number;
+}
+
+const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
+  pointAlpha: 1,
+  pointGlow: 5,
+};
+
+// Renderer canvas 2D. Lumière par DENSITÉ (composition additive `lighter`) :
+// chaque point est un halo doux ; là où ça s'entasse — le cœur (récents) et le
+// bord (vieux comprimés par la loi exp) — les halos s'additionnent et FONDENT en
+// nappe. AUCUN bulbe ni cœur dessiné : le centre ÉMERGE de la concentration des
+// astéroïdes récents (vide pour un débutant, bulbe lumineux pour un compte fourni)
+// — « composition à partir des fragments », jamais une bille posée au milieu.
+// Rendu STATIQUE (dessin une fois + au resize) — la Phase 2 (rotation) viendra ici.
 export function GalaxyCanvas({
   cards,
   opts,
+  render,
   className,
 }: {
   cards: ConstellationCard[];
   opts?: ConstellationOpts;
+  render?: GalaxyRenderOpts;
   className?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -28,7 +54,9 @@ export function GalaxyCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const { core, points } = personalConstellation(cards, Date.now(), opts);
+    const { points } = personalConstellation(cards, Date.now(), opts);
+    const pointAlpha = render?.pointAlpha ?? RENDER_DEFAULTS.pointAlpha;
+    const pointGlow = render?.pointGlow ?? RENDER_DEFAULTS.pointGlow;
 
     const draw = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -43,50 +71,40 @@ export function GalaxyCanvas({
       const cy = cssH / 2;
       const Rpx = (Math.min(cssW, cssH) / 2) * 0.92;
 
-      // Comète centrale : rayon + halo (le halo grandit avec la puissance).
-      const coreR = 4 + core.intensity * 7;
-      const haloR = coreR * 3.2;
-
-      // Plancher radial DYNAMIQUE : les points démarrent juste APRÈS le halo,
-      // jamais dedans. Couplé au halo (≠ fraction fixe) → un compte fourni
-      // (grosse comète, gros halo) ne noie plus ses points récents dans le cœur.
-      const innerPx = Math.max(CONSTELLATION_R0 * Rpx, haloR + 6);
+      // Plancher radial simple : un rayon interne fixe pour que les tout premiers
+      // récents ne s'effondrent pas au centre exact (singularité). Plus de halo
+      // central à éviter → plus besoin du plancher dynamique d'avant.
+      const innerPx = CONSTELLATION_R0 * Rpx;
       const span01 = 1 - CONSTELLATION_R0;
 
-      // Points discrets — PAS de halo (l'anti-bouillie : séparés par rayon ET angle).
+      // Astéroïdes — composition ADDITIVE : les halos s'additionnent. Au cœur, les
+      // récents se concentrent et FORMENT le bulbe (émergent) ; au bord, les vieux
+      // s'entassent et fondent en nappe d'amas. Halo doux, jamais d'aplat dur.
+      ctx.globalCompositeOperation = "lighter";
       for (const p of points) {
-        const rNorm = (p.r - CONSTELLATION_R0) / span01; // [R0,1] → [0,1]
+        const rNorm = (p.r - CONSTELLATION_R0) / span01;
         const rPx = innerPx + (Rpx - innerPx) * rNorm;
         const x = cx + rPx * Math.cos(p.theta);
         const y = cy + rPx * Math.sin(p.theta);
-        ctx.globalAlpha = p.alpha;
-        ctx.fillStyle = p.color;
+        const [r, g, b] = hexToRgb(p.color);
+        const a = p.alpha * pointAlpha;
+        const glowR = pointGlow * (0.5 + p.size);
+        const halo = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+        halo.addColorStop(0, `rgba(${r},${g},${b},${a})`);
+        halo.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.arc(x, y, 0.8 + p.size * 2.4, 0, Math.PI * 2);
+        ctx.arc(x, y, glowR, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.globalAlpha = 1;
-
-      // Comète centrale (le soi-maintenant). Halo permis ICI seulement.
-      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
-      grad.addColorStop(0, core.color);
-      grad.addColorStop(0.35, core.color + "AA");
-      grad.addColorStop(1, core.color + "00");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = core.color;
-      ctx.beginPath();
-      ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
     };
 
     draw();
     const ro = new ResizeObserver(() => draw());
     ro.observe(canvas);
     return () => ro.disconnect();
-  }, [cards, opts]);
+  }, [cards, opts, render]);
 
   return (
     <canvas
