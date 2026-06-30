@@ -83,4 +83,21 @@ describe("personalConstellation", () => {
     expect(cole.points[0].color).toBe("#C56459"); // colere
     expect(mela.points[0].color).toBe("#669DC2"); // melancolie
   });
+
+  it("opts.armSigmaRad = 0 → bras sans dispersion (theta = offset + base)", () => {
+    const c = personalConstellation(
+      [card({ id: "z", sphere: "familiale", prisme: "joie" })],
+      NOW,
+      { armSigmaRad: 0 },
+    );
+    // familiale → base 0 ; sans dispersion, theta = ANGLE_OFFSET = π/7.
+    expect(c.points[0].theta).toBeCloseTo(Math.PI / 7, 10);
+  });
+
+  it("opts.tauDays plus court → même carte plus loin (rayon plus grand)", () => {
+    const old = card({ id: "t", date: "2026-05-01T00:00:00.000Z", sphere: "sociale" });
+    const slow = personalConstellation([old], NOW, { tauDays: 200 });
+    const fast = personalConstellation([old], NOW, { tauDays: 20 });
+    expect(fast.points[0].r).toBeGreaterThan(slow.points[0].r);
+  });
 });

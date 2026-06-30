@@ -76,10 +76,10 @@ function ageDays(date: string | null | undefined, now: number): number {
   return Math.max(0, (now - t) / 86400000);
 }
 
-const radiusFor = (age: number): number =>
-  CONSTELLATION_R0 + (1 - CONSTELLATION_R0) * (1 - Math.exp(-age / TAU_DAYS));
+const radiusFor = (age: number, tau: number): number =>
+  CONSTELLATION_R0 + (1 - CONSTELLATION_R0) * (1 - Math.exp(-age / tau));
 
-const recencyFor = (age: number): number => Math.exp(-age / TAU_DAYS);
+const recencyFor = (age: number, tau: number): number => Math.exp(-age / tau);
 
 function pointColor(prisme?: string | null, emotion?: string | null): string {
   const key = norm(prisme || emotion);
@@ -112,30 +112,49 @@ export interface PersonalConstellation {
   points: ConstellationPoint[];
 }
 
+/** Réglages injectables (simulateur). Défauts = les molettes calées en Phase 1. */
+export interface ConstellationOpts {
+  /** Demi-largeur de bras en radians (dispersion ±σ). */
+  armSigmaRad?: number;
+  /** Échelle du « récent » en jours (loi radiale + récence). */
+  tauDays?: number;
+}
+
+/** Défauts des molettes — pour initialiser les curseurs du simulateur. */
+export const CONSTELLATION_DEFAULTS = {
+  armSigmaRad: ARM_SIGMA_RAD,
+  tauDays: TAU_DAYS,
+} as const;
+
 /**
- * @param now horloge injectable (tests). Par défaut l'instant courant : l'âge
- *            des cartes croît dans le temps → la galaxie vieillit / dérive.
+ * @param now  horloge injectable (tests). Par défaut l'instant courant : l'âge
+ *             des cartes croît dans le temps → la galaxie vieillit / dérive.
+ * @param opts réglages injectables (simulateur). Omis → comportement identique
+ *             (défauts = constantes Phase 1) : strictement non-breaking.
  */
 export function personalConstellation(
   cards: ConstellationCard[],
   now: number = Date.now(),
+  opts?: ConstellationOpts,
 ): PersonalConstellation {
+  const tau = opts?.tauDays ?? TAU_DAYS;
+  const sigma = opts?.armSigmaRad ?? ARM_SIGMA_RAD;
   const list = Array.isArray(cards) ? cards : [];
   const core = personalSignature(list);
 
   const points: ConstellationPoint[] = list.map((card, i) => {
     const seedBase = String(card.id || card.date || i);
     const age = ageDays(card.date, now);
-    const rec = recencyFor(age);
+    const rec = recencyFor(age, tau);
     const sphereKey = norm(normalizeSphere(card.sphere || undefined));
     const base = SPHERE_ANGLE[sphereKey]; // number | undefined
     const disp = hash01(seedBase + "t");
     const theta =
       base === undefined
         ? disp * 2 * Math.PI
-        : ANGLE_OFFSET + base + (disp * 2 - 1) * ARM_SIGMA_RAD;
+        : ANGLE_OFFSET + base + (disp * 2 - 1) * sigma;
     return {
-      r: radiusFor(age),
+      r: radiusFor(age, tau),
       theta,
       color: pointColor(card.prisme, card.emotion),
       size: RECENCY_MIN_SIZE + (1 - RECENCY_MIN_SIZE) * rec,
