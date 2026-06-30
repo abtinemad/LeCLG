@@ -15,8 +15,9 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
+const clamp = (x: number, a: number, b: number) => (x < a ? a : x > b ? b : x);
 
-/** Réglages de rendu (lumière + mouvement), distincts de la géométrie (σ/τ). */
+/** Réglages de rendu (lumière + mouvement + profondeur), distincts de la géométrie (σ/τ). */
 export interface GalaxyRenderOpts {
   pointAlpha?: number;
   pointGlow?: number;
@@ -24,8 +25,11 @@ export interface GalaxyRenderOpts {
   coreScale?: number;
   rotationPeriodS?: number;
   spiralTurns?: number;
-  /** Opacité des fils reliant les points d'une même sphère (0 = aucun fil). */
   armThread?: number;
+  /** Inclinaison du disque en degrés (0 = face, ~75 = très incliné). Profondeur 2D simulée. */
+  tiltDeg?: number;
+  /** Torsion des bras en tours (décalage angulaire ∝ rayon). 0 = bras droits. */
+  twistTurns?: number;
 }
 
 const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
@@ -36,17 +40,20 @@ const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
   rotationPeriodS: 120,
   spiralTurns: 1,
   armThread: 1,
+  tiltDeg: 55,
+  twistTurns: 0.5,
 };
 
 const DEPLOY_MS = 2500; // durée de la naissance (déploiement des astéroïdes)
 
-// Renderer canvas 2D ANIMÉ. Naissance spiralée depuis le centre puis rotation
-// RIGIDE lente. Les 4 SPHÈRES sont rendues lisibles par CONNEXITÉ : un fil ténu
-// relie, dans chaque sphère, les points triés par rayon (le fil du temps,
-// centre→bord) → 4 gerbes distinctes, malgré la couleur (émotion) qui varie dans
-// chaque bras. Lumière par densité additive ; noyau = source vivante (couleur =
-// dominante, taille/intensité = radiance/XP). Respecte prefers-reduced-motion.
-// Phase 2b (profondeur, torsion, traînées) viendra ici.
+// Renderer canvas 2D ANIMÉ avec PROFONDEUR 2D SIMULÉE. Le disque est incliné
+// (aplatissement vertical + axe de profondeur z) et tourne en bloc (rotation
+// rigide). Les points sont triés en profondeur (peintre : fond → avant), leur
+// taille/opacité modulées par z (avant gros/net, fond petit/estompé) ; le noyau
+// s'intercale à z=0 → bulbe devant le fond, derrière l'avant : volume quand ça
+// tourne. Bras enroulés en spirale (torsion ∝ rayon, statique → pas de winding,
+// sphères tenues par les fils de connexité). Naissance spiralée depuis le centre.
+// Lumière par densité additive. Respecte prefers-reduced-motion.
 export function GalaxyCanvas({
   cards,
   opts,
@@ -70,6 +77,8 @@ export function GalaxyCanvas({
       rotationPeriodS: render?.rotationPeriodS ?? RENDER_DEFAULTS.rotationPeriodS,
       spiralTurns: render?.spiralTurns ?? RENDER_DEFAULTS.spiralTurns,
       armThread: render?.armThread ?? RENDER_DEFAULTS.armThread,
+      tiltDeg: render?.tiltDeg ?? RENDER_DEFAULTS.tiltDeg,
+      twistTurns: render?.twistTurns ?? RENDER_DEFAULTS.twistTurns,
     };
   }, [render]);
 
@@ -83,8 +92,7 @@ export function GalaxyCanvas({
     const [cr, cg, cb] = hexToRgb(core.color);
     const span01 = 1 - CONSTELLATION_R0;
 
-    // Groupement par sphère, trié par rayon — STATIQUE (arm et r fixes) : calculé
-    // une fois, pas par frame. Sert à tracer les fils de connexité.
+    // Groupement par sphère, trié par rayon — STATIQUE. Sert aux fils de connexité.
     const arms = new Map<number, number[]>();
     points.forEach((p, idx) => {
       if (p.arm === null) return;
@@ -113,40 +121,78 @@ export function GalaxyCanvas({
     };
     setup();
 
-    // Position animée d'un point (naissance spiralée + rotation rigide).
-    const posOf = (
+    interface P {
+      rNorm: number;
+      x: number;
+      y: number;
+      z: number;
+      depthScale: number;
+      depthAlpha: number;
+      pp: number;
+      ease: number;
+    }
+
+    // Position d'un point : naissance spiralée + torsion + rotation rigide, puis
+    // projection inclinée (aplatissement vertical + profondeur z).
+    const computeP = (
       rNorm: number,
       thetaBase: number,
       innerPx: number,
       deployG: number,
       rot: number,
-      spiralTurns: number,
-    ): [number, number, number] => {
+      rp: Required<GalaxyRenderOpts>,
+      flatten: number,
+      sinTilt: number,
+    ): P => {
       const rPxFinal = innerPx + (Rpx - innerPx) * rNorm;
       const localDur = 0.45 + rNorm * 0.55;
       const pp = clamp01(deployG / localDur);
       const ease = 1 - Math.pow(1 - pp, 3);
       const rPx = rPxFinal * ease;
-      const spiral = spiralTurns * (1 - pp) * Math.PI * 2;
-      const theta = thetaBase + spiral + rot;
-      return [cx + rPx * Math.cos(theta), cy + rPx * Math.sin(theta), pp];
+      const spiral = rp.spiralTurns * (1 - pp) * Math.PI * 2;
+      const twist = rNorm * rp.twistTurns * Math.PI * 2; // torsion ∝ rayon (statique)
+      const theta = thetaBase + twist + spiral + rot;
+      const xp = rPx * Math.cos(theta);
+      const yp = rPx * Math.sin(theta);
+      const z = -yp * sinTilt; // >0 = fond (haut), <0 = avant (bas)
+      const zNorm = z / Rpx;
+      return {
+        rNorm,
+        x: cx + xp,
+        y: cy + yp * flatten,
+        z,
+        depthScale: clamp(1 - zNorm * 0.45, 0.4, 1.7), // avant gros, fond petit
+        depthAlpha: clamp01(1 - zNorm * 0.55), // avant net, fond estompé
+        pp,
+        ease,
+      };
     };
 
     const frame = (elapsed: number) => {
       const rp = renderRef.current;
       ctx.clearRect(0, 0, cssW, cssH);
+      ctx.globalCompositeOperation = "source-over";
 
       const coreR = 4 + radiance * rp.coreScale;
       const haloR = coreR * 3.5;
+      const haloA0 = 0.35 + radiance * 0.45;
+      const haloA1 = 0.15 + radiance * 0.25;
       const innerPx = Math.max(CONSTELLATION_R0 * Rpx, haloR + 6);
       const deployG = reduce ? 1 : clamp01(elapsed / DEPLOY_MS);
       const rot =
         reduce || rp.rotationPeriodS <= 0
           ? 0
           : (elapsed / (rp.rotationPeriodS * 1000)) * Math.PI * 2;
+      const tilt = (rp.tiltDeg * Math.PI) / 180;
+      const flatten = Math.cos(tilt);
+      const sinTilt = Math.sin(tilt);
 
-      // Fils de connexité par sphère — tracés EN DESSOUS des points. Ténus : la
-      // connexité regroupe sans rivaliser avec la couleur des points (émotion).
+      // Passe 1 — calcul des positions (réutilisé par fils ET points).
+      const pos = points.map((p) =>
+        computeP((p.r - CONSTELLATION_R0) / span01, p.theta, innerPx, deployG, rot, rp, flatten, sinTilt),
+      );
+
+      // Fils de connexité (sous tout, ténus).
       if (rp.armThread > 0) {
         ctx.lineWidth = 1;
         ctx.strokeStyle = `rgba(190,200,220,${(0.12 * rp.armThread).toFixed(3)})`;
@@ -154,53 +200,58 @@ export function GalaxyCanvas({
           ctx.beginPath();
           let started = false;
           for (const idx of idxs) {
-            const p = points[idx];
-            const rNorm = (p.r - CONSTELLATION_R0) / span01;
-            const [x, y, pp] = posOf(rNorm, p.theta, innerPx, deployG, rot, rp.spiralTurns);
-            if (pp <= 0) continue; // pas encore né
+            if (pos[idx].pp <= 0) continue;
             if (!started) {
-              ctx.moveTo(x, y);
+              ctx.moveTo(pos[idx].x, pos[idx].y);
               started = true;
-            } else ctx.lineTo(x, y);
+            } else ctx.lineTo(pos[idx].x, pos[idx].y);
           }
           ctx.stroke();
         }
       }
 
-      // Astéroïdes — additif, halo croissant vers le bord.
+      const drawCore = () => {
+        const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
+        halo.addColorStop(0, `rgba(${cr},${cg},${cb},${haloA0.toFixed(3)})`);
+        halo.addColorStop(0.4, `rgba(${cr},${cg},${cb},${haloA1.toFixed(3)})`);
+        halo.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(${cr},${cg},${cb},${(0.6 + radiance * 0.35).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+        ctx.fill();
+      };
+
+      // Passe 2 — points triés en profondeur (fond → avant). Noyau intercalé à z=0.
+      const order = points.map((_, i) => i).sort((a, b) => pos[b].z - pos[a].z);
       ctx.globalCompositeOperation = "lighter";
-      for (const p of points) {
-        const rNorm = (p.r - CONSTELLATION_R0) / span01;
-        const [x, y, pp] = posOf(rNorm, p.theta, innerPx, deployG, rot, rp.spiralTurns);
-        const ease = 1 - Math.pow(1 - pp, 3);
+      let coreDrawn = false;
+      for (const idx of order) {
+        if (!coreDrawn && pos[idx].z < 0) {
+          ctx.globalCompositeOperation = "source-over";
+          drawCore();
+          ctx.globalCompositeOperation = "lighter";
+          coreDrawn = true;
+        }
+        const p = points[idx];
+        const ps = pos[idx];
         const [r, g, b] = hexToRgb(p.color);
-        const a = p.alpha * rp.pointAlpha * ease;
-        const glowR = rp.pointGlow * (0.3 + rNorm * rp.edgeBlur) * (0.6 + p.size);
-        const halo = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+        const a = p.alpha * rp.pointAlpha * ps.ease * ps.depthAlpha;
+        const glowR =
+          rp.pointGlow * (0.3 + ps.rNorm * rp.edgeBlur) * (0.6 + p.size) * ps.depthScale;
+        const halo = ctx.createRadialGradient(ps.x, ps.y, 0, ps.x, ps.y, Math.max(0.1, glowR));
         halo.addColorStop(0, `rgba(${r},${g},${b},${a})`);
         halo.addColorStop(1, `rgba(${r},${g},${b},0)`);
         ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.arc(x, y, glowR, 0, Math.PI * 2);
+        ctx.arc(ps.x, ps.y, Math.max(0.1, glowR), 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalCompositeOperation = "source-over";
-
-      // Noyau central : source présente dès t=0, les astéroïdes en jaillissent.
-      const haloA0 = 0.35 + radiance * 0.45;
-      const haloA1 = 0.15 + radiance * 0.25;
-      const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
-      halo.addColorStop(0, `rgba(${cr},${cg},${cb},${haloA0.toFixed(3)})`);
-      halo.addColorStop(0.4, `rgba(${cr},${cg},${cb},${haloA1.toFixed(3)})`);
-      halo.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
-      ctx.fillStyle = halo;
-      ctx.beginPath();
-      ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},${(0.6 + radiance * 0.35).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
-      ctx.fill();
+      if (!coreDrawn) drawCore(); // tilt≈0 : tous z≥0 → noyau par-dessus
     };
 
     let raf = 0;

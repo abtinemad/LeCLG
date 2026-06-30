@@ -58,6 +58,8 @@ export default function GalaxySim() {
   const [spiralPct, setSpiralPct] = useState(100); // /100 → tours de spirale
   const [replayKey, setReplayKey] = useState(0);
   const [armThreadPct, setArmThreadPct] = useState(100);
+  const [tiltDeg, setTiltDeg] = useState(55);
+  const [twistPct, setTwistPct] = useState(50); // /100 → tours de torsion
 
   const count = Math.max(1, Math.round(months * WEEKS_PER_MONTH * freqPerWeek));
   const spanYears = months / 12;
@@ -79,8 +81,10 @@ export default function GalaxySim() {
       rotationPeriodS: rotationS,
       spiralTurns: spiralPct / 100,
       armThread: armThreadPct / 100,
+      tiltDeg,
+      twistTurns: twistPct / 100,
     }),
-    [pointAlphaPct, pointGlow, edgeBlur, coreScale, rotationS, spiralPct, armThreadPct],
+    [pointAlphaPct, pointGlow, edgeBlur, coreScale, rotationS, spiralPct, armThreadPct, tiltDeg, twistPct],
   );
 
   if (!allowed) return <Navigate to="/" replace />;
@@ -106,6 +110,8 @@ export default function GalaxySim() {
         <Slider label={`Rotation : ${rotationS === 0 ? "figé" : `${rotationS}s/tour`}`} min={0} max={240} value={rotationS} onChange={setRotationS} />
         <Slider label={`Spirale naissance : ${spiralPct}%`} min={0} max={300} value={spiralPct} onChange={setSpiralPct} />
         <Slider label={`Fils sphères : ${armThreadPct}%`} min={0} max={100} value={armThreadPct} onChange={setArmThreadPct} />
+        <Slider label={`Inclinaison : ${tiltDeg}°`} min={0} max={75} value={tiltDeg} onChange={setTiltDeg} />
+        <Slider label={`Torsion bras : ${twistPct}%`} min={0} max={300} value={twistPct} onChange={setTwistPct} />
         <button
           onClick={() => setReplayKey((k) => k + 1)}
           className="mt-1 py-2 px-4 self-start bg-matrice/10 hover:bg-matrice/20 border border-matrice/30 text-matrice/90 rounded-md text-[10px] uppercase tracking-[0.2em] transition-colors"
