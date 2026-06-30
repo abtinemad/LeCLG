@@ -57,7 +57,7 @@ export function densifyFromSeed(
   const out: ConstellationCard[] = [];
   for (let i = 0; i < params.count; i++) {
     // Date : biais doux vers le récent (on réfléchit plus récemment), rafales.
-    const ageMs = Math.pow(rng(), 1.4) * spanMs;
+    const ageMs = rng() * spanMs; // uniforme : usage ~régulier (fréquence ~constante), pas de biais récent
     const date = new Date(now - ageMs).toISOString();
     // Tour de rôle sur les 4 sphères → chaque bras peuplé à plusieurs rayons.
     const sphere = sphereKeys[i % sphereKeys.length];

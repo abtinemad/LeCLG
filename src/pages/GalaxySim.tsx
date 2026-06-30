@@ -5,6 +5,7 @@ import { CONSTELLATION_DEFAULTS } from "../lib/personalConstellation";
 import { readSeedCards, densifyFromSeed } from "../lib/galaxySimData";
 
 const DEV_TOKEN = "galaxie";
+const WEEKS_PER_MONTH = 30.44 / 7; // ≈ 4.35
 
 function Slider({
   label,
@@ -35,17 +36,25 @@ function Slider({
 }
 
 // Simulateur de réglage de la Galaxie — outil DEV, route non listée, gatée par
-// ?dev=galaxie. Tous les hooks sont appelés AVANT le gate (règles des hooks) ;
-// le early-return ne se fait qu'ensuite. Lecture seule des cartes du visiteur.
+// ?dev=galaxie. On raisonne en USAGE RÉEL : « mois de pratique » × « fréquence »
+// (cartes/semaine) dérivent N et l'étalement, pour juger σ/τ sur ce que les vrais
+// usagers verront — du déverrouillage à la maturité — pas sur des N arbitraires.
+// Hooks tous appelés avant le gate. Lecture seule des cartes du visiteur.
 export default function GalaxySim() {
   const [params] = useSearchParams();
   const allowed = params.get("dev") === DEV_TOKEN;
 
   const seed = useMemo(() => readSeedCards(), []);
-  const [count, setCount] = useState(120);
-  const [spanYears, setSpanYears] = useState(3);
-  const [sigmaDeg, setSigmaDeg] = useState(35);
+  const [months, setMonths] = useState(3);
+  const [freqPerWeek, setFreqPerWeek] = useState(3);
+  const [sigmaDeg, setSigmaDeg] = useState(
+    Math.round((CONSTELLATION_DEFAULTS.armSigmaRad * 180) / Math.PI),
+  );
   const [tauDays, setTauDays] = useState<number>(CONSTELLATION_DEFAULTS.tauDays);
+
+  // Régime d'usage → corpus. N = mois × (semaines/mois) × cartes/semaine.
+  const count = Math.max(1, Math.round(months * WEEKS_PER_MONTH * freqPerWeek));
+  const spanYears = months / 12;
 
   const cards = useMemo(
     () => densifyFromSeed(seed, { count, spanYears }),
@@ -67,14 +76,15 @@ export default function GalaxySim() {
         <GalaxyCanvas cards={cards} opts={opts} />
       </div>
       <div className="max-w-xl mx-auto w-full flex flex-col gap-3 font-mono text-[11px]">
-        <Slider label={`N cartes : ${count}`} min={3} max={400} value={count} onChange={setCount} />
-        <Slider label={`Étalement : ${spanYears} an(s)`} min={1} max={10} value={spanYears} onChange={setSpanYears} />
+        <Slider label={`Mois de pratique : ${months}`} min={1} max={24} value={months} onChange={setMonths} />
+        <Slider label={`Fréquence : ${freqPerWeek} carte(s)/semaine`} min={1} max={7} value={freqPerWeek} onChange={setFreqPerWeek} />
         <Slider label={`σ bras : ${sigmaDeg}°`} min={0} max={90} value={sigmaDeg} onChange={setSigmaDeg} />
         <Slider label={`τ récent : ${tauDays} j`} min={10} max={365} value={tauDays} onChange={setTauDays} />
         <div className="text-[9px] text-beige-faint/40 italic mt-2">
+          ≈ {count} cartes sur {months} mois ({spanYears.toFixed(2)} an). σ/τ = le réglage ; mois/fréquence = le régime d'usage reconstitué.{" "}
           {seed.length > 0
-            ? `Teintes amorcées sur tes ${seed.length} cartes réelles (lecture seule). Structure : 4 bras peuplés pour juger σ/τ.`
-            : "Aucune carte réelle trouvée → teintes synthétiques uniformes."}
+            ? `Teintes amorcées sur tes ${seed.length} cartes réelles (lecture seule).`
+            : "Aucune carte réelle → teintes synthétiques."}
         </div>
       </div>
     </div>
