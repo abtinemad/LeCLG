@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "motion/react";
 import { Sparkles, X } from "lucide-react";
 import type { ReflectionCard } from "../../data/emotions";
-import { personalConstellation } from "../../lib/personalConstellation";
+import { personalConstellation, CONSTELLATION_R0 } from "../../lib/personalConstellation";
 
 interface GalaxyEntryProps {
   cards: ReflectionCard[];
@@ -41,10 +41,22 @@ function GalaxyModal({
       const cy = cssH / 2;
       const Rpx = (Math.min(cssW, cssH) / 2) * 0.92;
 
+      // Comète centrale : rayon + halo (le halo grandit avec la puissance).
+      const coreR = 4 + core.intensity * 7;
+      const haloR = coreR * 3.2;
+
+      // Plancher radial DYNAMIQUE : les points démarrent juste APRÈS le halo,
+      // jamais dedans. Couplé au halo (≠ fraction fixe) → un compte fourni
+      // (grosse comète, gros halo) ne noie plus ses points récents dans le cœur.
+      const innerPx = Math.max(CONSTELLATION_R0 * Rpx, haloR + 6);
+      const span01 = 1 - CONSTELLATION_R0;
+
       // Points discrets — PAS de halo (l'anti-bouillie : séparés par rayon ET angle).
       for (const p of points) {
-        const x = cx + p.r * Rpx * Math.cos(p.theta);
-        const y = cy + p.r * Rpx * Math.sin(p.theta);
+        const rNorm = (p.r - CONSTELLATION_R0) / span01; // [R0,1] → [0,1]
+        const rPx = innerPx + (Rpx - innerPx) * rNorm;
+        const x = cx + rPx * Math.cos(p.theta);
+        const y = cy + rPx * Math.sin(p.theta);
         ctx.globalAlpha = p.alpha;
         ctx.fillStyle = p.color;
         ctx.beginPath();
@@ -54,14 +66,13 @@ function GalaxyModal({
       ctx.globalAlpha = 1;
 
       // Comète centrale (le soi-maintenant). Halo permis ICI seulement.
-      const coreR = 4 + core.intensity * 7;
-      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 3.2);
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
       grad.addColorStop(0, core.color);
       grad.addColorStop(0.35, core.color + "AA");
       grad.addColorStop(1, core.color + "00");
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(cx, cy, coreR * 3.2, 0, Math.PI * 2);
+      ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = core.color;
       ctx.beginPath();

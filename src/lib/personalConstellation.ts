@@ -31,7 +31,7 @@ import { personalSignature, type PersonalSignature } from "./personalSignature";
  */
 
 // --- Molettes (réglées à l'œil sur device en Phase 1) ---
-const R0 = 0.14;                              // rayon interne normalisé (0..1)
+export const CONSTELLATION_R0 = 0.14;         // rayon interne normalisé (0..1)
 const TAU_DAYS = 75;                          // échelle du « récent », en jours
 const ARM_SIGMA_RAD = (35 * Math.PI) / 180;   // demi-largeur de bras (±35°)
 const ANGLE_OFFSET = Math.PI / 7;             // décalage global (évite l'alignement sur les axes)
@@ -77,7 +77,7 @@ function ageDays(date: string | null | undefined, now: number): number {
 }
 
 const radiusFor = (age: number): number =>
-  R0 + (1 - R0) * (1 - Math.exp(-age / TAU_DAYS));
+  CONSTELLATION_R0 + (1 - CONSTELLATION_R0) * (1 - Math.exp(-age / TAU_DAYS));
 
 const recencyFor = (age: number): number => Math.exp(-age / TAU_DAYS);
 
