@@ -51,6 +51,7 @@ export default function GalaxySim() {
   const [tauDays, setTauDays] = useState<number>(CONSTELLATION_DEFAULTS.tauDays);
   const [pointAlphaPct, setPointAlphaPct] = useState(100);
   const [pointGlow, setPointGlow] = useState(5);
+  const [edgeBlur, setEdgeBlur] = useState(3);
 
   const count = Math.max(1, Math.round(months * WEEKS_PER_MONTH * freqPerWeek));
   const spanYears = months / 12;
@@ -64,8 +65,8 @@ export default function GalaxySim() {
     [sigmaDeg, tauDays],
   );
   const render = useMemo(
-    () => ({ pointAlpha: pointAlphaPct / 100, pointGlow }),
-    [pointAlphaPct, pointGlow],
+    () => ({ pointAlpha: pointAlphaPct / 100, pointGlow, edgeBlur }),
+    [pointAlphaPct, pointGlow, edgeBlur],
   );
 
   if (!allowed) return <Navigate to="/" replace />;
@@ -85,6 +86,7 @@ export default function GalaxySim() {
         <Slider label={`τ récent : ${tauDays} j`} min={10} max={365} value={tauDays} onChange={setTauDays} />
         <Slider label={`Éclat point : ${pointAlphaPct}%`} min={20} max={300} value={pointAlphaPct} onChange={setPointAlphaPct} />
         <Slider label={`Flou point : ${pointGlow} px`} min={1} max={20} value={pointGlow} onChange={setPointGlow} />
+        <Slider label={`Flou bord : ${edgeBlur}×`} min={0} max={8} value={edgeBlur} onChange={setEdgeBlur} />
         <div className="text-[9px] text-beige-faint/40 italic mt-2">
           ≈ {count} cartes sur {months} mois ({spanYears.toFixed(2)} an). σ/τ = géométrie ; éclat/flou = lumière (densité additive).{" "}
           {seed.length > 0
