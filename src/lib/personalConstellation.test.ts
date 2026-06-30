@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { personalConstellation, constellationRadiance, constellationPrismes } from "./personalConstellation";
+import { personalConstellation, constellationRadiance, constellationPrismes, constellationDiversity } from "./personalConstellation";
 import type { ReflectionCard } from "../data/emotions";
 
 const NOW = new Date("2026-06-30T00:00:00.000Z").getTime();
@@ -140,5 +140,21 @@ describe("personalConstellation", () => {
     ];
     const all = keys.map((p, i) => card({ id: `p${i}`, prisme: p }));
     expect(constellationPrismes(all)).toBe(16);
+  });
+
+  it("diversité : une seule sphère → 0 ; 4 équilibrées → 1", () => {
+    const mono = [
+      card({ id: "m1", sphere: "familiale" }),
+      card({ id: "m2", sphere: "familiale" }),
+      card({ id: "m3", sphere: "familiale" }),
+    ];
+    expect(constellationDiversity(mono)).toBeCloseTo(0, 10);
+    const balanced = [
+      card({ id: "b1", sphere: "familiale" }),
+      card({ id: "b2", sphere: "sociale" }),
+      card({ id: "b3", sphere: "amoureuse" }),
+      card({ id: "b4", sphere: "professionnelle" }),
+    ];
+    expect(constellationDiversity(balanced)).toBeCloseTo(1, 10);
   });
 });

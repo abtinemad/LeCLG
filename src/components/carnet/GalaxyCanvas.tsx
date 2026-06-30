@@ -29,6 +29,8 @@ export interface GalaxyRenderOpts {
   armThread?: number;
   tiltDeg?: number;
   twistTurns?: number;
+  /** Override de la diversité [0,1] (simulateur) ; null = diversité réelle calculée. */
+  diversityOverride?: number | null;
   /** Force l'or (sur-couronne 16 prismes) — réservé au simulateur. */
   goldForced?: boolean;
 }
@@ -43,6 +45,7 @@ const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
   armThread: 1,
   tiltDeg: 55,
   twistTurns: 0.5,
+  diversityOverride: null,
   goldForced: false,
 };
 
@@ -80,6 +83,7 @@ export function GalaxyCanvas({
       armThread: render?.armThread ?? RENDER_DEFAULTS.armThread,
       tiltDeg: render?.tiltDeg ?? RENDER_DEFAULTS.tiltDeg,
       twistTurns: render?.twistTurns ?? RENDER_DEFAULTS.twistTurns,
+      diversityOverride: render?.diversityOverride ?? null,
       goldForced: render?.goldForced ?? RENDER_DEFAULTS.goldForced,
     };
   }, [render]);
@@ -90,7 +94,7 @@ export function GalaxyCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const { core, points, radiance, prismsUnlocked } = personalConstellation(cards, Date.now(), opts);
+    const { core, points, radiance, prismsUnlocked, diversity } = personalConstellation(cards, Date.now(), opts);
     const [cr, cg, cb] = hexToRgb(core.color);
     const span01 = 1 - CONSTELLATION_R0;
 
@@ -142,6 +146,7 @@ export function GalaxyCanvas({
       rp: Required<GalaxyRenderOpts>,
       flatten: number,
       sinTilt: number,
+      twistTurnsEff: number,
     ): P => {
       const rPxFinal = innerPx + (Rpx - innerPx) * rNorm;
       const localDur = 0.45 + rNorm * 0.55;
@@ -149,7 +154,7 @@ export function GalaxyCanvas({
       const ease = 1 - Math.pow(1 - pp, 3);
       const rPx = rPxFinal * ease;
       const spiral = rp.spiralTurns * (1 - pp) * Math.PI * 2;
-      const twist = rNorm * rp.twistTurns * Math.PI * 2;
+      const twist = rNorm * twistTurnsEff * Math.PI * 2;
       const theta = thetaBase + twist + spiral + rot;
       const xp = rPx * Math.cos(theta);
       const yp = rPx * Math.sin(theta);
@@ -187,8 +192,11 @@ export function GalaxyCanvas({
       const sinTilt = Math.sin(tilt);
       const goldOn = prismsUnlocked >= PRISME_TOTAL || rp.goldForced;
 
+      // Torsion pilotée par la diversité (intégration des domaines), plafonnée par twistTurns.
+      const effDiversity = rp.diversityOverride !== null ? rp.diversityOverride : diversity;
+      const twistTurnsEff = rp.twistTurns * effDiversity;
       const pos = points.map((p) =>
-        computeP((p.r - CONSTELLATION_R0) / span01, p.theta, innerPx, deployG, rot, rp, flatten, sinTilt),
+        computeP((p.r - CONSTELLATION_R0) / span01, p.theta, innerPx, deployG, rot, rp, flatten, sinTilt, twistTurnsEff),
       );
 
       if (rp.armThread > 0) {

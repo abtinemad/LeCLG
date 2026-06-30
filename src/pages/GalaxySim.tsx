@@ -61,6 +61,7 @@ export default function GalaxySim() {
   const [tiltDeg, setTiltDeg] = useState(55);
   const [twistPct, setTwistPct] = useState(50); // /100 → tours de torsion
   const [goldForced, setGoldForced] = useState(false);
+  const [divPct, setDivPct] = useState(100); // diversité simulée → module la torsion
 
   const count = Math.max(1, Math.round(months * WEEKS_PER_MONTH * freqPerWeek));
   const spanYears = months / 12;
@@ -85,8 +86,9 @@ export default function GalaxySim() {
       tiltDeg,
       twistTurns: twistPct / 100,
       goldForced,
+      diversityOverride: divPct / 100,
     }),
-    [pointAlphaPct, pointGlow, edgeBlur, coreScale, rotationS, spiralPct, armThreadPct, tiltDeg, twistPct, goldForced],
+    [pointAlphaPct, pointGlow, edgeBlur, coreScale, rotationS, spiralPct, armThreadPct, tiltDeg, twistPct, goldForced, divPct],
   );
 
   if (!allowed) return <Navigate to="/" replace />;
@@ -114,6 +116,7 @@ export default function GalaxySim() {
         <Slider label={`Fils sphères : ${armThreadPct}%`} min={0} max={100} value={armThreadPct} onChange={setArmThreadPct} />
         <Slider label={`Inclinaison : ${tiltDeg}°`} min={0} max={75} value={tiltDeg} onChange={setTiltDeg} />
         <Slider label={`Torsion bras : ${twistPct}%`} min={0} max={300} value={twistPct} onChange={setTwistPct} />
+        <Slider label={`Diversité simulée : ${divPct}%`} min={0} max={100} value={divPct} onChange={setDivPct} />
         <button
           onClick={() => setGoldForced((v) => !v)}
           className={`mt-1 py-2 px-4 self-start border rounded-md text-[10px] uppercase tracking-[0.2em] transition-colors ${

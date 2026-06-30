@@ -163,6 +163,8 @@ export interface PersonalConstellation {
   radiance: number;
   /** Prismes canoniques distincts découverts (0..16). 16 → état terminal (or). */
   prismsUnlocked: number;
+  /** Diversité ∈ [0,1] : équilibre entre les 4 sphères. Pilote la torsion des bras. */
+  diversity: number;
 }
 
 /** Réglages injectables (simulateur). Défauts = les molettes calées en Phase 1. */
@@ -182,6 +184,29 @@ export const CONSTELLATION_DEFAULTS = {
   radianceConcavity: RADIANCE_CONCAVITY,
 } as const;
 
+/** Diversité ∈ [0,1] : entropie de Shannon normalisée de la répartition des
+ *  cartes sur les 4 sphères. 0 = tout dans une seule (cloisonné) ; 1 = les 4
+ *  équilibrées (intégré, « holistique »). Étoiles de fond exclues. Pilote la
+ *  torsion des bras — l'intégration des domaines, non le volume. */
+export function constellationDiversity(cards: ConstellationCard[]): number {
+  const list = Array.isArray(cards) ? cards : [];
+  const counts = new Map<string, number>();
+  for (const c of list) {
+    const k = norm(normalizeSphere(c.sphere || undefined));
+    if (!(k in SPHERE_ANGLE)) continue; // étoile de fond : pas un domaine
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  let total = 0;
+  for (const v of counts.values()) total += v;
+  if (total === 0) return 0;
+  let h = 0;
+  for (const v of counts.values()) {
+    const p = v / total;
+    h -= p * Math.log(p);
+  }
+  return h / Math.log(Object.keys(SPHERE_ANGLE).length); // normalisé par log(4)
+}
+
 /**
  * @param now  horloge injectable (tests). Par défaut l'instant courant : l'âge
  *             des cartes croît dans le temps → la galaxie vieillit / dérive.
@@ -199,6 +224,7 @@ export function personalConstellation(
   const core = personalSignature(list);
   const radiance = constellationRadiance(list, opts?.radianceConcavity);
   const prismsUnlocked = constellationPrismes(list);
+  const diversity = constellationDiversity(list);
 
   const points: ConstellationPoint[] = list.map((card, i) => {
     const seedBase = String(card.id || card.date || i);
@@ -230,5 +256,5 @@ export function personalConstellation(
     };
   });
 
-  return { core, points, radiance, prismsUnlocked };
+  return { core, points, radiance, prismsUnlocked, diversity };
 }
