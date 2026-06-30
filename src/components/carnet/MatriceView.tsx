@@ -17,6 +17,7 @@ import type { ReflectionCard } from "../../data/emotions";
 import CollegueMark from "../CollegueMark";
 import { LueurVisual } from "../LueurVisual";
 import { LockedSection, LockedBlock, AnalysisError } from "./CarnetPrimitives";
+import { GalaxyEntry } from "./GalaxyEntry";
 
 interface MatriceViewProps {
   matriceDataAnalysis: any;
@@ -279,11 +280,13 @@ export function MatriceView({
             </div>
           )}
 
-          {/* Visualiser Matrice Button */}
+          {/* Galaxie personnelle — entrée vers la vue contemplative du parcours
+              (comète-signature au centre + constellation des sphères traversées).
+              Remplace le stub mort « Visualiser Matrice Button ». Renderer canvas
+              ISOLÉ : le serpentin du Chat ne bouge pas. Modale non capturée par le
+              harness (jamais ouverte en test) → seul ce bouton diffère sur view-matrice. */}
           <div className="pt-20 text-center">
-            <p className="font-mono text-[7px] text-beige/20 uppercase tracking-widest italic mb-4">
-              Structure cristallisée · Prête pour l'Eclat
-            </p>
+            <GalaxyEntry cards={cards} />
           </div>
 
           <div className="mt-12 bg-white/[0.02] border border-[#FCFBF4]/40 shadow-[0_0_15px_rgba(252,251,244,0.15)] p-6 md:p-8 rounded-lg space-y-12">
