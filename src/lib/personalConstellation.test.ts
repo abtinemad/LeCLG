@@ -119,4 +119,15 @@ describe("personalConstellation", () => {
       binge.push(card({ id: `b${i}`, date: "2026-06-01T00:00:00.000Z" }));
     expect(constellationRadiance(binge)).toBeLessThan(0.3);
   });
+
+  it("arm : sphère connue → arm = azimut ; inconnue → null (field)", () => {
+    const c = personalConstellation([
+      card({ id: "s", sphere: "sociale" }),
+      card({ id: "f" }),
+    ]);
+    expect(c.points[0].arm).toBeCloseTo(Math.PI / 2, 10);
+    expect(c.points[0].isField).toBe(false);
+    expect(c.points[1].arm).toBeNull();
+    expect(c.points[1].isField).toBe(true);
+  });
 });

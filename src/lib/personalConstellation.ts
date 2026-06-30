@@ -138,6 +138,7 @@ export interface ConstellationPoint {
   size: number;     // 0..1 (récence) — le renderer mappe en pixels
   alpha: number;    // 0..1
   isField: boolean; // true = étoile de fond (sphère inconnue)
+  arm: number | null; // azimut de la sphère (radians) ; null = étoile de fond
 }
 
 export interface PersonalConstellation {
@@ -187,11 +188,19 @@ export function personalConstellation(
     const rec = recencyFor(age, tau);
     const sphereKey = norm(normalizeSphere(card.sphere || undefined));
     const base = SPHERE_ANGLE[sphereKey]; // number | undefined
-    const disp = hash01(seedBase + "t");
+    const disp = hash01(seedBase + "t"); // uniforme — étoiles de fond sur 360°
+    // Dispersion piquée au centre du bras (≈ gaussienne bornée, moyenne de 3
+    // tirages) : le bras a un CŒUR dense et s'estompe — il se lit comme un bras,
+    // pas comme un secteur uniforme.
+    const dispArm =
+      (hash01(seedBase + "a1") +
+        hash01(seedBase + "a2") +
+        hash01(seedBase + "a3")) /
+      3;
     const theta =
       base === undefined
         ? disp * 2 * Math.PI
-        : ANGLE_OFFSET + base + (disp * 2 - 1) * sigma;
+        : ANGLE_OFFSET + base + (dispArm * 2 - 1) * sigma;
     return {
       r: radiusFor(age, tau),
       theta,
@@ -199,6 +208,7 @@ export function personalConstellation(
       size: RECENCY_MIN_SIZE + (1 - RECENCY_MIN_SIZE) * rec,
       alpha: RECENCY_MIN_ALPHA + (1 - RECENCY_MIN_ALPHA) * rec,
       isField: base === undefined,
+      arm: base === undefined ? null : base,
     };
   });
 

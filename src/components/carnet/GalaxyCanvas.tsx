@@ -18,18 +18,14 @@ const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 /** Réglages de rendu (lumière + mouvement), distincts de la géométrie (σ/τ). */
 export interface GalaxyRenderOpts {
-  /** Multiplicateur d'éclat par point (1 = tel quel). */
   pointAlpha?: number;
-  /** Rayon de halo par point en px, au centre (net). */
   pointGlow?: number;
-  /** Facteur de flou au bord : glow = pointGlow·(0.3 + rNorm·edgeBlur)·(0.6+size). */
   edgeBlur?: number;
-  /** Plafond de rayonnement : px ajoutés au rayon du noyau à radiance=1. */
   coreScale?: number;
-  /** Période d'un tour complet du disque, en secondes (rotation rigide). 0 = figé. */
   rotationPeriodS?: number;
-  /** Tours de spirale à la naissance (déploiement). 0 = trajet droit. */
   spiralTurns?: number;
+  /** Opacité des fils reliant les points d'une même sphère (0 = aucun fil). */
+  armThread?: number;
 }
 
 const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
@@ -39,19 +35,18 @@ const RENDER_DEFAULTS: Required<GalaxyRenderOpts> = {
   coreScale: 22,
   rotationPeriodS: 120,
   spiralTurns: 1,
+  armThread: 1,
 };
 
 const DEPLOY_MS = 2500; // durée de la naissance (déploiement des astéroïdes)
 
-// Renderer canvas 2D ANIMÉ. Au montage, les astéroïdes JAILLISSENT du centre en
-// spirale (ils s'éloignent en tournant) puis se posent à leur rayon d'âge : le
-// centre se peuple d'abord, le bord se complète en dernier. Ensuite, rotation
-// RIGIDE lente du disque entier (angles relatifs préservés → les 4 sphères
-// restent à leur quartier ; pas de winding problem). Lumière par densité additive
-// (halo doux par point, flou croissant vers le bord). Noyau = source vivante
-// (couleur = dominante, taille/intensité = radiance/XP). Respecte
-// prefers-reduced-motion (→ rendu statique). La Phase 2b (profondeur, torsion,
-// traînées) viendra ici.
+// Renderer canvas 2D ANIMÉ. Naissance spiralée depuis le centre puis rotation
+// RIGIDE lente. Les 4 SPHÈRES sont rendues lisibles par CONNEXITÉ : un fil ténu
+// relie, dans chaque sphère, les points triés par rayon (le fil du temps,
+// centre→bord) → 4 gerbes distinctes, malgré la couleur (émotion) qui varie dans
+// chaque bras. Lumière par densité additive ; noyau = source vivante (couleur =
+// dominante, taille/intensité = radiance/XP). Respecte prefers-reduced-motion.
+// Phase 2b (profondeur, torsion, traînées) viendra ici.
 export function GalaxyCanvas({
   cards,
   opts,
@@ -66,8 +61,6 @@ export function GalaxyCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const renderRef = useRef<Required<GalaxyRenderOpts>>(RENDER_DEFAULTS);
 
-  // Params lumière/mouvement : mis à jour SANS redémarrer la boucle (donc bouger
-  // un curseur de lumière ou de vitesse ne re-déclenche pas la naissance).
   useEffect(() => {
     renderRef.current = {
       pointAlpha: render?.pointAlpha ?? RENDER_DEFAULTS.pointAlpha,
@@ -76,11 +69,10 @@ export function GalaxyCanvas({
       coreScale: render?.coreScale ?? RENDER_DEFAULTS.coreScale,
       rotationPeriodS: render?.rotationPeriodS ?? RENDER_DEFAULTS.rotationPeriodS,
       spiralTurns: render?.spiralTurns ?? RENDER_DEFAULTS.spiralTurns,
+      armThread: render?.armThread ?? RENDER_DEFAULTS.armThread,
     };
   }, [render]);
 
-  // Constellation + boucle d'animation. Re-naît seulement si cards/opts changent
-  // (ou via remontage `key` côté simulateur — bouton « rejouer la naissance »).
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -90,6 +82,17 @@ export function GalaxyCanvas({
     const { core, points, radiance } = personalConstellation(cards, Date.now(), opts);
     const [cr, cg, cb] = hexToRgb(core.color);
     const span01 = 1 - CONSTELLATION_R0;
+
+    // Groupement par sphère, trié par rayon — STATIQUE (arm et r fixes) : calculé
+    // une fois, pas par frame. Sert à tracer les fils de connexité.
+    const arms = new Map<number, number[]>();
+    points.forEach((p, idx) => {
+      if (p.arm === null) return;
+      const arr = arms.get(p.arm);
+      if (arr) arr.push(idx);
+      else arms.set(p.arm, [idx]);
+    });
+    for (const arr of arms.values()) arr.sort((a, b) => points[a].r - points[b].r);
 
     const reduce =
       typeof window !== "undefined" &&
@@ -110,6 +113,25 @@ export function GalaxyCanvas({
     };
     setup();
 
+    // Position animée d'un point (naissance spiralée + rotation rigide).
+    const posOf = (
+      rNorm: number,
+      thetaBase: number,
+      innerPx: number,
+      deployG: number,
+      rot: number,
+      spiralTurns: number,
+    ): [number, number, number] => {
+      const rPxFinal = innerPx + (Rpx - innerPx) * rNorm;
+      const localDur = 0.45 + rNorm * 0.55;
+      const pp = clamp01(deployG / localDur);
+      const ease = 1 - Math.pow(1 - pp, 3);
+      const rPx = rPxFinal * ease;
+      const spiral = spiralTurns * (1 - pp) * Math.PI * 2;
+      const theta = thetaBase + spiral + rot;
+      return [cx + rPx * Math.cos(theta), cy + rPx * Math.sin(theta), pp];
+    };
+
     const frame = (elapsed: number) => {
       const rp = renderRef.current;
       ctx.clearRect(0, 0, cssW, cssH);
@@ -117,31 +139,42 @@ export function GalaxyCanvas({
       const coreR = 4 + radiance * rp.coreScale;
       const haloR = coreR * 3.5;
       const innerPx = Math.max(CONSTELLATION_R0 * Rpx, haloR + 6);
-
-      // Progression globale de la naissance [0,1]. reduce → posé d'emblée.
       const deployG = reduce ? 1 : clamp01(elapsed / DEPLOY_MS);
-      // Rotation rigide (rad). reduce ou période nulle → pas de rotation.
       const rot =
         reduce || rp.rotationPeriodS <= 0
           ? 0
           : (elapsed / (rp.rotationPeriodS * 1000)) * Math.PI * 2;
 
+      // Fils de connexité par sphère — tracés EN DESSOUS des points. Ténus : la
+      // connexité regroupe sans rivaliser avec la couleur des points (émotion).
+      if (rp.armThread > 0) {
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = `rgba(190,200,220,${(0.12 * rp.armThread).toFixed(3)})`;
+        for (const idxs of arms.values()) {
+          ctx.beginPath();
+          let started = false;
+          for (const idx of idxs) {
+            const p = points[idx];
+            const rNorm = (p.r - CONSTELLATION_R0) / span01;
+            const [x, y, pp] = posOf(rNorm, p.theta, innerPx, deployG, rot, rp.spiralTurns);
+            if (pp <= 0) continue; // pas encore né
+            if (!started) {
+              ctx.moveTo(x, y);
+              started = true;
+            } else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+      }
+
+      // Astéroïdes — additif, halo croissant vers le bord.
       ctx.globalCompositeOperation = "lighter";
       for (const p of points) {
-        const rNorm = (p.r - CONSTELLATION_R0) / span01; // nature du point (âge)
-        const rPxFinal = innerPx + (Rpx - innerPx) * rNorm;
-        // Même départ (centre), vitesse dégradée par la distance → le bord arrive
-        // en dernier. ease-out : jaillit vite puis se pose.
-        const localDur = 0.45 + rNorm * 0.55;
-        const pp = clamp01(deployG / localDur);
+        const rNorm = (p.r - CONSTELLATION_R0) / span01;
+        const [x, y, pp] = posOf(rNorm, p.theta, innerPx, deployG, rot, rp.spiralTurns);
         const ease = 1 - Math.pow(1 - pp, 3);
-        const rPx = rPxFinal * ease;
-        const spiral = rp.spiralTurns * (1 - pp) * Math.PI * 2; // se résorbe à l'arrivée
-        const theta = p.theta + spiral + rot;
-        const x = cx + rPx * Math.cos(theta);
-        const y = cy + rPx * Math.sin(theta);
         const [r, g, b] = hexToRgb(p.color);
-        const a = p.alpha * rp.pointAlpha * ease; // fade-in pendant la naissance
+        const a = p.alpha * rp.pointAlpha * ease;
         const glowR = rp.pointGlow * (0.3 + rNorm * rp.edgeBlur) * (0.6 + p.size);
         const halo = ctx.createRadialGradient(x, y, 0, x, y, glowR);
         halo.addColorStop(0, `rgba(${r},${g},${b},${a})`);
@@ -183,17 +216,17 @@ export function GalaxyCanvas({
         frame(elapsed);
         staticDrawn = false;
       } else if (!staticDrawn) {
-        frame(elapsed); // une dernière frame à l'état posé
+        frame(elapsed);
         staticDrawn = true;
       }
-      if (reduce) return; // statique : une frame puis stop (le resize redessine)
+      if (reduce) return;
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
 
     const ro = new ResizeObserver(() => {
       setup();
-      staticDrawn = false; // force un redraw
+      staticDrawn = false;
       if (reduce) frame(DEPLOY_MS);
     });
     ro.observe(canvas);
