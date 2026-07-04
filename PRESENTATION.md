@@ -24,6 +24,8 @@ Un dialogue structuré en 5 étapes non-intrusives :
 - **Diffraction** : Exploration des regards extérieurs.
 - **Équilibre** : Identification d'une direction ou d'un apaisement.
 
+On écrit, ou l'on **parle** : chaque étape accepte la **dictée vocale** — l'audio est transcrit à la volée (Gemini), jamais conservé, et le texte revient dans le champ de saisie. Une porte d'entrée pour ceux à qui la parole vient avant l'écrit.
+
 ### La voix du collègue
 Le collègue a une **voix** qu'on peut solliciter à tout moment : non pas pour donner des réponses, mais pour apporter des **éclairages** qui aident à rendre sa propre pensée plus claire.
 
@@ -32,7 +34,7 @@ Ces éclairages prennent la forme d'une **boîte de clarté** : un glossaire **c
 Chaque concept se lit à **deux niveaux** : une **formule courte** (le sens en une ligne) puis une **définition** plus complète. La boîte couvre tout le vocabulaire du produit — *Le Collègue, la conversation, le Fragment, le Déplacement, la Direction, les Prismes, les Sphères, le Carnet et ses couches (Lien, Affect, Élan, Matrice), les Songes, les Lueurs, l'Éclat, la Texture relationnelle* — chacun défini une seule fois, de façon canonique.
 
 ### Le Carnet
-Le Carnet est le **miroir individuel** : ce que la personne dépose, garde et relit. Chaque session s'y clôt par une **Carte de Réflexion** qui condense le trajet — le **Fragment** déposé, la **Sphère de vie** concernée et l'**émotion dominante** (son Prisme). Chaque carte s'accompagne d'une **Texture Relationnelle** : une image abstraite unique qui rend l'ambiance de la session.
+Le Carnet est le **miroir individuel** : ce que la personne dépose, garde et relit. Chaque session s'y clôt par une **Carte de Réflexion** qui condense le trajet — le **Fragment** déposé, la **Sphère de vie** concernée et l'**émotion dominante** (son Prisme). Chaque carte s'accompagne d'une **Texture Relationnelle** : une image en niveaux de gris, accordée à chaque fragment, qui rend l'ambiance de la session.
 
 Le Carnet ne s'empile pas comme une liste : il s'explore par **plusieurs lentilles**, chacune un angle de lecture différent sur le même matériau (ces analyses sont générées par l'IA — voir la partie technique). Le Climat communautaire reprend d'ailleurs leurs couleurs.
 
@@ -91,7 +93,7 @@ Là où le Climat est la résonance de **toute** la communauté, l'**Épicentre*
 - **Backend** : un **proxy Express** (`server.ts`) et un **Cloudflare Worker** (`worker.js`) qui porte le dialogue du collègue et l'évaluation des étapes ; le tout hébergé sur **Google Cloud Run**.
 - **IA** : architecture hybride — **Claude (Anthropic)** pour le dialogue du collègue et l'évaluation des cinq étapes ; un modèle **Gemini (Google)** pour les analyses du Carnet/Matrice, les cartes de réflexion et la génération de contenu poétique.
 - **Persistance** : LocalStorage pour l'état immédiat de session ; **Supabase** pour le Carnet (cartes extraites, analyses, prismes), avec chiffrement **AES-256-GCM** au repos. Le code à 6 chiffres étant obligatoire dès l'onboarding, le Carnet est rattaché à une clé dès la première session et la continuité multi-appareils est native (transfert par **QR code**). Les conversations elles-mêmes ne sont jamais persistées (garantie au niveau base : la colonne `messages` de `sessions` est contrainte à rester vide) — seule la structure extraite est stockée.
-- **Qualité** : tests automatisés (Vitest) sur les fonctions de sécurité, intégration continue via GitHub Actions.
+- **Qualité** : tests **Vitest** sur la logique pure (agrégation du climat, constellation personnelle, signature, simulation de la galaxie — 34 cas) et deux harnais **Playwright** (régression visuelle des écrans + harnais comportemental du moteur). Les mécanismes de sécurité sont appliqués et vérifiables côté serveur (`server.ts`) ; leur isolation en tests unitaires est un chantier ouvert.
 
 ### Schéma de Données : La Matrice
 La Matrice est le cœur métacognitif de l'app. Elle synthétise le trajet long :
