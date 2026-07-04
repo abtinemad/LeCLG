@@ -129,7 +129,7 @@ export function EclatModal({
             {/* Don — discret, secondaire, sous l'action principale */}
             <div className="flex justify-center">
               <PaymentWrapper
-                paypalUrl="https://www.paypal.com/donate/?business=REDACTED&item_name=Eclat+du+Coll%C3%A8gue&currency_code=EUR"
+                paypalUrl="https://paypal.me/AbtineM"
                 title="Soutien"
                 color="text-evolution"
                 className="group inline-flex"
